@@ -1,0 +1,140 @@
+import { auth, db } from "@/lib/firebase-admin";
+import { NextRequest, NextResponse } from "next/server";
+
+const META_API_VERSION = "v18.0";
+const META_ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
+
+/**
+ * Helper to fetch with simple retry/backoff
+ */
+async function fetchWithRetry(url: string, options: RequestInit = {}, retries = 3, backoff = 1000) {
+    for (let i = 0; i < retries; i++) {
+        try {
+            const response = await fetch(url, options);
+            if (response.ok) return response.json();
+
+            const errorData = await response.json();
+            console.error(`Meta API Error (Attempt ${i + 1}):`, errorData);
+
+            // If rate limited, wait longer
+            if (response.status === 429) {
+                await new Promise(resolve => setTimeout(resolve, backoff * 2 * (i + 1)));
+                continue;
+            }
+
+            if (i === retries - 1) throw new Error(JSON.stringify(errorData));
+        } catch (error) {
+            if (i === retries - 1) throw error;
+            await new Promise(resolve => setTimeout(resolve, backoff * (i + 1)));
+        }
+    }
+}
+
+export async function POST(request: NextRequest) {
+    try {
+        const { searchParams } = new URL(request.url);
+        const accountId = searchParams.get("accountId");
+        const range = searchParams.get("range") || "last_14d";
+
+        if (!accountId) {
+            return NextResponse.json({ error: "Missing accountId" }, { status: 400 });
+        }
+
+        if (!META_ACCESS_TOKEN) {
+            return NextResponse.json({ error: "Meta API Token not configured" }, { status: 500 });
+        }
+
+        // 1. Auth check
+        const sessionCookie = request.cookies.get("session")?.value;
+        if (!sessionCookie) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        const decodedToken = await auth.verifySessionCookie(sessionCookie);
+        const uid = decodedToken.uid;
+
+        // 2. Load account info from Firestore
+        const accountDoc = await db.collection("accounts").doc(accountId).get();
+        if (!accountDoc.exists) return NextResponse.json({ error: "Account not found" }, { status: 404 });
+        const accountData = accountDoc.data();
+        if (accountData?.ownerUid !== uid) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+        const metaAdAccountId = accountData.metaAdAccountId;
+        const cleanAdAccountId = metaAdAccountId.startsWith("act_") ? metaAdAccountId : `act_${metaAdAccountId}`;
+
+        // 3. Record start of sync
+        const syncRunRef = await db.collection("sync_runs").add({
+            accountId,
+            status: "running",
+            range,
+            startedAt: new Date().toISOString(),
+            campaignsProcessed: 0
+        });
+
+        console.log(`Starting sync for account ${accountId} (Meta ID: ${cleanAdAccountId}). Range: ${range}`);
+
+        // 4. Call Meta Insights API
+        // fields: spend, impressions, clicks, actions, action_values
+        const fields = "campaign_id,campaign_name,spend,impressions,clicks,actions,action_values";
+        const insightsUrl = `https://graph.facebook.com/${META_API_VERSION}/${cleanAdAccountId}/insights?level=campaign&time_increment=1&date_preset=${range}&fields=${fields}&access_token=${META_ACCESS_TOKEN}`;
+
+        const insightsData = await fetchWithRetry(insightsUrl);
+        const rawInsights = insightsData.data || [];
+
+        // 5. Normalize and Upsert
+        const batch = db.batch();
+        let processedCount = 0;
+
+        for (const item of rawInsights) {
+            const date = item.date_start;
+            const campaignId = item.campaign_id;
+            const campaignName = item.campaign_name;
+            const docId = `${accountId}_${campaignId}_${date}`;
+
+            // Extract purchases and values
+            const purchases = Number(item.actions?.find((a: any) => a.action_type === "purchase")?.value || 0);
+            const purchaseValue = Number(item.action_values?.find((a: any) => a.action_type === "purchase")?.value || 0);
+            const spend = Number(item.spend || 0);
+            const clicks = Number(item.clicks || 0);
+            const impressions = Number(item.impressions || 0);
+
+            // Calculate derived metrics
+            const insightDoc = {
+                accountId,
+                campaignId,
+                campaignName,
+                date,
+                spend,
+                impressions,
+                clicks,
+                purchases,
+                purchaseValue,
+                ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+                cpc: clicks > 0 ? spend / clicks : 0,
+                roas: spend > 0 ? purchaseValue / spend : 0,
+                cpa: purchases > 0 ? spend / purchases : 0,
+                updatedAt: new Date().toISOString()
+            };
+
+            const docRef = db.collection("insights_daily").doc(docId);
+            batch.set(docRef, insightDoc, { merge: true });
+            processedCount++;
+        }
+
+        await batch.commit();
+
+        // 6. Complete sync run
+        await syncRunRef.update({
+            status: "completed",
+            completedAt: new Date().toISOString(),
+            campaignsProcessed: processedCount
+        });
+
+        return NextResponse.json({
+            success: true,
+            syncRunId: syncRunRef.id,
+            campaignsProcessed: processedCount
+        });
+
+    } catch (error: any) {
+        console.error("Sync Error:", error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+}
