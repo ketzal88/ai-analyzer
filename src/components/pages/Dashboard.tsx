@@ -8,12 +8,14 @@ interface DashboardProps {
     report?: DiagnosticReport;
     isLoading?: boolean;
     error?: string | null;
+    onRefresh?: () => void;
 }
 
 export default function Dashboard({
     report,
     isLoading = false,
-    error = null
+    error = null,
+    onRefresh
 }: DashboardProps) {
     const [mounted, setMounted] = React.useState(false);
 
@@ -55,11 +57,25 @@ export default function Dashboard({
     return (
         <AppLayout>
             <div className="space-y-8">
-                <div>
-                    <h1 className="text-hero text-text-primary mb-2">Panel de Auditoría</h1>
-                    <p className="text-body text-text-secondary">
-                        Reporte generado el {mounted ? new Date(report.generatedAt).toLocaleString('es-ES') : "..."}
-                    </p>
+                <div className="flex justify-between items-start">
+                    <div>
+                        <h1 className="text-hero text-text-primary mb-2">Panel de Auditoría</h1>
+                        <p className="text-body text-text-secondary">
+                            Reporte generado el {mounted ? new Date(report.generatedAt).toLocaleString('es-ES') : "..."}
+                        </p>
+                    </div>
+                    {onRefresh && (
+                        <button
+                            onClick={onRefresh}
+                            className="btn-secondary flex items-center gap-2 text-small py-2 px-4 shadow-sm hover:shadow-md transition-all active:scale-95"
+                            title="Actualizar datos"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            Refrescar
+                        </button>
+                    )}
                 </div>
 
                 {/* KPI Cards */}

@@ -2,45 +2,57 @@
 
 import React, { useEffect, useState } from "react";
 import { useClient } from "@/contexts/ClientContext";
+import { useReport } from "@/contexts/ReportContext";
 import Dashboard from "@/components/pages/Dashboard";
 import { DiagnosticReport } from "@/types";
 
 export default function DashboardPage() {
     const { selectedClientId: clientId } = useClient();
+    const { getReport, setReport } = useReport();
 
-    const [report, setReport] = useState<DiagnosticReport | null>(null);
+    const [report, setReportInState] = useState<DiagnosticReport | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const fetchDashboardData = async () => {
+    const fetchDashboardData = async (forceRefresh = false) => {
         if (!clientId) {
-            setError("No client selected. Please return to the selector.");
+            setError("No hay cliente seleccionado. Por favor, regresa al selector.");
             setIsLoading(false);
             return;
         }
 
+        // Check cache first if not forcing refresh
+        if (!forceRefresh) {
+            const cachedReport = getReport(clientId);
+            if (cachedReport) {
+                setReportInState(cachedReport);
+                setIsLoading(false);
+                return;
+            }
+        }
+
         try {
             setIsLoading(true);
+            setError(null);
 
             // 1. Sync data first
             const syncRes = await fetch(`/api/sync?clientId=${clientId}`, { method: "POST" });
             if (!syncRes.ok) {
                 const data = await syncRes.json();
-                throw new Error(data.error || "Failed to sync data");
+                throw new Error(data.error || "Error al sincronizar datos");
             }
 
             // 2. Generate findings
             const findingsRes = await fetch(`/api/findings?clientId=${clientId}`, { method: "POST" });
-            if (!findingsRes.ok) throw new Error("Failed to generate findings");
+            if (!findingsRes.ok) throw new Error("Error al generar hallazgos");
             const findingsData = await findingsRes.json();
 
             // 3. Generate/Fetch LLM Report
             const reportRes = await fetch(`/api/report?clientId=${clientId}`, { method: "POST" });
-            if (!reportRes.ok) throw new Error("Failed to generate report");
+            if (!reportRes.ok) throw new Error("Error al generar reporte");
             const reportData = await reportRes.json();
 
             // 4. Construct UI report object
-            // Note: In a real app, findings might include more metadata than the brief summary from LLM report
             const finalReport: DiagnosticReport = {
                 id: reportData.id || "latest",
                 clientId: clientId,
@@ -54,7 +66,8 @@ export default function DashboardPage() {
                 campaignPerformance: []
             };
 
-            setReport(finalReport);
+            setReportInState(finalReport);
+            setReport(clientId, finalReport); // Save to global cache
         } catch (err: any) {
             setError(err.message);
         } finally {
@@ -66,5 +79,10 @@ export default function DashboardPage() {
         if (clientId) fetchDashboardData();
     }, [clientId]);
 
-    return <Dashboard report={report || undefined} isLoading={isLoading} error={error} />;
+    return <Dashboard
+        report={report || undefined}
+        isLoading={isLoading}
+        error={error}
+        onRefresh={() => fetchDashboardData(true)}
+    />;
 }
