@@ -23,6 +23,11 @@ export async function POST(request: NextRequest) {
         const clientData = clientDoc.data()!;
         if (!clientData.active) return NextResponse.json({ error: "Client is inactive" }, { status: 403 });
 
+        const isMockClient =
+            clientData.metaAdAccountId === "act_123456789" ||
+            clientData.name?.toLowerCase().includes("mock") ||
+            clientData.slug?.toLowerCase().includes("mock");
+
         // 3. Fetch insights from Firestore
         const insightsSnapshot = await db.collection("insights_daily")
             .where("clientId", "==", clientId)
@@ -86,8 +91,8 @@ export async function POST(request: NextRequest) {
                 findings.push({
                     clientId,
                     type: "CPA_SPIKE",
-                    title: "Critical Cost-Per-Acquisition Spike",
-                    description: `Account CPA has increased by ${Math.round(delta * 100)}% compared to the previous week. Conversion cost efficiency is dropping significantly.`,
+                    title: "Pico Crítico en el Costo por Adquisición (CPA)",
+                    description: `El CPA de la cuenta ha aumentado un ${Math.round(delta * 100)}% en comparación con la semana anterior. La eficiencia del costo de conversión está cayendo significativamente.`,
                     severity: "CRITICAL",
                     status: "ATTENTION",
                     entities: [],
@@ -105,8 +110,8 @@ export async function POST(request: NextRequest) {
                 findings.push({
                     clientId,
                     type: "ROAS_DROP",
-                    title: "Revenue Efficiency Decline",
-                    description: `ROAS has dropped by ${Math.abs(Math.round(delta * 100))}% WoW. Your return on ad spend is deteriorating.`,
+                    title: "Caída en la Eficiencia de Ingresos",
+                    description: `El ROAS ha caído un ${Math.abs(Math.round(delta * 100))}% WoW. El retorno de tu inversión publicitaria se está deteriorando.`,
                     severity: "CRITICAL",
                     status: "ATTENTION",
                     entities: [],
@@ -125,8 +130,8 @@ export async function POST(request: NextRequest) {
                 findings.push({
                     clientId,
                     type: "CVR_DROP",
-                    title: "Post-Click Conversion Drop",
-                    description: `Traffic quality/intent seems stable (CTR stable), but Conversion Rate fell by ${Math.abs(Math.round(cvrDelta * 100))}%. Investigate landing page or offer changes.`,
+                    title: "Caída de Conversión Post-Clic",
+                    description: `La calidad o intención del tráfico parece estable (CTR estable), pero la Tasa de Conversión (CVR) cayó un ${Math.abs(Math.round(cvrDelta * 100))}%. Investiga cambios en la página de destino o en la oferta.`,
                     severity: "WARNING",
                     status: "ATTENTION",
                     entities: [],
@@ -144,8 +149,8 @@ export async function POST(request: NextRequest) {
                 findings.push({
                     clientId,
                     type: "CTR_DROP",
-                    title: "Ad Relevancy Decay",
-                    description: `Click-Through Rate dropped by ${Math.abs(Math.round(delta * 100))}%. This usually indicates creative fatigue or audience mismatch.`,
+                    title: "Decadencia de Relevancia del Anuncio",
+                    description: `El CTR (Click-Through Rate) cayó un ${Math.abs(Math.round(delta * 100))}%. Esto suele indicar fatiga creativa o desajuste con la audiencia.`,
                     severity: "WARNING",
                     status: "ATTENTION",
                     entities: [],
@@ -165,8 +170,8 @@ export async function POST(request: NextRequest) {
             findings.push({
                 clientId,
                 type: "SPEND_CONCENTRATION",
-                title: "High Budget Concentration",
-                description: `Top ${top20Count} campaigns account for over 80% of total spend. Your account performance depends heavily on very few entities.`,
+                title: "Alta Concentración de Presupuesto",
+                description: `Las ${top20Count} campañas principales representan más del 80% del gasto total. El rendimiento de tu cuenta depende fuertemente de muy pocas entidades.`,
                 severity: "WARNING",
                 status: "ATTENTION",
                 entities: sortedCampaigns.slice(0, top20Count).map(c => c.name),
@@ -183,8 +188,8 @@ export async function POST(request: NextRequest) {
             findings.push({
                 clientId,
                 type: "NO_CONVERSIONS_HIGH_SPEND",
-                title: "Budget Bleed Detected",
-                description: `${bleedingCampaigns.length} campaigns spent over 2x average CPA with zero conversions. Immediate action required.`,
+                title: "Detección de Fuga de Presupuesto",
+                description: `${bleedingCampaigns.length} campañas gastaron más del doble del CPA promedio con cero conversiones. Se requiere acción inmediata.`,
                 severity: "CRITICAL",
                 status: "ATTENTION",
                 entities: bleedingCampaigns.map(c => c.name),
@@ -205,8 +210,8 @@ export async function POST(request: NextRequest) {
                 findings.push({
                     clientId,
                     type: "VOLATILITY",
-                    title: "Performance Instability",
-                    description: "Daily CPA variance is extremely high (>50% coefficient of variation). The algorithm is struggling to find stable audience segments.",
+                    title: "Inestabilidad de Rendimiento",
+                    description: "La varianza diaria del CPA es extremadamente alta (>50% de coeficiente de variación). El algoritmo está teniendo dificultades para encontrar segmentos de audiencia estables.",
                     severity: "WARNING",
                     status: "ATTENTION",
                     entities: [],
@@ -227,8 +232,8 @@ export async function POST(request: NextRequest) {
             findings.push({
                 clientId,
                 type: "UNDERFUNDED_WINNERS",
-                title: "Scaling Opportunity",
-                description: `${winners.length} campaigns have CPA 20% better than average but are receiving below-average budget.`,
+                title: "Oportunidad de Escalamiento",
+                description: `${winners.length} campañas tienen un CPA un 20% mejor que el promedio pero están recibiendo un presupuesto inferior a la media.`,
                 severity: "HEALTHY",
                 status: "OPTIMAL",
                 entities: winners.map(c => c.name),

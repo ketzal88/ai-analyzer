@@ -25,7 +25,7 @@ export default function Dashboard({
         return (
             <AppLayout>
                 <div className="flex items-center justify-center min-h-[400px]">
-                    <div className="animate-pulse text-text-secondary">Analyzing account signals...</div>
+                    <div className="animate-pulse text-text-secondary">Analizando señales de la cuenta...</div>
                 </div>
             </AppLayout>
         );
@@ -35,7 +35,7 @@ export default function Dashboard({
         return (
             <AppLayout>
                 <div className="card p-8 border-red-500/20 bg-red-500/5 text-center">
-                    <h2 className="text-subheader text-red-400 mb-2">Analysis Failed</h2>
+                    <h2 className="text-subheader text-red-400 mb-2">Análisis Fallido</h2>
                     <p className="text-body text-text-secondary">{error}</p>
                 </div>
             </AppLayout>
@@ -46,7 +46,7 @@ export default function Dashboard({
         return (
             <AppLayout>
                 <div className="text-center p-12">
-                    <p className="text-text-secondary">No report data available.</p>
+                    <p className="text-text-secondary">No hay datos de reporte disponibles.</p>
                 </div>
             </AppLayout>
         );
@@ -56,9 +56,9 @@ export default function Dashboard({
         <AppLayout>
             <div className="space-y-8">
                 <div>
-                    <h1 className="text-hero text-text-primary mb-2">Audit Dashboard</h1>
+                    <h1 className="text-hero text-text-primary mb-2">Panel de Auditoría</h1>
                     <p className="text-body text-text-secondary">
-                        Report generated at {mounted ? new Date(report.generatedAt).toLocaleString() : "..."}
+                        Reporte generado el {mounted ? new Date(report.generatedAt).toLocaleString('es-ES') : "..."}
                     </p>
                 </div>
 
@@ -71,7 +71,7 @@ export default function Dashboard({
 
                 {/* Findings */}
                 <div className="space-y-4">
-                    <h2 className="text-subheader text-text-primary">Diagnostic Findings</h2>
+                    <h2 className="text-subheader text-text-primary">Hallazgos Diagnósticos</h2>
                     <div className="grid grid-cols-1 gap-4">
                         {report.findings.map(finding => (
                             <FindingCard key={finding.id} finding={finding} />
@@ -123,11 +123,11 @@ function FindingCard({ finding }: { finding: DiagnosticFinding }) {
                 </div>
                 <p className="text-body text-text-secondary">{finding.description}</p>
             </div>
-            {finding.actionLabel && (
+            {/* {finding.actionLabel && (
                 <button className="btn-secondary text-small py-2 px-4 whitespace-nowrap">
                     {finding.actionLabel}
                 </button>
-            )}
+            )} */}
         </div>
     );
 }

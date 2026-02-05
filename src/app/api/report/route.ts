@@ -5,6 +5,23 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
+// Configuration from environment variables
+const PRIMARY_MODEL = process.env.GEMINI_MODEL || "gemini-1.5-flash";
+const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || "gemini-1.5-pro";
+
+/**
+ * Detects if the error is 404 or a "model not found/supported" message
+ */
+function isModelNotFoundError(error: any): boolean {
+    const message = error?.message?.toLowerCase() || "";
+    return (
+        message.includes("404") ||
+        message.includes("not found") ||
+        message.includes("not supported") ||
+        message.includes("not eligible")
+    );
+}
+
 export async function POST(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url);
@@ -73,46 +90,67 @@ export async function POST(request: NextRequest) {
             return NextResponse.json(cachedReport.docs[0].data());
         }
 
-        // 6. Call Gemini
+        // 6. Call Gemini with Fallback Logic
         if (!process.env.GEMINI_API_KEY) {
-            return NextResponse.json({ error: "Gemini API Key not configured" }, { status: 500 });
+            return NextResponse.json({ error: "GEMINI_API_KEY_MISSING", message: "Gemini API Key not configured" }, { status: 500 });
         }
 
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-
         const prompt = `
-      You are a specialized Meta Ads growth engineer. 
-      Analyze the following diagnostic summary for the client "${summary.account.name}".
-      Platform ID: ${summary.account.metaAdAccountId}.
-      Ecommerce Mode: ${summary.account.isEcommerce ? "Enabled" : "Disabled"}.
+      Eres un ingeniero experto en crecimiento y optimización de Meta Ads. 
+      Analiza el siguiente resumen diagnóstico para el cliente "${summary.account.name}".
+      ID de Plataforma: ${summary.account.metaAdAccountId}.
+      Modo Ecommerce: ${summary.account.isEcommerce ? "Activado" : "Desactivado"}.
       
-      DATA SUMMARY:
+      RESUMEN DE DATOS:
       ${JSON.stringify(summary, null, 2)}
       
-      INSTRUCTIONS:
-      1. Provide a professional diagnosis of the current state.
-      2. Group issues by probability and impact.
-      3. Suggest specific actions for the next 72 hours.
-      4. List questions for the user to confirm technical setup.
+      INSTRUCCIONES:
+      1. Proporciona un diagnóstico profesional del estado actual en ESPAÑOL.
+      2. Agrupa los problemas por probabilidad e impacto.
+      3. Sugiere acciones específicas para las próximas 72 horas.
+      4. Enumera preguntas para que el usuario confirme la configuración técnica.
+      5. TODA LA RESPUESTA DEBE ESTAR EN ESPAÑOL.
       
-      OUTPUT FORMAT (JSON ONLY):
+      FORMATO DE SALIDA (SOLO JSON):
       {
         "analysis": {
-          "diagnosis": ["bullet 1", "bullet 2"],
+          "diagnosis": ["punto 1", "punto 2"],
           "hypotheses": [
-            { "title": "...", "probability": "low|medium|high", "reasoning": "..." }
+            { "title": "título en español", "probability": "low|medium|high", "reasoning": "razonamiento en español" }
           ],
           "actions_next_72h": [
-            { "action": "...", "priority": "critical|high|medium", "expected_impact": "..." }
+            { "action": "acción en español", "priority": "critical|high|medium", "expected_impact": "impacto esperado en español" }
           ],
-          "questions_to_confirm": ["question 1"]
+          "questions_to_confirm": ["pregunta 1"]
         }
       }
     `;
 
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
+        let result;
+        let usedModel = PRIMARY_MODEL;
+        let isFallbackUsed = false;
+
+        try {
+            const model = genAI.getGenerativeModel({ model: PRIMARY_MODEL });
+            result = await model.generateContent(prompt);
+        } catch (error: any) {
+            if (isModelNotFoundError(error)) {
+                console.warn(`Gemini fallback used: ${FALLBACK_MODEL} (Error: ${error.message})`);
+                usedModel = FALLBACK_MODEL;
+                isFallbackUsed = true;
+                const model = genAI.getGenerativeModel({ model: FALLBACK_MODEL });
+                result = await model.generateContent(prompt);
+            } else {
+                throw error;
+            }
+        }
+
+        const response = result.response;
         const text = response.text();
+
+        if (!text) {
+            throw new Error("Empty response from Gemini");
+        }
 
         // Clean potential markdown wrap
         const jsonStr = text.replace(/```json/g, "").replace(/```/g, "").trim();
@@ -123,6 +161,8 @@ export async function POST(request: NextRequest) {
             digest,
             summary,
             analysis: analysis.analysis,
+            modelUsed: usedModel,
+            fallbackUsed: isFallbackUsed,
             createdAt: new Date().toISOString()
         };
 
@@ -132,6 +172,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(fullReport);
 
     } catch (error: any) {
+        if (isModelNotFoundError(error)) {
+            console.error(`Gemini unavailable for client ${request.nextUrl.searchParams.get("clientId")}`);
+            return NextResponse.json({
+                error: "LLM_UNAVAILABLE",
+                message: "Gemini model not available"
+            }, { status: 503 });
+        }
+
         console.error("Gemini Report Error:", error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }

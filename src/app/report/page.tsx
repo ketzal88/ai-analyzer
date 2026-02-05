@@ -8,9 +8,9 @@ export default function ReportPage() {
         <AppLayout>
             <div className="space-y-6">
                 <div>
-                    <h1 className="text-display font-black text-text-primary mb-2">IA GROWTH REPORT</h1>
+                    <h1 className="text-display font-black text-text-primary mb-2">REPORTE ESTRATÉGICO IA</h1>
                     <p className="text-subheader text-text-secondary uppercase tracking-widest font-bold text-[12px]">
-                        Generative insights & strategy recommendations
+                        Insights generativos y recomendaciones estratégicas
                     </p>
                 </div>
 
@@ -21,9 +21,9 @@ export default function ReportPage() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                             </svg>
                         </div>
-                        <h3 className="text-subheader text-text-primary font-bold mb-2">IA CO-PILOT READY</h3>
+                        <h3 className="text-subheader text-text-primary font-bold mb-2">CO-PILOTO IA LISTO</h3>
                         <p className="text-body text-text-secondary max-w-sm mx-auto">
-                            Gemini AI is standing by. We need client data to generate your personalized growth strategy.
+                            Gemini AI está a la espera. Necesitamos datos del cliente para generar tu estrategia de crecimiento personalizada.
                         </p>
                     </div>
                 </div>

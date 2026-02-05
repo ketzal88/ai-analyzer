@@ -38,13 +38,13 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
                 </button>
 
                 <div className="flex items-center gap-3 border-l lg:border-none border-argent pl-6 lg:pl-0">
-                    <span className="text-small text-text-muted font-bold uppercase tracking-widest hidden md:inline">Client:</span>
+                    <span className="text-small text-text-muted font-bold uppercase tracking-widest hidden md:inline">Cliente:</span>
                     <select
                         value={selectedClientId || ""}
                         onChange={(e) => setSelectedClientId(e.target.value || null)}
                         className="bg-stellar border border-argent rounded-lg px-4 py-2 text-body font-medium text-text-primary focus:outline-none focus:border-classic transition-all cursor-pointer min-w-[200px]"
                     >
-                        <option value="">Select a client...</option>
+                        <option value="">Seleccionar cliente...</option>
                         {activeClients.map(client => (
                             <option key={client.id} value={client.id}>
                                 {client.name}
@@ -58,7 +58,7 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
             <div className="flex items-center gap-4 relative">
                 <div className="hidden sm:flex flex-col text-right">
                     <span className="text-body font-bold text-text-primary leading-tight">
-                        {user?.displayName || user?.email?.split("@")[0] || "User"}
+                        {user?.displayName || user?.email?.split("@")[0] || "Usuario"}
                     </span>
                     <span className="text-[10px] text-text-muted font-bold uppercase tracking-widest">
                         {user?.email}
@@ -88,7 +88,7 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                             </svg>
-                            Log out
+                            Cerrar sesión
                         </button>
                     </div>
                 )}

@@ -20,8 +20,8 @@ export default function SidebarNav({ isAdmin }: SidebarNavProps) {
                     <span className="text-white font-bold text-lg">A</span>
                 </div>
                 <div className="flex flex-col">
-                    <span className="text-text-primary font-bold text-body tracking-tight leading-none">AD ANALYZER</span>
-                    <span className="text-[10px] text-text-muted font-bold uppercase tracking-widest mt-1">Diagnostic Engine</span>
+                    <span className="text-text-primary font-bold text-body tracking-tight leading-none">ANALIZADOR DE ADS</span>
+                    <span className="text-[10px] text-text-muted font-bold uppercase tracking-widest mt-1">Motor de Diagnóstico</span>
                 </div>
             </div>
 
@@ -37,8 +37,8 @@ export default function SidebarNav({ isAdmin }: SidebarNavProps) {
                             key={item.href}
                             href={item.href}
                             className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group ${isActive
-                                    ? "bg-classic text-white shadow-md shadow-classic/20"
-                                    : "text-text-secondary hover:bg-argent/30 hover:text-text-primary"
+                                ? "bg-classic text-white shadow-md shadow-classic/20"
+                                : "text-text-secondary hover:bg-argent/30 hover:text-text-primary"
                                 }`}
                         >
                             {item.icon && (
@@ -61,7 +61,7 @@ export default function SidebarNav({ isAdmin }: SidebarNavProps) {
             <div className="p-6 border-t border-argent bg-stellar/30">
                 <div className="flex items-center gap-2 text-[10px] text-text-muted font-bold uppercase tracking-widest">
                     <div className="w-1.5 h-1.5 rounded-full bg-synced animate-pulse" />
-                    <span>Server Status Ops: OK</span>
+                    <span>Estado: Sistema OK</span>
                 </div>
             </div>
         </aside>

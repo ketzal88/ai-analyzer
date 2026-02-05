@@ -8,9 +8,9 @@ export default function FindingsPage() {
         <AppLayout>
             <div className="space-y-6">
                 <div>
-                    <h1 className="text-display font-black text-text-primary mb-2">DIAGNOSTIC FINDINGS</h1>
+                    <h1 className="text-display font-black text-text-primary mb-2">HALLAZGOS DIAGNÓSTICOS</h1>
                     <p className="text-subheader text-text-secondary uppercase tracking-widest font-bold text-[12px]">
-                        Anomaly detection & performance signals
+                        Detección de anomalías y señales de rendimiento
                     </p>
                 </div>
 
@@ -21,9 +21,9 @@ export default function FindingsPage() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                             </svg>
                         </div>
-                        <h3 className="text-subheader text-text-primary font-bold mb-2">ENGINE READY</h3>
+                        <h3 className="text-subheader text-text-primary font-bold mb-2">MOTOR LISTO</h3>
                         <p className="text-body text-text-secondary max-w-sm mx-auto">
-                            The analysis engine is ready to process your signals. Use the selector to start the diagnostic.
+                            El motor de análisis está listo para procesar tus señales. Usa el selector para iniciar el diagnóstico.
                         </p>
                     </div>
                 </div>

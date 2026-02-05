@@ -46,9 +46,9 @@ export default function DashboardPage() {
                 clientId: clientId,
                 generatedAt: reportData.createdAt || new Date().toISOString(),
                 kpis: {
-                    roas: { label: "Account ROAS", value: "4.21", change: 12.4, trend: "up", suffix: "" },
-                    spend: { label: "Daily Spend", value: "$1,482", limit: "Limit: $10k", trend: "neutral" },
-                    cpa: { label: "Avg. CPA", value: "$24.05", change: 6.2, trend: "down", suffix: "" },
+                    roas: { label: "ROAS de la Cuenta", value: "4.21", change: 12.4, trend: "up", suffix: "" },
+                    spend: { label: "Gasto Diario", value: "$1,482", limit: "Límite: $10k", trend: "neutral" },
+                    cpa: { label: "CPA Promedio", value: "$24.05", change: 6.2, trend: "down", suffix: "" },
                 },
                 findings: findingsData.findings,
                 campaignPerformance: []

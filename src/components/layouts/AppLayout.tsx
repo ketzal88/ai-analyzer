@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useClient, ClientProvider } from "@/contexts/ClientContext";
+import { useClient } from "@/contexts/ClientContext";
 import { usePathname, useRouter } from "next/navigation";
 import SidebarNav from "./SidebarNav";
 import Header from "./Header";
@@ -12,7 +12,7 @@ interface AppLayoutProps {
     children: React.ReactNode;
 }
 
-function AppLayoutContent({ children }: AppLayoutProps) {
+export default function AppLayout({ children }: AppLayoutProps) {
     const { user, isAdmin, loading: authLoading } = useAuth();
     const { selectedClientId, isLoading: clientLoading } = useClient();
     const pathname = usePathname();
@@ -63,13 +63,13 @@ function AppLayoutContent({ children }: AppLayoutProps) {
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 005.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                                     </svg>
                                 </div>
-                                <h1 className="text-display font-black text-text-primary mb-2 leading-none">NO CLIENT SELECTED</h1>
+                                <h1 className="text-display font-black text-text-primary mb-2 leading-none">SIN CLIENTE SELECCIONADO</h1>
                                 <p className="text-subheader text-text-secondary max-w-md mx-auto mb-8">
-                                    To access {pathname.substring(1).toUpperCase()} analysis, please select an active client from the switcher above.
+                                    Para acceder al análisis de {pathname.substring(1).toUpperCase()}, por favor selecciona un cliente activo en el selector superior.
                                 </p>
                                 <div className="flex gap-4">
                                     <div className="px-6 py-3 bg-special border border-argent rounded-xl animate-bounce">
-                                        <span className="text-body font-bold text-classic">↑ USE SWITCHER</span>
+                                        <span className="text-body font-bold text-classic">↑ USA EL SELECTOR</span>
                                     </div>
                                 </div>
                             </div>
@@ -83,22 +83,14 @@ function AppLayoutContent({ children }: AppLayoutProps) {
                 <footer className="p-4 border-t border-argent bg-special/50 flex justify-between items-center text-[10px] text-text-muted font-bold uppercase tracking-widest px-10">
                     <div className="flex gap-6">
                         <span>© 2024 AD ANALYZER</span>
-                        <span className="hidden sm:inline text-synced">System Online</span>
+                        <span className="hidden sm:inline text-synced">Sistema Online</span>
                     </div>
                     <div className="flex gap-6">
-                        <span>Security: Verified</span>
-                        <span>Tier: Enterprise</span>
+                        <span>Seguridad: Verificada</span>
+                        <span>Nivel: Enterprise</span>
                     </div>
                 </footer>
             </div>
         </div>
-    );
-}
-
-export default function AppLayout({ children }: AppLayoutProps) {
-    return (
-        <ClientProvider>
-            <AppLayoutContent>{children}</AppLayoutContent>
-        </ClientProvider>
     );
 }
