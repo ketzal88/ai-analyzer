@@ -18,7 +18,7 @@ This project implements the UI **exactly as designed in Google Stitch** with str
 - **Framework**: Next.js 14 (App Router)
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS
-- **Authentication**: Firebase Auth (ready for integration)
+- **Authentication**: Firebase Auth
 - **Design Source**: Google Stitch
 
 ## 📁 Project Structure

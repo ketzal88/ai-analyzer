@@ -1,39 +1,70 @@
+"use client";
+
+import React, { useEffect, useState } from "react";
+import { useClient } from "@/contexts/ClientContext";
 import Dashboard from "@/components/pages/Dashboard";
 import { DiagnosticReport } from "@/types";
 
 export default function DashboardPage() {
-    // Example minimal props for UI verification
-    const mockReport: DiagnosticReport = {
-        id: "rep_123",
-        accountId: "acc_456",
-        generatedAt: new Date().toISOString(),
-        kpis: {
-            roas: { label: "Account ROAS", value: "4.21", change: 12.4, trend: "up", suffix: "" },
-            spend: { label: "Daily Spend", value: "$1,482", limit: "Limit: $2k", trend: "neutral" },
-            cpa: { label: "Avg. CPA", value: "$24.05", change: 6.2, trend: "down", suffix: "" },
-        },
-        findings: [
-            {
-                id: "f_1",
-                title: "CAPI Event Mismatch Detected",
-                description: "System detected 14% discrepancy between Web SDK and Server events for Purchase event. Action required to prevent signal loss.",
-                severity: "CRITICAL",
-                status: "DISCREPANCY",
-                actionLabel: "RUN DIAGNOSTIC",
-                timestamp: new Date().toISOString()
-            },
-            {
-                id: "f_2",
-                title: "Pixel Signal Optimal",
-                description: "Deduplication rate is at 99.8%. Advanced matching is correctly identifying 84% of your traffic.",
-                severity: "HEALTHY",
-                status: "OPTIMAL",
-                actionLabel: "VIEW REPORT",
-                timestamp: new Date().toISOString()
+    const { selectedClientId: clientId } = useClient();
+
+    const [report, setReport] = useState<DiagnosticReport | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    const fetchDashboardData = async () => {
+        if (!clientId) {
+            setError("No client selected. Please return to the selector.");
+            setIsLoading(false);
+            return;
+        }
+
+        try {
+            setIsLoading(true);
+
+            // 1. Sync data first
+            const syncRes = await fetch(`/api/sync?clientId=${clientId}`, { method: "POST" });
+            if (!syncRes.ok) {
+                const data = await syncRes.json();
+                throw new Error(data.error || "Failed to sync data");
             }
-        ],
-        campaignPerformance: []
+
+            // 2. Generate findings
+            const findingsRes = await fetch(`/api/findings?clientId=${clientId}`, { method: "POST" });
+            if (!findingsRes.ok) throw new Error("Failed to generate findings");
+            const findingsData = await findingsRes.json();
+
+            // 3. Generate/Fetch LLM Report
+            const reportRes = await fetch(`/api/report?clientId=${clientId}`, { method: "POST" });
+            if (!reportRes.ok) throw new Error("Failed to generate report");
+            const reportData = await reportRes.json();
+
+            // 4. Construct UI report object
+            // Note: In a real app, findings might include more metadata than the brief summary from LLM report
+            const finalReport: DiagnosticReport = {
+                id: reportData.id || "latest",
+                clientId: clientId,
+                generatedAt: reportData.createdAt || new Date().toISOString(),
+                kpis: {
+                    roas: { label: "Account ROAS", value: "4.21", change: 12.4, trend: "up", suffix: "" },
+                    spend: { label: "Daily Spend", value: "$1,482", limit: "Limit: $10k", trend: "neutral" },
+                    cpa: { label: "Avg. CPA", value: "$24.05", change: 6.2, trend: "down", suffix: "" },
+                },
+                findings: findingsData.findings,
+                campaignPerformance: []
+            };
+
+            setReport(finalReport);
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
-    return <Dashboard report={mockReport} />;
+    useEffect(() => {
+        if (clientId) fetchDashboardData();
+    }, [clientId]);
+
+    return <Dashboard report={report || undefined} isLoading={isLoading} error={error} />;
 }

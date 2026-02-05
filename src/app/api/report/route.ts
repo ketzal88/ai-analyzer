@@ -8,26 +8,25 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 export async function POST(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url);
-        const accountId = searchParams.get("accountId");
+        const clientId = searchParams.get("clientId");
 
-        if (!accountId) {
-            return NextResponse.json({ error: "Missing accountId" }, { status: 400 });
+        if (!clientId) {
+            return NextResponse.json({ error: "Missing clientId" }, { status: 400 });
         }
 
         // 1. Auth check
         const sessionCookie = request.cookies.get("session")?.value;
         if (!sessionCookie) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        const decodedToken = await auth.verifySessionCookie(sessionCookie);
-        const uid = decodedToken.uid;
+        await auth.verifySessionCookie(sessionCookie);
 
-        // 2. Load account & findings
-        const accountDoc = await db.collection("accounts").doc(accountId).get();
-        if (!accountDoc.exists) return NextResponse.json({ error: "Account not found" }, { status: 404 });
-        const accountData = accountDoc.data()!;
-        if (accountData.ownerUid !== uid) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        // 2. Load client & findings
+        const clientDoc = await db.collection("clients").doc(clientId).get();
+        if (!clientDoc.exists) return NextResponse.json({ error: "Client not found" }, { status: 404 });
+        const clientData = clientDoc.data()!;
+        if (!clientData.active) return NextResponse.json({ error: "Client is inactive" }, { status: 403 });
 
         const findingsSnapshot = await db.collection("findings")
-            .where("accountId", "==", accountId)
+            .where("clientId", "==", clientId)
             .orderBy("createdAt", "desc")
             .limit(20)
             .get();
@@ -45,9 +44,9 @@ export async function POST(request: NextRequest) {
         // 3. Construct Summary (max 10KB)
         const summary = {
             account: {
-                name: accountData.name,
-                targetCpa: accountData.targetCpa,
-                goal: accountData.goal,
+                name: clientData.name,
+                metaAdAccountId: clientData.metaAdAccountId,
+                isEcommerce: clientData.isEcommerce,
             },
             analysis_period: "last_14d_wow",
             findings: findings
@@ -64,7 +63,7 @@ export async function POST(request: NextRequest) {
 
         // 5. Check Cache
         const cachedReport = await db.collection("llm_reports")
-            .where("accountId", "==", accountId)
+            .where("clientId", "==", clientId)
             .where("digest", "==", digest)
             .limit(1)
             .get();
@@ -83,8 +82,9 @@ export async function POST(request: NextRequest) {
 
         const prompt = `
       You are a specialized Meta Ads growth engineer. 
-      Analyze the following diagnostic summary for the ad account "${summary.account.name}".
-      The user goal is ${summary.account.goal} with a target CPA of $${summary.account.targetCpa}.
+      Analyze the following diagnostic summary for the client "${summary.account.name}".
+      Platform ID: ${summary.account.metaAdAccountId}.
+      Ecommerce Mode: ${summary.account.isEcommerce ? "Enabled" : "Disabled"}.
       
       DATA SUMMARY:
       ${JSON.stringify(summary, null, 2)}
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
         const analysis = JSON.parse(jsonStr);
 
         const fullReport = {
-            accountId,
+            clientId,
             digest,
             summary,
             analysis: analysis.analysis,

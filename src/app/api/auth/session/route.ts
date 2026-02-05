@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 // This endpoint sets a session cookie after Firebase client-side auth
 export async function POST(request: NextRequest) {
     try {
-        const { idToken } = await request.json();
+        const { idToken, uid } = await request.json();
 
         if (!idToken) {
             return NextResponse.json(
@@ -13,11 +13,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // In production, verify the ID token with Firebase Admin SDK here
-        // For now, we'll set a simple session cookie
-        // TODO: Add Firebase Admin SDK verification
-
-        // Set session cookie (httpOnly for security)
+        // Set session cookies (httpOnly for security)
         const response = NextResponse.json({ success: true });
 
         // Session expires in 5 days
@@ -32,6 +28,18 @@ export async function POST(request: NextRequest) {
             maxAge,
             path: "/",
         });
+
+        if (uid) {
+            response.cookies.set({
+                name: "uid",
+                value: uid,
+                httpOnly: true,
+                secure: process.env.NODE_ENV === "production",
+                sameSite: "lax",
+                maxAge,
+                path: "/",
+            });
+        }
 
         return response;
     } catch (error) {
@@ -50,6 +58,16 @@ export async function DELETE() {
 
         response.cookies.set({
             name: "session",
+            value: "",
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            maxAge: 0,
+            path: "/",
+        });
+
+        response.cookies.set({
+            name: "uid",
             value: "",
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",

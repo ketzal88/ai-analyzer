@@ -5,29 +5,27 @@ import { InsightDaily, DiagnosticFinding, Severity } from "@/types";
 export async function POST(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url);
-        const accountId = searchParams.get("accountId");
+        const clientId = searchParams.get("clientId");
         const range = searchParams.get("range") || "last_14d";
 
-        if (!accountId) {
-            return NextResponse.json({ error: "Missing accountId" }, { status: 400 });
+        if (!clientId) {
+            return NextResponse.json({ error: "Missing clientId" }, { status: 400 });
         }
 
         // 1. Auth check
         const sessionCookie = request.cookies.get("session")?.value;
         if (!sessionCookie) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        const decodedToken = await auth.verifySessionCookie(sessionCookie);
-        const uid = decodedToken.uid;
+        await auth.verifySessionCookie(sessionCookie);
 
-        // 2. Load account info & verify ownership
-        const accountDoc = await db.collection("accounts").doc(accountId).get();
-        if (!accountDoc.exists) return NextResponse.json({ error: "Account not found" }, { status: 404 });
-        const accountData = accountDoc.data()!;
-        if (accountData.ownerUid !== uid) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        // 2. Load client info & verify active
+        const clientDoc = await db.collection("clients").doc(clientId).get();
+        if (!clientDoc.exists) return NextResponse.json({ error: "Client not found" }, { status: 404 });
+        const clientData = clientDoc.data()!;
+        if (!clientData.active) return NextResponse.json({ error: "Client is inactive" }, { status: 403 });
 
         // 3. Fetch insights from Firestore
-        // We assume range is last_14d for simple WoW comparison (7d vs 7d)
         const insightsSnapshot = await db.collection("insights_daily")
-            .where("accountId", "==", accountId)
+            .where("clientId", "==", clientId)
             .orderBy("date", "desc")
             .limit(1000) // Safety limit
             .get();
@@ -86,7 +84,7 @@ export async function POST(request: NextRequest) {
             const delta = (currentStats.cpa / previousStats.cpa) - 1;
             if (delta > 0.25) {
                 findings.push({
-                    accountId,
+                    clientId,
                     type: "CPA_SPIKE",
                     title: "Critical Cost-Per-Acquisition Spike",
                     description: `Account CPA has increased by ${Math.round(delta * 100)}% compared to the previous week. Conversion cost efficiency is dropping significantly.`,
@@ -105,7 +103,7 @@ export async function POST(request: NextRequest) {
             const delta = (currentStats.roas / previousStats.roas) - 1;
             if (delta < -0.15) {
                 findings.push({
-                    accountId,
+                    clientId,
                     type: "ROAS_DROP",
                     title: "Revenue Efficiency Decline",
                     description: `ROAS has dropped by ${Math.abs(Math.round(delta * 100))}% WoW. Your return on ad spend is deteriorating.`,
@@ -125,7 +123,7 @@ export async function POST(request: NextRequest) {
             const cvrDelta = (currentStats.cvr / previousStats.cvr) - 1;
             if (ctrDelta < 0.05 && cvrDelta < -0.15) {
                 findings.push({
-                    accountId,
+                    clientId,
                     type: "CVR_DROP",
                     title: "Post-Click Conversion Drop",
                     description: `Traffic quality/intent seems stable (CTR stable), but Conversion Rate fell by ${Math.abs(Math.round(cvrDelta * 100))}%. Investigate landing page or offer changes.`,
@@ -144,7 +142,7 @@ export async function POST(request: NextRequest) {
             const delta = (currentStats.ctr / previousStats.ctr) - 1;
             if (delta < -0.15) {
                 findings.push({
-                    accountId,
+                    clientId,
                     type: "CTR_DROP",
                     title: "Ad Relevancy Decay",
                     description: `Click-Through Rate dropped by ${Math.abs(Math.round(delta * 100))}%. This usually indicates creative fatigue or audience mismatch.`,
@@ -165,7 +163,7 @@ export async function POST(request: NextRequest) {
         const topSpend = sortedCampaigns.slice(0, top20Count).reduce((s, c) => s + c.spend, 0);
         if (totalSpend > 0 && (topSpend / totalSpend) > 0.8) {
             findings.push({
-                accountId,
+                clientId,
                 type: "SPEND_CONCENTRATION",
                 title: "High Budget Concentration",
                 description: `Top ${top20Count} campaigns account for over 80% of total spend. Your account performance depends heavily on very few entities.`,
@@ -183,7 +181,7 @@ export async function POST(request: NextRequest) {
         const bleedingCampaigns = sortedCampaigns.filter(c => c.purchases === 0 && c.spend > (avgCPA * 2));
         if (bleedingCampaigns.length > 0) {
             findings.push({
-                accountId,
+                clientId,
                 type: "NO_CONVERSIONS_HIGH_SPEND",
                 title: "Budget Bleed Detected",
                 description: `${bleedingCampaigns.length} campaigns spent over 2x average CPA with zero conversions. Immediate action required.`,
@@ -205,7 +203,7 @@ export async function POST(request: NextRequest) {
             const stdDev = Math.sqrt(variance);
             if (stdDev / mean > 0.5) {
                 findings.push({
-                    accountId,
+                    clientId,
                     type: "VOLATILITY",
                     title: "Performance Instability",
                     description: "Daily CPA variance is extremely high (>50% coefficient of variation). The algorithm is struggling to find stable audience segments.",
@@ -227,7 +225,7 @@ export async function POST(request: NextRequest) {
         );
         if (winners.length > 0) {
             findings.push({
-                accountId,
+                clientId,
                 type: "UNDERFUNDED_WINNERS",
                 title: "Scaling Opportunity",
                 description: `${winners.length} campaigns have CPA 20% better than average but are receiving below-average budget.`,
@@ -250,7 +248,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({
             summary: {
-                accountId,
+                clientId,
                 currentStats,
                 WoW_Changes: {
                     spend: (currentStats.spend / previousStats.spend - 1) * 100,

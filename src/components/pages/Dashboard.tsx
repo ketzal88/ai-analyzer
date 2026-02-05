@@ -15,6 +15,11 @@ export default function Dashboard({
     isLoading = false,
     error = null
 }: DashboardProps) {
+    const [mounted, setMounted] = React.useState(false);
+
+    React.useEffect(() => {
+        setMounted(true);
+    }, []);
 
     if (isLoading) {
         return (
@@ -52,7 +57,9 @@ export default function Dashboard({
             <div className="space-y-8">
                 <div>
                     <h1 className="text-hero text-text-primary mb-2">Audit Dashboard</h1>
-                    <p className="text-body text-text-secondary">Report generated at {new Date(report.generatedAt).toLocaleString()}</p>
+                    <p className="text-body text-text-secondary">
+                        Report generated at {mounted ? new Date(report.generatedAt).toLocaleString() : "..."}
+                    </p>
                 </div>
 
                 {/* KPI Cards */}
@@ -110,7 +117,7 @@ function FindingCard({ finding }: { finding: DiagnosticFinding }) {
             <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
                     <span className={`w-2 h-2 rounded-full ${finding.severity === "CRITICAL" ? "bg-red-500" :
-                            finding.severity === "WARNING" ? "bg-yellow-500" : "bg-green-500"
+                        finding.severity === "WARNING" ? "bg-yellow-500" : "bg-green-500"
                         }`} />
                     <h3 className="text-body font-bold text-text-primary">{finding.title}</h3>
                 </div>

@@ -33,11 +33,11 @@ async function fetchWithRetry(url: string, options: RequestInit = {}, retries = 
 export async function POST(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url);
-        const accountId = searchParams.get("accountId");
+        const clientId = searchParams.get("clientId");
         const range = searchParams.get("range") || "last_14d";
 
-        if (!accountId) {
-            return NextResponse.json({ error: "Missing accountId" }, { status: 400 });
+        if (!clientId) {
+            return NextResponse.json({ error: "Missing clientId" }, { status: 400 });
         }
 
         if (!META_ACCESS_TOKEN) {
@@ -47,28 +47,34 @@ export async function POST(request: NextRequest) {
         // 1. Auth check
         const sessionCookie = request.cookies.get("session")?.value;
         if (!sessionCookie) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        const decodedToken = await auth.verifySessionCookie(sessionCookie);
-        const uid = decodedToken.uid;
+        await auth.verifySessionCookie(sessionCookie);
 
-        // 2. Load account info from Firestore
-        const accountDoc = await db.collection("accounts").doc(accountId).get();
-        if (!accountDoc.exists) return NextResponse.json({ error: "Account not found" }, { status: 404 });
-        const accountData = accountDoc.data();
-        if (accountData?.ownerUid !== uid) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        // 2. Load client info from Firestore
+        const clientDoc = await db.collection("clients").doc(clientId).get();
+        if (!clientDoc.exists) return NextResponse.json({ error: "Client not found" }, { status: 404 });
+        const clientData = clientDoc.data();
 
-        const metaAdAccountId = accountData.metaAdAccountId;
+        if (!clientData?.active) {
+            return NextResponse.json({ error: "Client is inactive. Sychronization disabled." }, { status: 403 });
+        }
+
+        const metaAdAccountId = clientData.metaAdAccountId;
+        if (!metaAdAccountId) {
+            return NextResponse.json({ error: "Client has no Meta Ad Account ID configured." }, { status: 400 });
+        }
+
         const cleanAdAccountId = metaAdAccountId.startsWith("act_") ? metaAdAccountId : `act_${metaAdAccountId}`;
 
         // 3. Record start of sync
         const syncRunRef = await db.collection("sync_runs").add({
-            accountId,
+            clientId,
             status: "running",
             range,
             startedAt: new Date().toISOString(),
             campaignsProcessed: 0
         });
 
-        console.log(`Starting sync for account ${accountId} (Meta ID: ${cleanAdAccountId}). Range: ${range}`);
+        console.log(`Starting sync for client ${clientId} (Meta ID: ${cleanAdAccountId}). Range: ${range}`);
 
         // 4. Call Meta Insights API
         // fields: spend, impressions, clicks, actions, action_values
@@ -86,7 +92,7 @@ export async function POST(request: NextRequest) {
             const date = item.date_start;
             const campaignId = item.campaign_id;
             const campaignName = item.campaign_name;
-            const docId = `${accountId}_${campaignId}_${date}`;
+            const docId = `${clientId}_${campaignId}_${date}`;
 
             // Extract purchases and values
             const purchases = Number(item.actions?.find((a: any) => a.action_type === "purchase")?.value || 0);
@@ -97,7 +103,7 @@ export async function POST(request: NextRequest) {
 
             // Calculate derived metrics
             const insightDoc = {
-                accountId,
+                clientId,
                 campaignId,
                 campaignName,
                 date,

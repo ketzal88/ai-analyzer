@@ -10,26 +10,22 @@ interface AccountSelectorProps {
     error?: string | null;
 }
 
+import { Client } from "@/types";
+
 export default function AccountSelector() {
-    const [accounts, setAccounts] = useState<AdAccount[]>([]);
+    const [clients, setClients] = useState<Client[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [isCreating, setIsCreating] = useState(false);
-    const [newAccount, setNewAccount] = useState({
-        name: "",
-        metaAdAccountId: "",
-        targetCpa: 20,
-        goal: "efficiency" as const
-    });
 
-    const fetchAccounts = async () => {
+    const fetchClients = async () => {
         try {
             setIsLoading(true);
-            const res = await fetch("/api/accounts");
-            if (!res.ok) throw new Error("Failed to fetch accounts");
+            const res = await fetch("/api/clients");
+            if (!res.ok) throw new Error("Failed to fetch clients");
             const data = await res.json();
-            setAccounts(data);
+            // Only show active clients for selection
+            setClients(data.filter((c: Client) => c.active));
         } catch (err: any) {
             setError(err.message);
         } finally {
@@ -38,41 +34,20 @@ export default function AccountSelector() {
     };
 
     React.useEffect(() => {
-        fetchAccounts();
+        fetchClients();
     }, []);
 
-    const handleCreateAccount = async (e: React.FormEvent) => {
-        e.preventDefault();
-        try {
-            const res = await fetch("/api/accounts", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(newAccount)
-            });
-            if (!res.ok) throw new Error("Failed to create account");
-            setIsCreating(false);
-            fetchAccounts();
-        } catch (err: any) {
-            alert(err.message);
-        }
+    const handleSelect = (clientId: string) => {
+        window.location.href = `/dashboard?clientId=${clientId}`;
     };
 
-    const handleSelect = (accountId: string) => {
-        window.location.href = `/dashboard?accountId=${accountId}`;
-    };
-
-    const handleConnect = (accountId: string) => {
-        // Placeholder for future ads connection flow
-        console.log("Connect to meta ads:", accountId);
-    };
-
-    const filteredAccounts = accounts.filter(acc =>
-        acc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        acc.metaAdAccountId.includes(searchQuery)
+    const filteredClients = clients.filter(client =>
+        client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        client.metaAdAccountId?.includes(searchQuery)
     );
 
-    const totalAccounts = accounts.length;
-    const isEmpty = !isLoading && !error && accounts.length === 0;
+    const totalClients = clients.length;
+    const isEmpty = !isLoading && !error && clients.length === 0;
 
     return (
         <AppLayout>
@@ -104,73 +79,13 @@ export default function AccountSelector() {
                         </svg>
                         <input
                             type="text"
-                            placeholder="Search by account name, ID, or country..."
+                            placeholder="Search by client name or Meta ID..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="w-full pl-12"
                         />
                     </div>
-                    <button className="btn-secondary flex items-center gap-2">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                        </svg>
-                        Filters
-                    </button>
-                    <button
-                        onClick={() => setIsCreating(true)}
-                        className="btn-primary flex items-center gap-2"
-                    >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                        ADD ACCOUNT
-                    </button>
                 </div>
-
-                {isCreating && (
-                    <div className="card mb-6 p-6 border-classic/30 bg-classic/5">
-                        <form onSubmit={handleCreateAccount} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                            <div>
-                                <label className="block text-small text-text-muted mb-1">Account Name</label>
-                                <input
-                                    required
-                                    value={newAccount.name}
-                                    onChange={e => setNewAccount({ ...newAccount, name: e.target.value })}
-                                    className="w-full py-2"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-small text-text-muted mb-1">Meta Ad Account ID</label>
-                                <input
-                                    required
-                                    value={newAccount.metaAdAccountId}
-                                    onChange={e => setNewAccount({ ...newAccount, metaAdAccountId: e.target.value })}
-                                    className="w-full py-2 font-mono"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-small text-text-muted mb-1">Target CPA ($)</label>
-                                <input
-                                    required
-                                    type="number"
-                                    value={newAccount.targetCpa}
-                                    onChange={e => setNewAccount({ ...newAccount, targetCpa: Number(e.target.value) })}
-                                    className="w-full py-2"
-                                />
-                            </div>
-                            <div className="flex gap-2">
-                                <button type="submit" className="btn-primary py-2 flex-1">Save</button>
-                                <button
-                                    type="button"
-                                    onClick={() => setIsCreating(false)}
-                                    className="btn-secondary py-2 flex-1"
-                                >
-                                    Cancel
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                )}
 
                 {/* Content Area */}
                 <div className="card overflow-hidden p-0 relative min-h-[400px]">
@@ -178,7 +93,7 @@ export default function AccountSelector() {
                         <div className="absolute inset-0 bg-stellar/50 flex items-center justify-center z-10 backdrop-blur-[2px]">
                             <div className="flex flex-col items-center gap-3">
                                 <div className="w-8 h-8 border-2 border-classic border-t-transparent rounded-full animate-spin"></div>
-                                <span className="text-body text-text-secondary">Loading accounts...</span>
+                                <span className="text-body text-text-secondary">Loading clients...</span>
                             </div>
                         </div>
                     )}
@@ -190,9 +105,9 @@ export default function AccountSelector() {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                             </div>
-                            <h3 className="text-subheader text-text-primary mb-2">Failed to load accounts</h3>
+                            <h3 className="text-subheader text-text-primary mb-2">Failed to load clients</h3>
                             <p className="text-body text-text-secondary mb-6 max-w-md">{error}</p>
-                            <button className="btn-primary">Retry Connection</button>
+                            <button onClick={fetchClients} className="btn-primary">Retry</button>
                         </div>
                     )}
 
@@ -200,14 +115,13 @@ export default function AccountSelector() {
                         <div className="p-12 flex flex-col items-center text-center">
                             <div className="w-12 h-12 bg-argent/10 rounded-full flex items-center justify-center mb-4">
                                 <svg className="w-6 h-6 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 005.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                                 </svg>
                             </div>
-                            <h3 className="text-subheader text-text-primary mb-2">No accounts found</h3>
+                            <h3 className="text-subheader text-text-primary mb-2">No active clients found</h3>
                             <p className="text-body text-text-secondary mb-6 max-w-md">
-                                We couldn't find any Meta Ad accounts linked to your business profile.
+                                You don't have any active clients assigned. Please contact an administrator.
                             </p>
-                            <button className="btn-primary">Add New Account</button>
                         </div>
                     )}
 
@@ -215,76 +129,61 @@ export default function AccountSelector() {
                         <table className="w-full">
                             <thead>
                                 <tr className="border-b border-argent">
-                                    <th className="text-left px-6 py-4 text-small font-medium text-text-muted uppercase tracking-wider">
-                                        Account Name
+                                    <th className="text-left px-6 py-4 text-small font-bold text-text-muted uppercase tracking-wider">
+                                        Client Name
                                     </th>
-                                    <th className="text-left px-6 py-4 text-small font-medium text-text-muted uppercase tracking-wider">
-                                        Account ID
+                                    <th className="text-left px-6 py-4 text-small font-bold text-text-muted uppercase tracking-wider">
+                                        Platform IDs
                                     </th>
-                                    <th className="text-left px-6 py-4 text-small font-medium text-text-muted uppercase tracking-wider">
-                                        Currency
+                                    <th className="text-center px-6 py-4 text-small font-bold text-text-muted uppercase tracking-wider">
+                                        Integrations
                                     </th>
-                                    <th className="text-left px-6 py-4 text-small font-medium text-text-muted uppercase tracking-wider">
+                                    <th className="text-center px-6 py-4 text-small font-bold text-text-muted uppercase tracking-wider">
                                         Status
                                     </th>
-                                    <th className="text-right px-6 py-4 text-small font-medium text-text-muted uppercase tracking-wider">
+                                    <th className="text-right px-6 py-4 text-small font-bold text-text-muted uppercase tracking-wider">
                                         Action
                                     </th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {filteredAccounts.map((account, index) => (
+                                {filteredClients.map((client, index) => (
                                     <tr
-                                        key={account.id}
+                                        key={client.id}
                                         className={`border-b border-argent last:border-b-0 hover:bg-special transition-colors ${index % 2 === 0 ? "bg-stellar" : "bg-special"
                                             }`}
                                     >
+                                        <td className="px-6 py-4 font-medium text-text-primary">
+                                            {client.name}
+                                        </td>
                                         <td className="px-6 py-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 bg-classic/20 rounded flex items-center justify-center">
-                                                    <span className="text-classic text-sm font-bold">
-                                                        {account.name.charAt(0)}
-                                                    </span>
-                                                </div>
-                                                <span className="text-body text-text-primary font-medium">
-                                                    {account.name}
-                                                </span>
+                                            <div className="flex flex-col gap-1">
+                                                <span className="text-small text-text-secondary font-mono">Meta: {client.metaAdAccountId || "N/A"}</span>
+                                                {client.isGoogle && (
+                                                    <span className="text-small text-text-secondary font-mono">Google: {client.googleAdsId || "N/A"}</span>
+                                                )}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 text-body text-text-secondary font-mono">
-                                            {account.metaAdAccountId}
-                                        </td>
-                                        <td className="px-6 py-4 text-body text-text-secondary">
-                                            {account.currency}
-                                        </td>
                                         <td className="px-6 py-4">
-                                            <span
-                                                className={`status-badge ${account.status === "synced" ? "status-synced" : "status-sync-required"
-                                                    }`}
-                                            >
-                                                <div
-                                                    className={`w-1.5 h-1.5 rounded-full ${account.status === "synced" ? "bg-synced" : "bg-sync-required"
-                                                        }`}
-                                                ></div>
-                                                {account.status === "synced" ? "SYNCED" : "SYNC REQUIRED"}
+                                            <div className="flex items-center justify-center gap-3">
+                                                <span className={`w-2 h-2 rounded-full ${client.metaAdAccountId ? "bg-synced" : "bg-text-muted/20"}`} title="Meta Connect" />
+                                                <span className={`w-2 h-2 rounded-full ${client.isEcommerce ? "bg-synced" : "bg-text-muted/20"}`} title="Ecommerce" />
+                                                <span className={`w-2 h-2 rounded-full ${client.isGoogle ? "bg-classic" : "bg-text-muted/20"}`} title="Google Ads" />
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <span className="status-badge status-synced border-none shadow-none">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-synced" />
+                                                ACTIVE
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 text-right">
-                                            {account.status === "synced" ? (
-                                                <button
-                                                    onClick={() => handleSelect(account.id)}
-                                                    className="btn-primary text-small px-4 py-2"
-                                                >
-                                                    SELECT
-                                                </button>
-                                            ) : (
-                                                <button
-                                                    onClick={() => handleConnect(account.id)}
-                                                    className="btn-secondary text-small px-4 py-2"
-                                                >
-                                                    CONNECT
-                                                </button>
-                                            )}
+                                            <button
+                                                onClick={() => handleSelect(client.id)}
+                                                className="btn-primary text-small px-6 py-2"
+                                            >
+                                                SELECT
+                                            </button>
                                         </td>
                                     </tr>
                                 ))}
@@ -297,7 +196,7 @@ export default function AccountSelector() {
                 {!isLoading && !error && !isEmpty && (
                     <div className="flex items-center justify-between mt-6">
                         <span className="text-body text-text-muted">
-                            Showing {filteredAccounts.length} of {totalAccounts} accounts
+                            Showing {filteredClients.length} of {totalClients} clients
                         </span>
                         <div className="flex items-center gap-2">
                             <button className="w-8 h-8 bg-second border border-argent rounded hover:bg-argent transition-colors flex items-center justify-center">

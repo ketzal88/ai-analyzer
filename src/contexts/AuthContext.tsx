@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation";
 
 interface AuthContextType {
     user: FirebaseUser | null;
+    isAdmin: boolean;
     loading: boolean;
     signInWithGoogle: () => Promise<void>;
     signOut: () => Promise<void>;
@@ -22,6 +23,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<FirebaseUser | null>(null);
+    const [isAdmin, setIsAdmin] = useState(false);
     const [loading, setLoading] = useState(true);
     const router = useRouter();
 
@@ -29,6 +31,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Listen for auth state changes
         const unsubscribe = onAuthStateChanged(auth, (user) => {
             setUser(user);
+
+            // Check admin status
+            const adminUids = (process.env.NEXT_PUBLIC_ADMIN_UIDS || "").split(",");
+            setIsAdmin(user ? adminUids.includes(user.uid) : false);
+
             setLoading(false);
         });
 
@@ -46,7 +53,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             // User is signed in, redirect to account selector
             if (result.user) {
-                router.push("/select-account");
+                const idToken = await result.user.getIdToken();
+                const sessionRes = await fetch("/api/auth/session", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ idToken, uid: result.user.uid }),
+                });
+
+                if (sessionRes.ok) {
+                    router.push("/select-account");
+                }
             }
         } catch (error: any) {
             console.error("Error signing in with Google:", error);
@@ -66,6 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const value = {
         user,
+        isAdmin,
         loading,
         signInWithGoogle,
         signOut,

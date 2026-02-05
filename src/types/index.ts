@@ -40,7 +40,7 @@ export interface KPISummary {
  */
 export interface DiagnosticFinding {
     id: string;
-    accountId: string;
+    clientId: string;
     type: string; // CPA_SPIKE, ROAS_DROP, etc.
     title: string;
     description: string;
@@ -62,7 +62,7 @@ export interface DiagnosticFinding {
  */
 export interface DiagnosticReport {
     id: string;
-    accountId: string;
+    clientId: string;
     generatedAt: string;
     kpis: {
         roas: KPISummary;
@@ -87,7 +87,7 @@ export interface CampaignPerformanceRow {
  */
 export interface InsightDaily {
     id: string;
-    accountId: string;
+    clientId: string;
     campaignId: string;
     campaignName: string;
     date: string;
@@ -107,7 +107,7 @@ export interface InsightDaily {
  */
 export interface SyncRun {
     id: string;
-    accountId: string;
+    clientId: string;
     status: "running" | "completed" | "failed";
     range: string;
     campaignsProcessed: number;
@@ -133,4 +133,33 @@ export interface UIState {
     isLoading: boolean;
     error: string | null;
     isEmpty: boolean;
+}
+
+/**
+ * Administrative Client Interface (Mission 9)
+ */
+export interface Client {
+    id: string;
+    slug: string; // Used for routing /admin/clients/[slug]
+    name: string;
+    active: boolean;
+    isEcommerce: boolean;
+    isGoogle: boolean;
+    metaAdAccountId?: string;
+    googleAdsId?: string;
+    slackPublicChannel?: string;
+    slackInternalChannel?: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+/**
+ * Simple Audit Log for Client changes
+ */
+export interface AuditLog {
+    id: string;
+    clientId: string;
+    action: "create" | "update" | "archive" | "duplicate";
+    timestamp: string;
+    userId: string;
 }

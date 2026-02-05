@@ -1,98 +1,104 @@
 "use client";
 
-import React from "react";
-import Link from "next/link";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useClient, ClientProvider } from "@/contexts/ClientContext";
+import { usePathname, useRouter } from "next/navigation";
+import SidebarNav from "./SidebarNav";
+import Header from "./Header";
+import MobileDrawerNav from "./MobileDrawerNav";
 
 interface AppLayoutProps {
     children: React.ReactNode;
 }
 
-export default function AppLayout({ children }: AppLayoutProps) {
-    const { user, signOut } = useAuth();
+function AppLayoutContent({ children }: AppLayoutProps) {
+    const { user, isAdmin, loading: authLoading } = useAuth();
+    const { selectedClientId, isLoading: clientLoading } = useClient();
+    const pathname = usePathname();
+    const router = useRouter();
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-    const handleLogout = async () => {
-        try {
-            await signOut();
-            // Clear session cookie
-            await fetch("/api/auth/session", {
-                method: "DELETE",
-            });
-        } catch (error) {
-            console.error("Logout error:", error);
+    // Protection: Redirect if not admin and accessing /admin
+    useEffect(() => {
+        if (!authLoading && pathname.startsWith("/admin") && !isAdmin) {
+            router.replace("/dashboard");
         }
-    };
+    }, [pathname, isAdmin, authLoading, router]);
+
+    if (authLoading) {
+        return (
+            <div className="min-h-screen bg-stellar flex items-center justify-center">
+                <div className="w-8 h-8 border-4 border-classic border-t-transparent rounded-full animate-spin"></div>
+            </div>
+        );
+    }
+
+    const isAdminRoute = pathname.startsWith("/admin");
+    const needsClient = pathname === "/dashboard" || pathname === "/findings" || pathname === "/report";
+    const hasNoClient = needsClient && !selectedClientId && !clientLoading;
 
     return (
-        <div className="min-h-screen bg-stellar flex flex-col">
-            {/* Header Navigation */}
-            <header className="border-b border-argent bg-special">
-                <div className="max-w-[1400px] mx-auto px-6 py-4 flex items-center justify-between">
-                    {/* Logo */}
-                    <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 bg-classic rounded flex items-center justify-center">
-                            <span className="text-white text-sm font-bold">D</span>
-                        </div>
-                        <span className="text-text-primary font-semibold">DiagnosticPro</span>
+        <div className="min-h-screen bg-stellar flex overflow-hidden">
+            {/* Desktop Sidebar */}
+            <SidebarNav isAdmin={isAdmin} />
+
+            {/* Mobile Sidebar */}
+            <MobileDrawerNav
+                isOpen={isMobileMenuOpen}
+                onClose={() => setIsMobileMenuOpen(false)}
+                isAdmin={isAdmin}
+            />
+
+            {/* Work Area */}
+            <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+                <Header onOpenMobileMenu={() => setIsMobileMenuOpen(true)} />
+
+                <main className="flex-1 overflow-y-auto p-6 lg:p-10 scrollbar-thin scrollbar-thumb-argent">
+                    <div className="max-w-[1400px] mx-auto">
+                        {hasNoClient ? (
+                            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-12 animate-in fade-in zoom-in duration-500">
+                                <div className="w-24 h-24 bg-classic/10 rounded-full flex items-center justify-center mb-6">
+                                    <svg className="w-12 h-12 text-classic" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 005.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                    </svg>
+                                </div>
+                                <h1 className="text-display font-black text-text-primary mb-2 leading-none">NO CLIENT SELECTED</h1>
+                                <p className="text-subheader text-text-secondary max-w-md mx-auto mb-8">
+                                    To access {pathname.substring(1).toUpperCase()} analysis, please select an active client from the switcher above.
+                                </p>
+                                <div className="flex gap-4">
+                                    <div className="px-6 py-3 bg-special border border-argent rounded-xl animate-bounce">
+                                        <span className="text-body font-bold text-classic">↑ USE SWITCHER</span>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            children
+                        )}
                     </div>
+                </main>
 
-                    {/* Navigation */}
-                    <nav className="flex items-center gap-8">
-                        <Link
-                            href="/dashboard"
-                            className="text-text-secondary hover:text-text-primary transition-colors text-body"
-                        >
-                            Dashboard
-                        </Link>
-                        <Link
-                            href="/documentation"
-                            className="text-text-secondary hover:text-text-primary transition-colors text-body"
-                        >
-                            Documentation
-                        </Link>
-                        <Link
-                            href="/api-keys"
-                            className="text-text-secondary hover:text-text-primary transition-colors text-body"
-                        >
-                            API Keys
-                        </Link>
-                    </nav>
-
-                    {/* User Menu */}
-                    <div className="flex items-center gap-3">
-                        <div className="text-right mr-2">
-                            <p className="text-body text-text-primary font-medium">
-                                {user?.displayName || user?.email?.split("@")[0] || "User"}
-                            </p>
-                            <p className="text-small text-text-muted">{user?.email}</p>
-                        </div>
-                        <button
-                            onClick={handleLogout}
-                            className="px-4 py-2 bg-second border border-argent rounded-lg hover:bg-argent transition-colors text-body text-text-primary"
-                        >
-                            Logout
-                        </button>
+                {/* Global Footer (Subtle) */}
+                <footer className="p-4 border-t border-argent bg-special/50 flex justify-between items-center text-[10px] text-text-muted font-bold uppercase tracking-widest px-10">
+                    <div className="flex gap-6">
+                        <span>© 2024 AD ANALYZER</span>
+                        <span className="hidden sm:inline text-synced">System Online</span>
                     </div>
-                </div>
-            </header>
-
-            {/* Main Content */}
-            <main className="flex-1">
-                <div className="max-w-[1400px] mx-auto px-6 py-8">
-                    {children}
-                </div>
-            </main>
-
-            {/* Footer */}
-            <footer className="border-t border-argent bg-special">
-                <div className="max-w-[1400px] mx-auto px-6 py-4 flex items-center justify-between text-small text-text-muted">
-                    <div className="flex items-center gap-4">
-                        <span>© ENTERPRISE SECURE</span>
-                        <span>© GDPR COMPLIANT</span>
+                    <div className="flex gap-6">
+                        <span>Security: Verified</span>
+                        <span>Tier: Enterprise</span>
                     </div>
-                    <span>© 2024 Meta Ads Diagnostic Tool. All rights reserved. Meta is a trademark of Meta Platforms, Inc.</span>
-                </div>
-            </footer>
+                </footer>
+            </div>
         </div>
+    );
+}
+
+export default function AppLayout({ children }: AppLayoutProps) {
+    return (
+        <ClientProvider>
+            <AppLayoutContent>{children}</AppLayoutContent>
+        </ClientProvider>
     );
 }
