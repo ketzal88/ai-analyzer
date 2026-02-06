@@ -15,7 +15,7 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
 
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<Partial<Client>>({
         name: initialData?.name || "",
         slug: initialData?.slug || "",
         active: initialData?.active ?? true,
@@ -23,6 +23,19 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
         isGoogle: initialData?.isGoogle ?? false,
         metaAdAccountId: initialData?.metaAdAccountId || "",
         googleAdsId: initialData?.googleAdsId || "",
+
+        // Mission 18 Fields
+        businessModel: initialData?.businessModel || "",
+        description: initialData?.description || "",
+        primaryGoal: initialData?.primaryGoal || "efficiency",
+        averageTicket: initialData?.averageTicket || 0,
+        grossMarginPct: initialData?.grossMarginPct || 0,
+        targetCpa: initialData?.targetCpa || 0,
+        targetRoas: initialData?.targetRoas || 0,
+        conversionSchema: initialData?.conversionSchema || {
+            primary: { name: "Purchase", actionType: "purchase", isRevenueEvent: true },
+            value: { actionType: "offsite_conversion.fb_pixel_purchase", currency: "USD", isNet: true }
+        }
     });
 
     const [slugModifiedManually, setSlugModifiedManually] = useState(false);
@@ -205,8 +218,147 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
                 </div>
             </div>
 
+            {/* Business Context - Mission 18 */}
+            <div className="col-span-1 md:col-span-2 space-y-6 pt-6 border-t border-argent">
+                <h2 className="text-subheader text-text-primary">Business Context & Targets</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {/* Strategy */}
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-small font-bold text-text-muted uppercase mb-2">Business Model</label>
+                            <input
+                                type="text"
+                                value={formData.businessModel}
+                                onChange={(e) => setFormData({ ...formData, businessModel: e.target.value })}
+                                placeholder="e.g. SaaS, E-commerce Drop"
+                                className="w-full"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-small font-bold text-text-muted uppercase mb-2">Primary Goal</label>
+                            <select
+                                value={formData.primaryGoal}
+                                onChange={(e) => setFormData({ ...formData, primaryGoal: e.target.value as any })}
+                                className="w-full bg-stellar border border-argent rounded-lg px-3 py-2 text-text-primary focus:border-classic outline-none"
+                            >
+                                <option value="scale" className="bg-stellar text-text-primary">Aggressive Scale</option>
+                                <option value="efficiency" className="bg-stellar text-text-primary">Profitability / Efficiency</option>
+                                <option value="stability" className="bg-stellar text-text-primary">Stability / Maintenance</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-small font-bold text-text-muted uppercase mb-2">Description / Notes</label>
+                            <textarea
+                                value={formData.description}
+                                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                className="w-full h-24"
+                                placeholder="Key context about the client's business..."
+                            />
+                        </div>
+                    </div>
+
+                    {/* Financials */}
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-small font-bold text-text-muted uppercase mb-2">Avg Ticket ($)</label>
+                                <input
+                                    type="number"
+                                    value={formData.averageTicket}
+                                    onChange={(e) => setFormData({ ...formData, averageTicket: Number(e.target.value) })}
+                                    className="w-full"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-small font-bold text-text-muted uppercase mb-2">Gross Margin (%)</label>
+                                <input
+                                    type="number"
+                                    value={formData.grossMarginPct}
+                                    onChange={(e) => setFormData({ ...formData, grossMarginPct: Number(e.target.value) })}
+                                    className="w-full"
+                                />
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-small font-bold text-text-muted uppercase mb-2">Target CPA</label>
+                                <input
+                                    type="number"
+                                    value={formData.targetCpa}
+                                    onChange={(e) => setFormData({ ...formData, targetCpa: Number(e.target.value) })}
+                                    className="w-full"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-small font-bold text-text-muted uppercase mb-2">Target ROAS</label>
+                                <input
+                                    type="number"
+                                    value={formData.targetRoas}
+                                    onChange={(e) => setFormData({ ...formData, targetRoas: Number(e.target.value) })}
+                                    className="w-full"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Conversion Schema Override */}
+                <div className="p-4 bg-special/20 rounded-lg border border-argent space-y-4">
+                    <h3 className="text-body font-bold text-text-primary">Advanced Conversion Mapping</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label className="block text-small font-bold text-text-muted uppercase mb-2">Primary Action (Meta)</label>
+                            <input
+                                type="text"
+                                placeholder="e.g. purchase"
+                                value={formData.conversionSchema?.primary.actionType || ""}
+                                onChange={(e) => setFormData({
+                                    ...formData,
+                                    conversionSchema: {
+                                        ...formData.conversionSchema!,
+                                        primary: { ...formData.conversionSchema!.primary, actionType: e.target.value }
+                                    }
+                                })}
+                                className="w-full font-mono text-[12px]"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-small font-bold text-text-muted uppercase mb-2">Value Action (Meta)</label>
+                            <input
+                                type="text"
+                                placeholder="e.g. oms_purchase_value"
+                                value={formData.conversionSchema?.value?.actionType || ""}
+                                onChange={(e) => setFormData({
+                                    ...formData,
+                                    conversionSchema: {
+                                        ...formData.conversionSchema!,
+                                        value: { ...formData.conversionSchema!.value!, actionType: e.target.value }
+                                    }
+                                })}
+                                className="w-full font-mono text-[12px]"
+                            />
+                        </div>
+                        <div className="flex items-center gap-2 pt-6">
+                            <input
+                                type="checkbox"
+                                checked={formData.conversionSchema?.primary.isRevenueEvent || false}
+                                onChange={(e) => setFormData({
+                                    ...formData,
+                                    conversionSchema: {
+                                        ...formData.conversionSchema!,
+                                        primary: { ...formData.conversionSchema!.primary, isRevenueEvent: e.target.checked }
+                                    }
+                                })}
+                                className="w-4 h-4 rounded border-argent text-classic"
+                            />
+                            <span className="text-small font-medium text-text-secondary">Is Revenue Event?</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {/* Account Details */}
-            <div className="p-6 bg-stellar border border-argent rounded-lg space-y-6">
+            <div className="col-span-1 md:col-span-2 p-6 bg-stellar border border-argent rounded-lg space-y-6">
                 <h2 className="text-subheader text-text-primary">Platform Configuration</h2>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

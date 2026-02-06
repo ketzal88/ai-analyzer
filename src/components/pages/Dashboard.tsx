@@ -2,20 +2,26 @@
 
 import React from "react";
 import AppLayout from "@/components/layouts/AppLayout";
-import { KPISummary, DiagnosticFinding, DiagnosticReport } from "@/types";
+import { KPISummary, DiagnosticFinding, DiagnosticReport, AdvancedKPISummary, DashboardReport } from "@/types";
+
+export type DateRangeOption = "last_7d" | "last_14d" | "last_30d" | "last_90d" | "this_month" | "last_month";
 
 interface DashboardProps {
-    report?: DiagnosticReport;
+    report?: DashboardReport;
     isLoading?: boolean;
     error?: string | null;
     onRefresh?: () => void;
+    range: DateRangeOption;
+    onRangeChange: (range: DateRangeOption) => void;
 }
 
 export default function Dashboard({
     report,
     isLoading = false,
     error = null,
-    onRefresh
+    onRefresh,
+    range,
+    onRangeChange
 }: DashboardProps) {
     const [mounted, setMounted] = React.useState(false);
 
@@ -23,11 +29,21 @@ export default function Dashboard({
         setMounted(true);
     }, []);
 
+    const rangeLabels: Record<DateRangeOption, string> = {
+        last_7d: "Últimos 7 días",
+        last_14d: "Últimos 14 días",
+        last_30d: "Últimos 30 días",
+        last_90d: "Últimos 90 días",
+        this_month: "Este Mes",
+        last_month: "Mes Pasado"
+    };
+
     if (isLoading) {
         return (
             <AppLayout>
-                <div className="flex items-center justify-center min-h-[400px]">
-                    <div className="animate-pulse text-text-secondary">Analizando señales de la cuenta...</div>
+                <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+                    <div className="w-12 h-12 border-4 border-classic border-t-transparent rounded-full animate-spin"></div>
+                    <div className="text-text-secondary animate-pulse font-bold">Analizando señales de la cuenta...</div>
                 </div>
             </AppLayout>
         );
@@ -39,59 +55,134 @@ export default function Dashboard({
                 <div className="card p-8 border-red-500/20 bg-red-500/5 text-center">
                     <h2 className="text-subheader text-red-400 mb-2">Análisis Fallido</h2>
                     <p className="text-body text-text-secondary">{error}</p>
+                    <button onClick={onRefresh} className="btn-secondary mt-4">Reintentar</button>
                 </div>
             </AppLayout>
         );
     }
 
     if (!report) {
-        return (
-            <AppLayout>
-                <div className="text-center p-12">
-                    <p className="text-text-secondary">No hay datos de reporte disponibles.</p>
-                </div>
-            </AppLayout>
-        );
+        // Empty state wrapper
+        return <AppLayout><div className="text-center p-12 text-text-secondary">Cargando...</div></AppLayout>;
     }
 
     return (
         <AppLayout>
-            <div className="space-y-8">
-                <div className="flex justify-between items-start">
-                    <div>
-                        <h1 className="text-hero text-text-primary mb-2">Panel de Auditoría</h1>
-                        <p className="text-body text-text-secondary">
-                            Reporte generado el {mounted ? new Date(report.generatedAt).toLocaleString('es-ES') : "..."}
-                        </p>
+            <div className="space-y-8 pb-20">
+                {/* Pro Header */}
+                <div className="flex flex-col lg:flex-row justify-between items-start gap-6 bg-stellar/50 p-6 rounded-xl border border-argent/50">
+                    <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                            <h1 className="text-display font-black text-text-primary">Panel de Auditoría</h1>
+                            <span className="px-2 py-0.5 bg-classic text-white text-[10px] font-black uppercase rounded">v2.1</span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[11px] font-bold text-text-muted uppercase tracking-widest">
+                            <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-synced shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                                <span>Fuente: Meta Ads API</span>
+                            </div>
+                            <span>{report.config.currencyCode} • {report.config.timezone}</span>
+                            {/* Mission 18: Show Business Context */}
+                            {/* Note: report.clientProfile isn't strictly typed in DashboardReport yet, but we can access if present or rely on config */}
+                        </div>
                     </div>
-                    {onRefresh && (
-                        <button
-                            onClick={onRefresh}
-                            className="btn-secondary flex items-center gap-2 text-small py-2 px-4 shadow-sm hover:shadow-md transition-all active:scale-95"
-                            title="Actualizar datos"
-                        >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                            </svg>
-                            Refrescar
-                        </button>
-                    )}
+
+                    <div className="flex flex-col md:flex-row gap-4 items-end md:items-center">
+                        <div className="flex items-end gap-2">
+                            <div className="flex flex-col items-end gap-1">
+                                <span className="text-[10px] font-black uppercase text-text-muted tracking-widest">Comparar Con</span>
+                                <select
+                                    className="bg-stellar border border-argent rounded-lg px-3 py-2 text-small font-bold text-text-primary focus:border-classic outline-none min-w-[140px]"
+                                    defaultValue="previous_period"
+                                >
+                                    <option value="previous_period">Periodo Anterior</option>
+                                    <option value="wow">Año Pasado (YoY) - Deshab.</option>
+                                </select>
+                            </div>
+
+                            <div className="flex flex-col items-end gap-1">
+                                <span className="text-[10px] font-black uppercase text-text-muted tracking-widest">Rango de Análisis</span>
+                                <select
+                                    value={range}
+                                    onChange={(e) => onRangeChange(e.target.value as DateRangeOption)}
+                                    className="bg-stellar border border-argent rounded-lg px-3 py-2 text-small font-bold text-text-primary focus:border-classic outline-none min-w-[160px]"
+                                >
+                                    {Object.entries(rangeLabels).map(([key, label]) => (
+                                        <option key={key} value={key}>{label}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        {onRefresh && (
+                            <button
+                                onClick={onRefresh}
+                                className="btn-primary flex items-center gap-2 px-6 py-2.5 shadow-lg shadow-classic/20 hover:shadow-classic/40 active:scale-95 transition-all"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                EJECUTAR ANÁLISIS
+                            </button>
+                        )}
+                    </div>
                 </div>
 
-                {/* KPI Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {report.kpis.map((kpi, index) => (
-                        <KPICard key={index} kpi={kpi} />
+                <div className="flex items-center justify-between text-[11px] font-bold text-text-muted uppercase tracking-widest px-2">
+                    <div>
+                        <span className="text-text-primary">Periodo:</span> {report.dateRange.start} al {report.dateRange.end}
+                    </div>
+                    <div>
+                        <span className="text-classic">Vs:</span> {report.comparisonRange.start} al {report.comparisonRange.end}
+                    </div>
+                </div>
+
+                {/* KPI Cards Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {report.kpis.map((kpi) => (
+                        <AdvancedKPICard key={kpi.id} kpi={kpi} />
                     ))}
                 </div>
 
-                {/* Findings */}
-                <div className="space-y-4">
-                    <h2 className="text-subheader text-text-primary">Hallazgos Diagnósticos</h2>
-                    <div className="grid grid-cols-1 gap-4">
-                        {report.findings.map(finding => (
-                            <FindingCard key={finding.id} finding={finding} />
-                        ))}
+                {/* Client Config Summary (Subtle) */}
+                <div className="p-4 bg-special/30 border border-argent rounded-xl flex flex-wrap gap-8 text-[10px] uppercase font-black tracking-widest text-text-muted">
+                    <div className="space-y-1">
+                        <p className="opacity-50 text-white">Conversión Primaria</p>
+                        <p className="text-classic">{report.config.primaryConversionType}</p>
+                    </div>
+                    <div className="space-y-1">
+                        <p className="opacity-50 text-white">Atribución de Valor</p>
+                        <p className="text-classic">{report.config.valueType}</p>
+                    </div>
+                    {report.config.whatsappClickType && (
+                        <div className="space-y-1">
+                            <p className="opacity-50 text-white">WhatsApp Track</p>
+                            <p className="text-classic">{report.config.whatsappClickType}</p>
+                        </div>
+                    )}
+                </div>
+
+                {/* Findings Summary Badges */}
+                <div className="flex items-center gap-4 p-4 bg-stellar/30 border border-argent/30 rounded-xl">
+                    <span className="text-[11px] font-black text-text-muted uppercase tracking-widest">Estado del Diagnóstico:</span>
+                    <div className="flex gap-2">
+                        {report.findings.filter(f => f.severity === "CRITICAL").length > 0 && (
+                            <span className="px-3 py-1 bg-red-500/10 text-red-500 border border-red-500/20 rounded text-[10px] font-bold uppercase">
+                                {report.findings.filter(f => f.severity === "CRITICAL").length} Críticos
+                            </span>
+                        )}
+                        {report.findings.filter(f => f.severity === "WARNING").length > 0 && (
+                            <span className="px-3 py-1 bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 rounded text-[10px] font-bold uppercase">
+                                {report.findings.filter(f => f.severity === "WARNING").length} Advertencias
+                            </span>
+                        )}
+                        {report.findings.length === 0 && (
+                            <span className="px-3 py-1 bg-green-500/10 text-green-500 border border-green-500/20 rounded text-[10px] font-bold uppercase">
+                                Sistema Saludable
+                            </span>
+                        )}
+                        <span className="text-[10px] text-text-muted underline cursor-pointer ml-auto" onClick={() => window.location.href = '/findings'}>Ver Detalle →</span>
                     </div>
                 </div>
             </div>
@@ -99,51 +190,37 @@ export default function Dashboard({
     );
 }
 
-function KPICard({ kpi }: { kpi: KPISummary }) {
-    return (
-        <div className="card space-y-2">
-            <div className="flex justify-between items-start text-small text-text-muted uppercase font-bold tracking-wider">
-                <span>{kpi.label}</span>
-                {kpi.trend === "up" && <span className="text-synced">↑</span>}
-                {kpi.trend === "down" && <span className="text-red-400">↓</span>}
-            </div>
-            <div className="flex items-baseline gap-2">
-                <span className="text-hero text-text-primary">{kpi.value}{kpi.suffix}</span>
-                {kpi.change && (
-                    <span className={`text-small font-bold ${kpi.trend === "up" ? "text-synced" : "text-red-400"}`}>
-                        {kpi.trend === "up" ? "+" : "-"}{kpi.change}%
-                    </span>
-                )}
-            </div>
-            {kpi.limit && <div className="text-small text-text-muted italic">{kpi.limit}</div>}
-        </div>
-    );
-}
-
-function FindingCard({ finding }: { finding: DiagnosticFinding }) {
-    const severityColors = {
-        CRITICAL: "border-red-500/30 bg-red-500/5",
-        WARNING: "border-yellow-500/30 bg-yellow-500/5",
-        HEALTHY: "border-green-500/30 bg-green-500/5",
-        INACTIVE: "border-argent/30 bg-argent/5",
-    };
+function AdvancedKPICard({ kpi }: { kpi: AdvancedKPISummary }) {
+    const isPositive = kpi.delta >= 0;
+    const trendColor = kpi.trend === "up" ? "text-synced" : kpi.trend === "down" ? "text-red-400" : "text-text-muted";
 
     return (
-        <div className={`card flex items-start gap-4 border-l-4 ${severityColors[finding.severity]}`}>
-            <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                    <span className={`w-2 h-2 rounded-full ${finding.severity === "CRITICAL" ? "bg-red-500" :
-                        finding.severity === "WARNING" ? "bg-yellow-500" : "bg-green-500"
-                        }`} />
-                    <h3 className="text-body font-bold text-text-primary">{finding.title}</h3>
+        <div className="card relative group hover:border-classic/30 transition-all duration-300">
+            {/* Info Tooltip Icon */}
+            {kpi.definition && (
+                <div className="absolute top-4 right-4 text-text-muted opacity-30 group-hover:opacity-100 transition-opacity cursor-help" title={`${kpi.definition.label}\nFuente: ${kpi.definition.source}\n${kpi.definition.formula || ""}`}>
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
                 </div>
-                <p className="text-body text-text-secondary">{finding.description}</p>
+            )}
+
+            <p className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4">{kpi.label}</p>
+
+            <div className="space-y-1">
+                <div className="flex items-baseline gap-2">
+                    <span className="text-[28px] font-black text-text-primary leading-none">
+                        {kpi.prefix}{kpi.current}{kpi.suffix}
+                    </span>
+                    <div className={`flex items-center text-[11px] font-black ${trendColor}`}>
+                        {kpi.trend === "up" ? "↑" : kpi.trend === "down" ? "↓" : "•"}
+                        {Math.abs(kpi.delta).toFixed(1)}%
+                    </div>
+                </div>
+                <div className="text-[11px] font-bold text-text-muted/60">
+                    Prev: {kpi.prefix}{kpi.previous}{kpi.suffix}
+                </div>
             </div>
-            {/* {finding.actionLabel && (
-                <button className="btn-secondary text-small py-2 px-4 whitespace-nowrap">
-                    {finding.actionLabel}
-                </button>
-            )} */}
         </div>
     );
 }

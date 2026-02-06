@@ -77,8 +77,7 @@ export async function POST(request: NextRequest) {
         console.log(`Starting sync for client ${clientId} (Meta ID: ${cleanAdAccountId}). Range: ${range}`);
 
         // 4. Call Meta Insights API
-        // fields: spend, impressions, clicks, actions, action_values
-        const fields = "campaign_id,campaign_name,spend,impressions,clicks,actions,action_values";
+        const fields = "campaign_id,campaign_name,spend,impressions,clicks,actions,action_values,reach,frequency,cpm";
         const insightsUrl = `https://graph.facebook.com/${META_API_VERSION}/${cleanAdAccountId}/insights?level=campaign&time_increment=1&date_preset=${range}&fields=${fields}&access_token=${META_ACCESS_TOKEN}`;
 
         const insightsData = await fetchWithRetry(insightsUrl);
@@ -94,14 +93,17 @@ export async function POST(request: NextRequest) {
             const campaignName = item.campaign_name;
             const docId = `${clientId}_${campaignId}_${date}`;
 
-            // Extract purchases and values
-            const purchases = Number(item.actions?.find((a: any) => a.action_type === "purchase")?.value || 0);
-            const purchaseValue = Number(item.action_values?.find((a: any) => a.action_type === "purchase")?.value || 0);
-            const spend = Number(item.spend || 0);
-            const clicks = Number(item.clicks || 0);
-            const impressions = Number(item.impressions || 0);
+            // Extract actions
+            const getAction = (type: string) => Number(item.actions?.find((a: any) => a.action_type === type)?.value || 0);
+            const getActionValue = (type: string) => Number(item.action_values?.find((a: any) => a.action_type === type)?.value || 0);
 
-            // Calculate derived metrics
+            const purchases = getAction("purchase") || getAction("offsite_conversion.fb_pixel_purchase");
+            const purchaseValue = getActionValue("purchase") || getActionValue("offsite_conversion.fb_pixel_purchase");
+
+            const spend = Number(item.spend || 0);
+            const impressions = Number(item.impressions || 0);
+            const clicks = Number(item.clicks || 0);
+
             const insightDoc = {
                 clientId,
                 campaignId,
@@ -110,8 +112,13 @@ export async function POST(request: NextRequest) {
                 spend,
                 impressions,
                 clicks,
+                reach: Number(item.reach || 0),
+                frequency: Number(item.frequency || 0),
+                cpm: Number(item.cpm || 0),
                 purchases,
                 purchaseValue,
+                rawActions: item.actions || [],
+                rawActionValues: item.action_values || [],
                 ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
                 cpc: clicks > 0 ? spend / clicks : 0,
                 roas: spend > 0 ? purchaseValue / spend : 0,

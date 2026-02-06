@@ -1,6 +1,61 @@
 /**
  * Core Data Contracts for Meta Ads Diagnostic Tool
  */
+export * from "./gem-report";
+
+/**
+ * Mission 20: Caching & Analysis Types
+ */
+export interface DashboardSnapshot {
+    id: string; // docId = hash(...)
+    clientId: string;
+    currentRange: { start: string; end: string };
+    compareRange: { start: string; end: string };
+    timezone: string;
+    currency: string;
+    kpis: AdvancedKPISummary[];
+    config: KPIConfig;
+    createdAt: string;
+    dataCoverage: {
+        daysAvailable: number;
+        daysRequested: number;
+    };
+}
+
+export interface FindingsRun {
+    id: string; // docId = hash(...)
+    clientId: string;
+    ranges: {
+        current: { start: string; end: string };
+        compare: { start: string; end: string };
+    };
+    findingsCount: number;
+    findings: DiagnosticFinding[];
+    createdAt: string;
+}
+
+export interface AnalyzeRequest {
+    clientId: string;
+    currentRangePreset?: string; // "last_14d"
+    currentRangeCustom?: { start: string; end: string };
+    compareMode?: "previous_period" | "wow" | "custom";
+    flags?: {
+        syncIfMissing?: boolean;
+        forceRefresh?: boolean;
+        runLLM?: boolean;
+    };
+}
+
+export interface AnalyzeResponse {
+    snapshot: DashboardSnapshot;
+    findingsRun?: FindingsRun;
+    report?: any; // GemReportV1
+    meta?: {
+        cacheHit: boolean;
+        dataFreshness?: string;
+        syncRunId?: string;
+    };
+}
 
 export type Severity = "CRITICAL" | "WARNING" | "HEALTHY" | "INACTIVE";
 export type Currency = "USD" | "EUR" | "GBP" | "CAD" | "AUD" | "BRL" | "MXN";
@@ -132,11 +187,52 @@ export interface UIState {
 }
 
 /**
- * Administrative Client Interface (Mission 9)
+ * Pro KPI Panel Types (Mission 16)
+ */
+export interface KPIConfig {
+    primaryConversionType: string; // e.g., "purchase", "lead"
+    whatsappClickType?: string;    // e.g., "onsite_conversion.messaging_conversation_started_7d"
+    bookingType?: string;          // e.g., "appointment_scheduled"
+    valueType: string;             // e.g., "purchase", "offsite_conversion.fb_pixel_purchase"
+    currencyCode: Currency;
+    timezone: string;
+}
+
+export interface KPIDefinition {
+    label: string;
+    source: string; // e.g., "Meta action_type: purchase"
+    formula?: string;
+}
+
+export interface AdvancedKPISummary {
+    id: string;
+    label: string;
+    current: string | number;
+    previous: string | number;
+    delta: number;
+    trend: "up" | "down" | "neutral";
+    definition?: KPIDefinition;
+    suffix?: string;
+    prefix?: string;
+}
+
+export interface DashboardReport {
+    id: string;
+    clientId: string;
+    generatedAt: string;
+    dateRange: { start: string; end: string };
+    comparisonRange: { start: string; end: string };
+    config: KPIConfig;
+    kpis: AdvancedKPISummary[];
+    findings: DiagnosticFinding[];
+}
+
+/**
+ * Administrative Client Interface (Mission 9 + 16 updates)
  */
 export interface Client {
     id: string;
-    slug: string; // Used for routing /admin/clients/[slug]
+    slug: string;
     name: string;
     active: boolean;
     isEcommerce: boolean;
@@ -145,6 +241,32 @@ export interface Client {
     googleAdsId?: string;
     slackPublicChannel?: string;
     slackInternalChannel?: string;
+
+    // Mission 18: Business Context
+    businessModel?: string; // e.g., "SaaS", "E-commerce", "Lead Gen"
+    description?: string;
+    averageTicket?: number;
+    grossMarginPct?: number;
+    primaryGoal?: "scale" | "efficiency" | "stability";
+    targetCpa?: number;
+    targetRoas?: number;
+    targetSalesVolume?: number;
+
+    // Mission 18: Advanced Conversion Context
+    conversionSchema?: {
+        primary: { name: string; actionType: string; isRevenueEvent: boolean };
+        secondary?: { name: string; actionType: string }[];
+        value?: { actionType: string; currency: Currency; isNet: boolean };
+    };
+
+    constraints?: {
+        budgetLockedUntil?: string;
+        noCreativeUntil?: string;
+        stockRisk?: boolean;
+        seasonality?: string;
+    };
+
+    kpiConfig?: KPIConfig; // Optional custom overrides (legacy/simplified)
     createdAt: string;
     updatedAt: string;
 }
@@ -160,6 +282,7 @@ export interface PromptTemplate {
     system: string;
     userTemplate: string;
     variables: string[]; // should include "summary_json"
+    outputSchemaVersion?: string; // "v1" (old) or "v2" (GemReport)
     createdAt: string;
     updatedAt: string;
     createdByUid: string;

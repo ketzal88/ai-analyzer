@@ -51,7 +51,14 @@ export default function SidebarNav({ isAdmin }: SidebarNavProps) {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} />
                                 </svg>
                             )}
-                            <span className="text-body font-medium">{item.title}</span>
+                            <div className="flex flex-col">
+                                <span className="text-body font-bold leading-tight">{item.title}</span>
+                                {item.subtitle && (
+                                    <span className={`text-[10px] uppercase font-bold tracking-wider mt-0.5 ${isActive ? "text-white/70" : "text-text-muted/70 group-hover:text-text-primary/70"}`}>
+                                        {item.subtitle}
+                                    </span>
+                                )}
+                            </div>
                         </Link>
                     );
                 })}

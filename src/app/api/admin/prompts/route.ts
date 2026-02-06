@@ -13,10 +13,15 @@ export async function GET(request: NextRequest) {
     try {
         const snapshot = await db.collection("prompt_templates")
             .where("key", "==", key)
-            .orderBy("version", "desc")
             .get();
 
-        const prompts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const prompts = snapshot.docs
+            .map(doc => {
+                const data = doc.data();
+                return { ...data, id: doc.id } as PromptTemplate;
+            })
+            .sort((a, b) => b.version - a.version);
+
         return NextResponse.json(prompts);
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
@@ -30,7 +35,7 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const { key, system, userTemplate, variables } = body;
+        const { key, system, userTemplate, variables, outputSchemaVersion } = body;
 
         if (!userTemplate.includes("{{summary_json}}")) {
             return NextResponse.json({ error: "userTemplate must include {{summary_json}}" }, { status: 400 });
@@ -41,16 +46,15 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Prompt too large (max 20k chars)" }, { status: 400 });
         }
 
-        // Get latest version
-        const latestSnapshot = await db.collection("prompt_templates")
+        // Get latest version (in-memory sort to avoid index)
+        const allVersions = await db.collection("prompt_templates")
             .where("key", "==", key)
-            .orderBy("version", "desc")
-            .limit(1)
             .get();
 
         let newVersion = 1;
-        if (!latestSnapshot.empty) {
-            newVersion = latestSnapshot.docs[0].data().version + 1;
+        if (!allVersions.empty) {
+            const versions = allVersions.docs.map(doc => doc.data().version as number);
+            newVersion = Math.max(...versions) + 1;
         }
 
         const newPrompt: Omit<PromptTemplate, "id"> = {
@@ -60,6 +64,7 @@ export async function POST(request: NextRequest) {
             system,
             userTemplate,
             variables: variables || ["summary_json"],
+            outputSchemaVersion: outputSchemaVersion || "v1",
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
             createdByUid: uid!

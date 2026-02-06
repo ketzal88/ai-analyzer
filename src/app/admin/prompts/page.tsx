@@ -28,15 +28,25 @@ export default function AdminPrompts() {
                 fetch("/api/admin/prompts?key=report"),
                 fetch("/api/clients")
             ]);
+
             const pData = await pRes.json();
             const cData = await cRes.json();
-            setPrompts(pData);
-            setClients(cData);
-            if (pData.length > 0) {
-                const active = pData.find((p: any) => p.status === "active") || pData[0];
-                setSelectedPrompt(active);
-                setNewSystem(active.system);
-                setNewUserTemplate(active.userTemplate);
+
+            if (Array.isArray(pData)) {
+                setPrompts(pData);
+                if (pData.length > 0) {
+                    const active = pData.find((p: any) => p.status === "active") || pData[0];
+                    setSelectedPrompt(active);
+                    setNewSystem(active.system);
+                    setNewUserTemplate(active.userTemplate);
+                }
+            } else if (pData.error) {
+                console.error("Prompts API error:", pData.error);
+                alert(`Error cargando prompts: ${pData.error}`);
+            }
+
+            if (Array.isArray(cData)) {
+                setClients(cData);
             }
         } catch (error) {
             console.error("Error fetching data:", error);
@@ -139,7 +149,7 @@ export default function AdminPrompts() {
                                 <h3 className="text-body font-bold text-text-primary">Versiones Disponibles</h3>
                             </div>
                             <div className="divide-y divide-argent max-h-[600px] overflow-y-auto">
-                                {prompts.map((p) => (
+                                {Array.isArray(prompts) && prompts.map((p) => (
                                     <div
                                         key={p.id}
                                         onClick={() => {
@@ -200,9 +210,9 @@ export default function AdminPrompts() {
                                     >
                                         Guardar Draft v{prompts.length > 0 ? prompts[0].version + 1 : 1}
                                     </button>
-                                    {selectedPrompt?.status !== "active" && (
+                                    {selectedPrompt && selectedPrompt.status !== "active" && (
                                         <button
-                                            onClick={() => handleActivate(selectedPrompt!.id)}
+                                            onClick={() => handleActivate(selectedPrompt.id)}
                                             disabled={isActionLoading}
                                             className="px-4 py-2 bg-synced text-white rounded-lg text-small font-bold shadow-md shadow-synced/20"
                                         >
