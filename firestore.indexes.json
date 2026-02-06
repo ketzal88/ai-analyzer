@@ -1,0 +1,129 @@
+{
+    "indexes": [
+        {
+            "collectionGroup": "insights_daily",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "clientId",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "date",
+                    "order": "ASCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "meta_creatives",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "clientId",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "lastSeenActiveAt",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "meta_creatives",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "clientId",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "campaign.id",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "lastSeenActiveAt",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "meta_creatives",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "clientId",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "creative.format",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "lastSeenActiveAt",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "meta_creatives",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "clientId",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "status",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "lastSeenActiveAt",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "llm_reports",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "clientId",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "createdAt",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "findings",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "clientId",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "createdAt",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "insights_daily",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "clientId",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "date",
+                    "order": "DESCENDING"
+                }
+            ]
+        }
+    ],
+    "fieldOverrides": []
+}

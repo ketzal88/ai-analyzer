@@ -2,6 +2,8 @@
  * Core Data Contracts for Meta Ads Diagnostic Tool
  */
 export * from "./gem-report";
+export * from "./meta-creative";
+export * from "./creative-kpi";
 
 /**
  * Mission 20: Caching & Analysis Types
