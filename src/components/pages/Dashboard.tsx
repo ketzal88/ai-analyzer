@@ -1,8 +1,7 @@
 "use client";
-
 import React from "react";
 import AppLayout from "@/components/layouts/AppLayout";
-import { KPISummary, DiagnosticFinding, DiagnosticReport, AdvancedKPISummary, DashboardReport } from "@/types";
+import { AdvancedKPISummary, DashboardReport, DiagnosticFinding } from "@/types"; // Cleaned imports
 
 export type DateRangeOption = "last_7d" | "last_14d" | "last_30d" | "last_90d" | "this_month" | "last_month";
 
@@ -23,11 +22,7 @@ export default function Dashboard({
     range,
     onRangeChange
 }: DashboardProps) {
-    const [mounted, setMounted] = React.useState(false);
-
-    React.useEffect(() => {
-        setMounted(true);
-    }, []);
+    // const [mounted, setMounted] = React.useState(false); - Removed unused
 
     const rangeLabels: Record<DateRangeOption, string> = {
         last_7d: "Últimos 7 días",
@@ -82,8 +77,6 @@ export default function Dashboard({
                                 <span>Fuente: Meta Ads API</span>
                             </div>
                             <span>{report.config.currencyCode} • {report.config.timezone}</span>
-                            {/* Mission 18: Show Business Context */}
-                            {/* Note: report.clientProfile isn't strictly typed in DashboardReport yet, but we can access if present or rely on config */}
                         </div>
                     </div>
 
@@ -191,7 +184,7 @@ export default function Dashboard({
 }
 
 function AdvancedKPICard({ kpi }: { kpi: AdvancedKPISummary }) {
-    const isPositive = kpi.delta >= 0;
+    // const isPositive = kpi.delta >= 0;  - Removed unused
     const trendColor = kpi.trend === "up" ? "text-synced" : kpi.trend === "down" ? "text-red-400" : "text-text-muted";
 
     return (

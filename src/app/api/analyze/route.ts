@@ -6,8 +6,8 @@ import {
     FindingsRun,
     InsightDaily,
     KPIConfig,
-    AdvancedKPISummary,
-    DiagnosticFinding // Added
+    AdvancedKPISummary
+    // DiagnosticFinding - Removed unused
 } from "@/types";
 import { syncClientInsights } from "@/lib/meta-service";
 import { generateGeminiReport } from "@/lib/gemini-service";
@@ -16,7 +16,7 @@ import { runDiagnosticRules } from "@/lib/findings-engine";
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { clientId, currentRangePreset, currentRangeCustom, compareMode = "previous_period", flags = {} } = body;
+        const { clientId, currentRangePreset, currentRangeCustom, flags = {} } = body; // Removed unused compareMode
         const { syncIfMissing = false, forceRefresh = false, runLLM = false } = flags;
 
         if (!clientId) return NextResponse.json({ error: "Missing clientId" }, { status: 400 });
@@ -70,9 +70,9 @@ export async function POST(request: NextRequest) {
 
         const { start: curStart, end: curEnd, days: duration } = getDates();
 
-        let prevStart = new Date(curStart);
+        const prevStart = new Date(curStart);
         prevStart.setDate(prevStart.getDate() - duration);
-        let prevEnd = new Date(curStart);
+        const prevEnd = new Date(curStart);
         prevEnd.setDate(prevEnd.getDate() - 1);
 
         const dateToString = (d: Date) => d.toISOString().split("T")[0];

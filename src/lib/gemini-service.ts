@@ -80,7 +80,7 @@ export async function generateGeminiReport(
             .limit(1)
             .get();
         if (!cachedReport.empty) return cachedReport.docs[0].data();
-    } catch (e) {
+    } catch (_e) { // Renamed e to _e
         // Ignore cache read errors
     }
 
@@ -94,14 +94,14 @@ export async function generateGeminiReport(
     let systemPrompt = "Eres un analista experto en Meta Ads.";
     let userTemplate = `Analiza... {{summary_json}}`;
     let promptVersion = 0;
-    let promptSchemaVersion = "v1";
+    // let promptSchemaVersion = "v1"; - Removed unused
 
     if (!activePromptSnapshot.empty) {
         const template = activePromptSnapshot.docs[0].data();
         systemPrompt = template.system;
         userTemplate = template.userTemplate;
         promptVersion = template.version;
-        promptSchemaVersion = template.outputSchemaVersion || "v1";
+        // promptSchemaVersion = template.outputSchemaVersion || "v1";
     }
 
     // ENFORCE SPANISH & ROLE SEPARATION
@@ -165,7 +165,7 @@ export async function generateGeminiReport(
 
     const text = result.response.text();
     const jsonStr = text.replace(/```json/g, "").replace(/```/g, "").trim();
-    let parsedOutput = JSON.parse(jsonStr);
+    const parsedOutput = JSON.parse(jsonStr); // prefer-const
 
     // 6. Normalize
     let normalizedReport: any = {};

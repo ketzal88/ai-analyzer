@@ -15,7 +15,7 @@ export default function FindingsPage() {
     const [error, setError] = useState<string | null>(null);
     const [range, setRange] = useState<DateRangeOption>("last_14d");
 
-    const fetchActiveFindings = async () => {
+    const fetchActiveFindings = React.useCallback(async () => {
         if (!selectedClientId) return;
         setIsLoading(true);
         setError(null);
@@ -52,13 +52,13 @@ export default function FindingsPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [selectedClientId, range]);
 
     useEffect(() => {
         if (selectedClientId) {
             fetchActiveFindings();
         }
-    }, [selectedClientId, range]);
+    }, [selectedClientId, range, fetchActiveFindings]);
 
     return (
         <AppLayout>
