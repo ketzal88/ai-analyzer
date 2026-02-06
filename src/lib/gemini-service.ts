@@ -46,28 +46,29 @@ export async function generateGeminiReport(
     }
 
     // 2. Prepare Summary
+    // Optimization: Filter strictly necessary fields to reduce input tokens
+    const optimizedFindings = findings.slice(0, 20).map(f => ({
+        type: f.type,
+        title: f.title,
+        desc: f.description,
+        sev: f.severity,
+        evidence: f.evidence
+    }));
+
     const summary = {
         account: {
             name: clientData.name,
-            metaAdAccountId: clientData.metaAdAccountId,
-            isEcommerce: clientData.isEcommerce,
-            description: clientData.description || "",
-            businessModel: clientData.businessModel || "",
-            goals: {
-                primary: clientData.primaryGoal || "efficiency",
-                targetCpa: clientData.targetCpa,
-                targetRoas: clientData.targetRoas,
-            },
-            constraints: clientData.constraints || {},
-            conversions: clientData.conversionSchema || {}
+            biz: clientData.businessModel || "", // condensed key
+            goal: clientData.primaryGoal || "efficiency",
+            constr: clientData.constraints || {},
         },
-        analysis_period: rangeLabel,
-        findings: findings.length > 20 ? findings.slice(0, 20) : findings
+        period: rangeLabel,
+        data: optimizedFindings // "data" is shorter than "findings"
     };
 
     const summaryStr = JSON.stringify(summary);
     if (Buffer.byteLength(summaryStr) > 12000) {
-        summary.findings = summary.findings.slice(0, 10);
+        summary.data = summary.data.slice(0, 10);
     }
 
     const digest = createHash("sha256").update(JSON.stringify(summary)).digest("hex");
@@ -80,7 +81,7 @@ export async function generateGeminiReport(
             .limit(1)
             .get();
         if (!cachedReport.empty) return cachedReport.docs[0].data();
-    } catch (_e) { // Renamed e to _e
+    } catch (_e) {
         // Ignore cache read errors
     }
 
@@ -94,51 +95,57 @@ export async function generateGeminiReport(
     let systemPrompt = "Eres un analista experto en Meta Ads.";
     let userTemplate = `Analiza... {{summary_json}}`;
     let promptVersion = 0;
-    // let promptSchemaVersion = "v1"; - Removed unused
 
     if (!activePromptSnapshot.empty) {
         const template = activePromptSnapshot.docs[0].data();
         systemPrompt = template.system;
         userTemplate = template.userTemplate;
         promptVersion = template.version;
-        // promptSchemaVersion = template.outputSchemaVersion || "v1";
     }
 
     // ENFORCE SPANISH & ROLE SEPARATION
+    // Token Reduction: Use GraphQL Schema Definition for output structure instead of verbose JSON
     systemPrompt += `
     
-    INSTRUCCIONES CRÍTICAS DE ROL:
-    1. TÚ ERES EL ANALISTA ESTRATÉGICO. El usuario ya tiene una lista de hallazgos numéricos (ej: "CPA subió 20%"). NO repitas esa lista.
-    2. TU TRABAJO ES INTERPRETAR: ¿Por qué pasó eso? ¿Qué significa para el negocio?
-    3. TU TRABAJO ES PLANIFICAR: ¿Qué hacemos en los próximos 14-30 días?
-    4. IDIOMA: Genera TODO el contenido EXCLUSIVAMENTE EN ESPAÑOL.
+    INSTRUCCIONES CRÍTICAS:
+    1. Eres un ANALISTA ESTRATÉGICO. NO repitas datos. INTERPRETA y PLANIFICA.
+    2. IDIOMA: ESPAÑOL.
     
-    ESTRUCTURA DE RESPUESTA REQUERIDA (JSON V2):
-    {
-       "meta": { ... },
-       "sections": [
-           {
-               "id": "strategy",
-               "title": "Interpretación y Estrategia",
-               "summary": "Resumen ejecutivo de alto nivel...",
-               "insights": [
-                   {
-                       "title": "Análisis de Causa Raíz",
-                       "observation": "Explica la causa probable combinando los hallazgos...",
-                       "implication": "Impacto en objetivos comerciales...",
-                       "actions": [ ... pasos concretos ... ]
-                   }
-               ]
-           }
-       ]
+    FORMATO DE RESPUESTA (JSON):
+    Debes responder con un JSON válido que cumpla este esquema (TypeScript/GraphQL-like):
+    
+    type Response = {
+      meta: any; // Metadatos libres
+      sections: Section[];
+    }
+    
+    type Section = {
+      id: "strategy"; // Única sección requerida
+      title: string;
+      summary: string; // Resumen ejecutivo
+      insights: Insight[];
+    }
+    
+    type Insight = {
+      title: string;
+      observation: string; // Causa raíz + hallazgos
+      implication: string; // Impacto en negocio
+      actions: Action[];
+    }
+
+    type Action = {
+      type: "DO";
+      description: string;
+      horizon: "IMMEDIATE" | "SHORT_TERM";
+      expectedImpact: string;
     }
     `;
 
     const finalPrompt = userTemplate
-        .replace("{{summary_json}}", JSON.stringify(summary, null, 2))
-        .replace("{{client_name}}", summary.account.name)
-        .replace("{{meta_id}}", summary.account.metaAdAccountId || "N/A")
-        .replace("{{ecommerce_mode}}", summary.account.isEcommerce ? "Activado" : "Desactivado");
+        .replace("{{summary_json}}", JSON.stringify(summary)) // Removed null, 2 spacing to save tokens
+        .replace("{{client_name}}", clientData.name)
+        .replace("{{meta_id}}", clientData.metaAdAccountId || "N/A")
+        .replace("{{ecommerce_mode}}", clientData.isEcommerce ? "ON" : "OFF");
 
     // 5. Generate
     let result;

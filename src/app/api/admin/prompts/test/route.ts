@@ -39,28 +39,38 @@ export async function POST(request: NextRequest) {
                 type: data.type,
                 title: data.title,
                 severity: data.severity,
-                evidence: data.evidence
+                evidence: data.evidence,
+                description: data.description
             };
         });
+
+        const optimizedFindings = findings.slice(0, 20).map(f => ({
+            type: f.type,
+            title: f.title,
+            desc: f.description,
+            sev: f.severity,
+            evidence: f.evidence
+        }));
 
         const summary = {
             account: {
                 name: clientData.name,
-                metaAdAccountId: clientData.metaAdAccountId,
-                isEcommerce: clientData.isEcommerce,
+                biz: clientData.businessModel || "",
+                goal: clientData.primaryGoal || "efficiency",
+                constr: clientData.constraints || {},
             },
-            analysis_period: range,
-            findings: findings
+            period: range,
+            data: optimizedFindings
         };
 
-        const summaryJson = JSON.stringify(summary, null, 2);
+        const summaryJson = JSON.stringify(summary);
 
         // 3. Prepare Prompt
         const finalUserPrompt = promptTemplate.userTemplate
             .replace("{{summary_json}}", summaryJson)
-            .replace("{{client_name}}", summary.account.name)
-            .replace("{{meta_id}}", summary.account.metaAdAccountId)
-            .replace("{{ecommerce_mode}}", summary.account.isEcommerce ? "Activado" : "Desactivado");
+            .replace("{{client_name}}", clientData.name)
+            .replace("{{meta_id}}", clientData.metaAdAccountId || "N/A")
+            .replace("{{ecommerce_mode}}", clientData.isEcommerce ? "ON" : "OFF");
 
         const systemPrompt = promptTemplate.system;
 
