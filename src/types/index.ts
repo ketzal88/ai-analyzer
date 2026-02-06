@@ -64,11 +64,7 @@ export interface DiagnosticReport {
     id: string;
     clientId: string;
     generatedAt: string;
-    kpis: {
-        roas: KPISummary;
-        spend: KPISummary;
-        cpa: KPISummary;
-    };
+    kpis: KPISummary[];
     findings: DiagnosticFinding[];
     campaignPerformance: CampaignPerformanceRow[];
 }
@@ -151,6 +147,36 @@ export interface Client {
     slackInternalChannel?: string;
     createdAt: string;
     updatedAt: string;
+}
+
+/**
+ * Prompt Management (Mission 15)
+ */
+export interface PromptTemplate {
+    id: string;
+    key: string; // e.g., "report"
+    version: number;
+    status: "active" | "draft" | "archived";
+    system: string;
+    userTemplate: string;
+    variables: string[]; // should include "summary_json"
+    createdAt: string;
+    updatedAt: string;
+    createdByUid: string;
+}
+
+export interface PromptRun {
+    id: string;
+    promptId: string;
+    clientId: string;
+    range: string;
+    modelUsed: string;
+    latencyMs: number;
+    cacheHit: boolean;
+    output: string; // max 8KB
+    success: boolean;
+    error?: string;
+    createdAt: string;
 }
 
 /**

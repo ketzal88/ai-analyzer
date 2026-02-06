@@ -95,14 +95,21 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "GEMINI_API_KEY_MISSING", message: "Gemini API Key not configured" }, { status: 500 });
         }
 
-        const prompt = `
-      Eres un ingeniero experto en crecimiento y optimización de Meta Ads. 
-      Analiza el siguiente resumen diagnóstico para el cliente "${summary.account.name}".
-      ID de Plataforma: ${summary.account.metaAdAccountId}.
-      Modo Ecommerce: ${summary.account.isEcommerce ? "Activado" : "Desactivado"}.
+        // --- DYNAMIC PROMPT (Mission 15) ---
+        const activePromptSnapshot = await db.collection("prompt_templates")
+            .where("key", "==", "report")
+            .where("status", "==", "active")
+            .limit(1)
+            .get();
+
+        let systemPrompt = "Eres un ingeniero experto en crecimiento y optimización de Meta Ads.";
+        let userTemplate = `
+      Analiza el siguiente resumen diagnóstico para el cliente "{{client_name}}".
+      ID de Plataforma: {{meta_id}}.
+      Modo Ecommerce: {{ecommerce_mode}}.
       
       RESUMEN DE DATOS:
-      ${JSON.stringify(summary, null, 2)}
+      {{summary_json}}
       
       INSTRUCCIONES:
       1. Proporciona un diagnóstico profesional del estado actual en ESPAÑOL.
@@ -126,20 +133,38 @@ export async function POST(request: NextRequest) {
       }
     `;
 
+        if (!activePromptSnapshot.empty) {
+            const template = activePromptSnapshot.docs[0].data();
+            systemPrompt = template.system;
+            userTemplate = template.userTemplate;
+        }
+
+        const finalPrompt = userTemplate
+            .replace("{{summary_json}}", JSON.stringify(summary, null, 2))
+            .replace("{{client_name}}", summary.account.name)
+            .replace("{{meta_id}}", summary.account.metaAdAccountId)
+            .replace("{{ecommerce_mode}}", summary.account.isEcommerce ? "Activado" : "Desactivado");
+
         let result;
         let usedModel = PRIMARY_MODEL;
         let isFallbackUsed = false;
 
         try {
-            const model = genAI.getGenerativeModel({ model: PRIMARY_MODEL });
-            result = await model.generateContent(prompt);
+            const model = genAI.getGenerativeModel({
+                model: PRIMARY_MODEL,
+                systemInstruction: systemPrompt
+            });
+            result = await model.generateContent(finalPrompt);
         } catch (error: any) {
             if (isModelNotFoundError(error)) {
                 console.warn(`Gemini fallback used: ${FALLBACK_MODEL} (Error: ${error.message})`);
                 usedModel = FALLBACK_MODEL;
                 isFallbackUsed = true;
-                const model = genAI.getGenerativeModel({ model: FALLBACK_MODEL });
-                result = await model.generateContent(prompt);
+                const model = genAI.getGenerativeModel({
+                    model: FALLBACK_MODEL,
+                    systemInstruction: systemPrompt
+                });
+                result = await model.generateContent(finalPrompt);
             } else {
                 throw error;
             }

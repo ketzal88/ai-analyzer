@@ -65,24 +65,6 @@ export async function POST(request: NextRequest) {
 
         const cleanAdAccountId = metaAdAccountId.startsWith("act_") ? metaAdAccountId : `act_${metaAdAccountId}`;
 
-        // --- MOCK BYPASS ---
-        // Bypass if ID is the test one, OR if the client name/slug contains 'mock'
-        const isMockClient =
-            cleanAdAccountId === "act_123456789" ||
-            clientData.name?.toLowerCase().includes("mock") ||
-            clientData.slug?.toLowerCase().includes("mock");
-
-        if (isMockClient) {
-            console.log(`🛠️ Mock Client detected (${clientData.name}). Skipping Meta API call.`);
-            return NextResponse.json({
-                success: true,
-                syncRunId: "mock_sync_run_" + Date.now(),
-                campaignsProcessed: 2,
-                isMock: true
-            });
-        }
-        // -------------------
-
         // 3. Record start of sync
         const syncRunRef = await db.collection("sync_runs").add({
             clientId,

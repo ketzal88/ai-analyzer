@@ -79,10 +79,10 @@ export default function Dashboard({
                 </div>
 
                 {/* KPI Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <KPICard kpi={report.kpis.roas} />
-                    <KPICard kpi={report.kpis.spend} />
-                    <KPICard kpi={report.kpis.cpa} />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {report.kpis.map((kpi, index) => (
+                        <KPICard key={index} kpi={kpi} />
+                    ))}
                 </div>
 
                 {/* Findings */}

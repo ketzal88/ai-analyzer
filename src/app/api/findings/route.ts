@@ -23,11 +23,6 @@ export async function POST(request: NextRequest) {
         const clientData = clientDoc.data()!;
         if (!clientData.active) return NextResponse.json({ error: "Client is inactive" }, { status: 403 });
 
-        const isMockClient =
-            clientData.metaAdAccountId === "act_123456789" ||
-            clientData.name?.toLowerCase().includes("mock") ||
-            clientData.slug?.toLowerCase().includes("mock");
-
         // 3. Fetch insights from Firestore
         const insightsSnapshot = await db.collection("insights_daily")
             .where("clientId", "==", clientId)
@@ -255,10 +250,14 @@ export async function POST(request: NextRequest) {
             summary: {
                 clientId,
                 currentStats,
+                previousStats,
                 WoW_Changes: {
-                    spend: (currentStats.spend / previousStats.spend - 1) * 100,
-                    cpa: (currentStats.cpa / previousStats.cpa - 1) * 100,
-                    roas: (currentStats.roas / previousStats.roas - 1) * 100,
+                    spend: previousStats.spend > 0 ? (currentStats.spend / previousStats.spend - 1) * 100 : 0,
+                    cpa: previousStats.cpa > 0 ? (currentStats.cpa / previousStats.cpa - 1) * 100 : 0,
+                    roas: previousStats.roas > 0 ? (currentStats.roas / previousStats.roas - 1) * 100 : 0,
+                    purchases: previousStats.purchases > 0 ? (currentStats.purchases / previousStats.purchases - 1) * 100 : 0,
+                    ctr: previousStats.ctr > 0 ? (currentStats.ctr / previousStats.ctr - 1) * 100 : 0,
+                    cvr: previousStats.cvr > 0 ? (currentStats.cvr / previousStats.cvr - 1) * 100 : 0,
                 }
             },
             findingsCount: findings.length,

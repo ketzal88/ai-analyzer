@@ -52,16 +52,52 @@ export default function DashboardPage() {
             if (!reportRes.ok) throw new Error("Error al generar reporte");
             const reportData = await reportRes.json();
 
+            const { summary } = findingsData;
+            const { currentStats, WoW_Changes } = summary;
+
             // 4. Construct UI report object
             const finalReport: DiagnosticReport = {
                 id: reportData.id || "latest",
                 clientId: clientId,
                 generatedAt: reportData.createdAt || new Date().toISOString(),
-                kpis: {
-                    roas: { label: "ROAS de la Cuenta", value: "4.21", change: 12.4, trend: "up", suffix: "" },
-                    spend: { label: "Gasto Diario", value: "$1,482", limit: "Límite: $10k", trend: "neutral" },
-                    cpa: { label: "CPA Promedio", value: "$24.05", change: 6.2, trend: "down", suffix: "" },
-                },
+                kpis: [
+                    {
+                        label: "ROAS de la Cuenta",
+                        value: currentStats.roas.toFixed(2),
+                        change: Math.abs(Number(WoW_Changes.roas.toFixed(1))),
+                        trend: WoW_Changes.roas >= 0 ? "up" : "down"
+                    },
+                    {
+                        label: "Gasto Total",
+                        value: `$${Math.round(currentStats.spend).toLocaleString()}`,
+                        change: Math.abs(Number(WoW_Changes.spend.toFixed(1))),
+                        trend: WoW_Changes.spend >= 0 ? "up" : "down"
+                    },
+                    {
+                        label: "CPA Promedio",
+                        value: `$${currentStats.cpa.toFixed(2)}`,
+                        change: Math.abs(Number(WoW_Changes.cpa.toFixed(1))),
+                        trend: WoW_Changes.cpa <= 0 ? "up" : "down" // Lower CPA is better (up trend color)
+                    },
+                    {
+                        label: "Conversiones",
+                        value: currentStats.purchases.toLocaleString(),
+                        change: Math.abs(Number(WoW_Changes.purchases.toFixed(1))),
+                        trend: WoW_Changes.purchases >= 0 ? "up" : "down"
+                    },
+                    {
+                        label: "CTR",
+                        value: `${(currentStats.ctr * 100).toFixed(2)}%`,
+                        change: Math.abs(Number(WoW_Changes.ctr.toFixed(1))),
+                        trend: WoW_Changes.ctr >= 0 ? "up" : "down"
+                    },
+                    {
+                        label: "CVR",
+                        value: `${(currentStats.cvr * 100).toFixed(2)}%`,
+                        change: Math.abs(Number(WoW_Changes.cvr.toFixed(1))),
+                        trend: WoW_Changes.cvr >= 0 ? "up" : "down"
+                    }
+                ],
                 findings: findingsData.findings,
                 campaignPerformance: []
             };
