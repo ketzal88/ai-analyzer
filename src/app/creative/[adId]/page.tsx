@@ -6,6 +6,7 @@ import AppLayout from "@/components/layouts/AppLayout";
 import { useClient } from "@/contexts/ClientContext";
 import Link from "next/link";
 import { CreativeDetailResponse } from "@/types/creative-analysis";
+import CreativeVariationsDrawer from "@/components/creative/CreativeVariationsDrawer";
 
 export default function CreativeDetailPage() {
     const { adId } = useParams();
@@ -17,6 +18,7 @@ export default function CreativeDetailPage() {
     const [data, setData] = useState<CreativeDetailResponse | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [isVariationsOpen, setIsVariationsOpen] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const fetchDetail = useCallback(async () => {
@@ -119,19 +121,42 @@ export default function CreativeDetailPage() {
                         <div className="text-right">
                             <div className="text-[10px] font-bold text-text-muted uppercase tracking-widest mb-1">Score IA</div>
                             <div className="text-3xl font-black text-classic">
-                                {((creative.score || 0) * 100).toFixed(0)}
+                                {aiReport?.output?.score !== undefined
+                                    ? aiReport.output.score
+                                    : ((creative.score || 0) * 100).toFixed(0)}
                             </div>
                         </div>
-                        <button
-                            onClick={runAnalysis}
-                            disabled={isAnalyzing}
-                            className={`px-6 py-3 rounded-xl font-black text-[12px] uppercase tracking-widest transition-all ${isAnalyzing
-                                ? "bg-stellar text-text-muted cursor-not-allowed"
-                                : "bg-classic text-white hover:shadow-lg hover:shadow-classic/20 active:scale-95"
-                                }`}
-                        >
-                            {isAnalyzing ? "Analizando..." : "Generar Auditoría GEM"}
-                        </button>
+
+                        <div className="flex flex-col md:flex-row gap-3">
+                            {/* <button
+                                onClick={() => setIsVariationsOpen(true)}
+                                className="px-6 py-3 border border-argent rounded-xl font-black text-[12px] uppercase tracking-widest text-text-secondary hover:bg-argent/10 hover:text-text-primary transition-all flex items-center gap-2"
+                            >
+                                <span className="text-lg">🧪</span>
+                                Explorar Variaciones GEM
+                            </button> */}
+
+                            <button
+                                onClick={runAnalysis}
+                                disabled={isAnalyzing}
+                                className={`px-6 py-3 rounded-xl font-black text-[12px] uppercase tracking-widest transition-all ${isAnalyzing
+                                    ? "bg-stellar text-text-muted cursor-not-allowed"
+                                    : "bg-classic text-white hover:shadow-lg hover:shadow-classic/20 active:scale-95 flex items-center gap-2"
+                                    }`}
+                            >
+                                {isAnalyzing ? (
+                                    <>
+                                        <div className="w-3 h-3 border-2 border-text-muted border-t-transparent rounded-full animate-spin" />
+                                        Analizando...
+                                    </>
+                                ) : (
+                                    <>
+                                        <span>✨</span>
+                                        Generar Auditoría GEM
+                                    </>
+                                )}
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -161,7 +186,7 @@ export default function CreativeDetailPage() {
                                         Auditoría Estratégica GEM
                                     </h2>
                                     <span className="text-[10px] font-bold text-text-muted uppercase">
-                                        Generado: {new Date(aiReport.metadata.generatedAt).toLocaleDateString()}
+                                        Generado: {new Date(aiReport.metadata.generatedAt).toLocaleDateString()} | Versión Prompt: v{aiReport.promptVersion || 1}
                                     </span>
                                 </div>
 
@@ -252,6 +277,14 @@ export default function CreativeDetailPage() {
                 </div>
 
             </div>
+
+            <CreativeVariationsDrawer
+                isOpen={isVariationsOpen}
+                onClose={() => setIsVariationsOpen(false)}
+                clientId={selectedClientId!}
+                adId={adId as string}
+                range={data?.aiReport?.range || range as any}
+            />
         </AppLayout>
     );
 }

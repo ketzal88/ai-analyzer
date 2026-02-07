@@ -77,10 +77,15 @@ export async function GET(request: NextRequest) {
                 .where("clientId", "==", clientId)
                 .where("adId", "==", adId)
                 .orderBy("metadata.generatedAt", "desc")
-                .limit(1)
                 .get();
 
-            latestReport = !reportSnap.empty ? reportSnap.docs[0].data() : null;
+            // Filter for audit reports (those without capability=variations_copy)
+            latestReport = reportSnap.docs
+                .map(d => d.data())
+                .find(d =>
+                    d.metadata?.capability !== "variations_copy" &&
+                    d.output?.diagnosis
+                ) || null;
         } catch (reportError: any) {
             console.warn("[Creative Detail] AI Report fetch failed (likely missing index):", reportError.message);
             // We don't throw here to allow the main creative data to be returned
