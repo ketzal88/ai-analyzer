@@ -125,6 +125,7 @@ export default function CreativeIntelligencePage() {
                         <CreativeGrid
                             creatives={filteredCreatives}
                             isLoading={isLoading}
+                            range={range}
                         />
                     )}
                 </div>

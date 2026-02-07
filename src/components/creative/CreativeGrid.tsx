@@ -7,9 +7,10 @@ import CreativeCard from "./CreativeCard";
 interface CreativeGridProps {
     creatives: SelectedCreative[];
     isLoading: boolean;
+    range: string;
 }
 
-export default function CreativeGrid({ creatives, isLoading }: CreativeGridProps) {
+export default function CreativeGrid({ creatives, isLoading, range }: CreativeGridProps) {
     if (isLoading) {
         return (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 animate-pulse">
@@ -47,7 +48,7 @@ export default function CreativeGrid({ creatives, isLoading }: CreativeGridProps
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {creatives.map((creative) => (
-                <CreativeCard key={creative.adId} creative={creative} />
+                <CreativeCard key={creative.adId} creative={creative} range={range} />
             ))}
         </div>
     );

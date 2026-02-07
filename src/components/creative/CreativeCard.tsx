@@ -1,13 +1,15 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { SelectedCreative } from "@/types/creative-kpi";
 
 interface CreativeCardProps {
     creative: SelectedCreative;
+    range: string;
 }
 
-export default function CreativeCard({ creative }: CreativeCardProps) {
+export default function CreativeCard({ creative, range }: CreativeCardProps) {
     const { kpis, reasons, cluster, score } = creative;
 
     // Placeholder logic for thumbnail
@@ -119,9 +121,12 @@ export default function CreativeCard({ creative }: CreativeCardProps) {
                 </div>
 
                 {/* Action Button */}
-                <button className="w-full mt-4 py-2 border border-argent rounded-lg text-[11px] font-bold uppercase tracking-widest text-text-secondary hover:bg-classic hover:text-white hover:border-classic transition-all duration-200">
+                <Link
+                    href={`/creative/${creative.adId}?range=${range}`}
+                    className="w-full mt-4 py-2 border border-argent rounded-lg text-[11px] font-bold uppercase tracking-widest text-text-secondary hover:bg-classic hover:text-white hover:border-classic transition-all duration-200 text-center block"
+                >
                     Ver Detalle
-                </button>
+                </Link>
             </div>
         </div>
     );
