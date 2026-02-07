@@ -77,6 +77,7 @@ export async function calculateCreativeKPISnapshot(
     const creativesSnapshot = await db.collection("meta_creatives")
         .where("clientId", "==", clientId)
         .where("lastSeenActiveAt", ">=", activeSince.toISOString())
+        .orderBy("lastSeenActiveAt", "desc")
         .get();
 
     const creatives = creativesSnapshot.docs.map(doc => doc.data() as MetaCreativeDoc);

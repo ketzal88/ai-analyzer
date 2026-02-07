@@ -7,6 +7,24 @@ const META_ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
 const MAX_ADS_PER_SYNC = 2000; // Hard limit to prevent runaway costs
 
 /**
+ * Recursively removes keys with undefined values from an object.
+ * Necessary for Firestore even with ignoreUndefinedProperties enabled
+ * to maintain a clean schema.
+ */
+function sanitizeForFirestore<T>(obj: any): T {
+    if (Array.isArray(obj)) {
+        return obj.map(v => sanitizeForFirestore(v)) as any;
+    } else if (obj !== null && typeof obj === "object") {
+        return Object.fromEntries(
+            Object.entries(obj)
+                .filter(([_, v]) => v !== undefined)
+                .map(([k, v]) => [k, sanitizeForFirestore(v)])
+        ) as any;
+    }
+    return obj;
+}
+
+/**
  * AG-41: Fetch active/paused ads from Meta with creative details
  * Returns normalized creative metadata without storing raw payloads
  */
@@ -20,15 +38,15 @@ export async function fetchMetaCreatives(
         "id",
         "name",
         "effective_status",
-        "campaign{id,name,objective,buying_type}",
-        "adset{id,name,optimization_goal,billing_event,promoted_object}",
+        "campaign{id,name,objective,buying_type,effective_status}",
+        "adset{id,name,optimization_goal,billing_event,promoted_object,effective_status}",
         "creative{id,object_story_spec,asset_feed_spec,effective_object_story_id}"
     ].join(",");
 
     const baseUrl = `https://graph.facebook.com/${META_API_VERSION}/${cleanId}/ads`;
     const params = new URLSearchParams({
         fields,
-        effective_status: JSON.stringify(["ACTIVE", "PAUSED"]),
+        effective_status: JSON.stringify(["ACTIVE"]),
         limit: "100",
         access_token: accessToken
     });
@@ -137,7 +155,7 @@ export function normalizeMetaAdToCreativeDoc(
         destinationUrl,
         videoId,
         imageHash,
-        carouselItemsSummary: carousel?.items.map(i => `${i.headline}|${i.destinationUrl}|${i.imageHash}`).join("||") || "",
+        carouselItemsSummary: carousel?.items.map((i: any) => `${i.headline}|${i.destinationUrl}|${i.imageHash}`).join("||") || "",
         productSetId: catalog?.productSetId || ""
     };
     const fingerprint = createHash("sha256").update(JSON.stringify(fingerprintData)).digest("hex");
@@ -167,9 +185,9 @@ export function normalizeMetaAdToCreativeDoc(
             optimizationGoal: ad.adset?.optimization_goal || "",
             billingEvent: ad.adset?.billing_event || "",
             promotedObject: {
-                pixelId: ad.adset?.promoted_object?.pixel_id,
-                customEventType: ad.adset?.promoted_object?.custom_event_type,
-                catalogId: ad.adset?.promoted_object?.catalog_id
+                ...(ad.adset?.promoted_object?.pixel_id ? { pixelId: ad.adset.promoted_object.pixel_id } : {}),
+                ...(ad.adset?.promoted_object?.custom_event_type ? { customEventType: ad.adset.promoted_object.custom_event_type } : {}),
+                ...(ad.adset?.promoted_object?.catalog_id ? { catalogId: ad.adset.promoted_object.catalog_id } : {})
             }
         },
 
@@ -191,10 +209,10 @@ export function normalizeMetaAdToCreativeDoc(
             pageId: objectStorySpec.page_id,
             instagramActorId: objectStorySpec.instagram_actor_id,
             assets: {
-                videoId,
-                imageHash,
-                carousel,
-                catalog
+                ...(videoId ? { videoId } : {}),
+                ...(imageHash ? { imageHash } : {}),
+                ...(carousel ? { carousel } : {}),
+                ...(catalog ? { catalog } : {})
             }
         },
 
@@ -229,7 +247,7 @@ export async function upsertCreativeDocs(
 
             if (!existing.exists) {
                 // New doc: set all fields
-                batch.set(docRef, doc);
+                batch.set(docRef, sanitizeForFirestore(doc));
                 created++;
             } else {
                 const existingData = existing.data() as MetaCreativeDoc;
@@ -248,7 +266,7 @@ export async function upsertCreativeDocs(
                     updateData.lastSeenActiveAt = existingData.lastSeenActiveAt;
                 }
 
-                batch.set(docRef, updateData, { merge: true });
+                batch.set(docRef, sanitizeForFirestore(updateData), { merge: true });
                 updated++;
             }
         }
@@ -266,8 +284,17 @@ export async function upsertCreativeDocs(
 export async function syncMetaCreatives(
     clientId: string,
     metaAdAccountId: string
-): Promise<CreativeSyncMetrics> {
+): Promise<CreativeSyncMetrics & { durationMs: number; counters: any }> {
+    const startTime = Date.now();
     const errors: string[] = [];
+    const counters = {
+        fetchedTotal: 0,
+        keptActiveReal: 0,
+        skippedByAdStatus: 0,
+        skippedByCampaignStatus: 0,
+        skippedByAdsetStatus: 0,
+        skippedMissingParents: 0
+    };
 
     try {
         if (!META_ACCESS_TOKEN) {
@@ -278,39 +305,70 @@ export async function syncMetaCreatives(
 
         // 1. Fetch from Meta
         const rawAds = await fetchMetaCreatives(metaAdAccountId, META_ACCESS_TOKEN);
+        counters.fetchedTotal = rawAds.length;
 
-        // 2. Normalize
-        const normalizedDocs = rawAds.map(ad =>
+        // 2. Strict Filering (ACTIVE REAL)
+        const activeRealAds = rawAds.filter(ad => {
+            if (ad.effective_status !== "ACTIVE") {
+                counters.skippedByAdStatus++;
+                return false;
+            }
+            if (!ad.campaign || !ad.adset) {
+                counters.skippedMissingParents++;
+                return false;
+            }
+            if (ad.campaign.effective_status !== "ACTIVE") {
+                counters.skippedByCampaignStatus++;
+                return false;
+            }
+            if (ad.adset.effective_status !== "ACTIVE") {
+                counters.skippedByAdsetStatus++;
+                return false;
+            }
+            return true;
+        });
+
+        counters.keptActiveReal = activeRealAds.length;
+        console.log(`Filtering complete: ${counters.keptActiveReal} kept as ACTIVE REAL out of ${counters.fetchedTotal}`);
+
+        // 3. Normalize
+        const normalizedDocs = activeRealAds.map(ad =>
             normalizeMetaAdToCreativeDoc(ad, clientId, metaAdAccountId)
         );
 
-        // 3. Upsert to Firestore
+        // 4. Upsert to Firestore
         const { created, updated, skipped } = await upsertCreativeDocs(normalizedDocs);
+        const durationMs = Date.now() - startTime;
 
-        console.log(`Sync complete: ${created} created, ${updated} updated, ${skipped} skipped`);
+        console.log(`Sync complete in ${durationMs}ms: ${created} created, ${updated} updated, ${skipped} skipped`);
 
         return {
             ok: true,
-            totalAdsFetched: rawAds.length,
+            totalAdsFetched: counters.fetchedTotal,
             docsCreated: created,
             docsUpdated: updated,
             docsSkipped: skipped,
             errors,
-            syncedAt: new Date().toISOString()
+            syncedAt: new Date().toISOString(),
+            durationMs,
+            counters
         };
 
     } catch (error: any) {
+        const durationMs = Date.now() - startTime;
         console.error("Creative sync error:", error);
         errors.push(error.message || String(error));
 
         return {
             ok: false,
-            totalAdsFetched: 0,
+            totalAdsFetched: counters.fetchedTotal,
             docsCreated: 0,
             docsUpdated: 0,
             docsSkipped: 0,
             errors,
-            syncedAt: new Date().toISOString()
+            syncedAt: new Date().toISOString(),
+            durationMs,
+            counters
         };
     }
 }

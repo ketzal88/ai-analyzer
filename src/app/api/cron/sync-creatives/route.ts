@@ -9,9 +9,11 @@ import { syncMetaCreatives } from "@/lib/meta-creative-service";
  */
 export async function POST(request: NextRequest) {
     try {
-        // 1. Verify cron secret
+        // 1. Verify cron secret (bypass in development)
+        const isDev = process.env.NODE_ENV === "development";
         const cronSecret = request.headers.get("x-cron-secret");
-        if (cronSecret !== process.env.CRON_SECRET) {
+
+        if (!isDev && cronSecret !== process.env.CRON_SECRET) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
@@ -49,15 +51,7 @@ export async function POST(request: NextRequest) {
             triggeredBy: "cron"
         });
 
-        return NextResponse.json({
-            ok: metrics.ok,
-            fetched: metrics.totalAdsFetched,
-            created: metrics.docsCreated,
-            updated: metrics.docsUpdated,
-            skipped: metrics.docsSkipped,
-            errors: metrics.errors,
-            syncedAt: metrics.syncedAt
-        });
+        return NextResponse.json(metrics, { status: metrics.ok ? 200 : 500 });
 
     } catch (error: any) {
         console.error("[CRON] Creative sync error:", error);

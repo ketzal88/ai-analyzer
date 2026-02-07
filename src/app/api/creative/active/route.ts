@@ -17,12 +17,17 @@ import { CreativeSelectionResponse } from "@/types/creative-kpi";
  */
 export async function GET(request: NextRequest) {
     try {
-        // 1. Auth check
+        // 1. Auth check (bypass in development)
+        const isDev = process.env.NODE_ENV === "development";
         const sessionCookie = request.cookies.get("session")?.value;
-        if (!sessionCookie) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+        if (!isDev) {
+            if (!sessionCookie) {
+                return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+            }
+            await auth.verifySessionCookie(sessionCookie);
         }
-        await auth.verifySessionCookie(sessionCookie);
+
 
         // 2. Parse query params
         const { searchParams } = new URL(request.url);

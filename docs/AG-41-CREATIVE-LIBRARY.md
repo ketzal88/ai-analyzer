@@ -127,7 +127,19 @@ gcloud firestore indexes composite create \
 }
 ```
 
-**Manual trigger:**
+**Manual trigger (Local):**
+> 💡 En un entorno de desarrollo (`NODE_ENV=development`), el bypass está **activo** y no es obligatorio enviar el secret.
+
+```bash
+# Sin secret (solo en desarrollo)
+curl -X POST "http://localhost:3000/api/cron/sync-creatives?clientId=YOUR_CLIENT_ID"
+
+# Con secret (opcional en desarrollo, obligatorio en producción)
+curl -X POST "http://localhost:3000/api/cron/sync-creatives?clientId=YOUR_CLIENT_ID" \
+  -H "x-cron-secret: YOUR_CRON_SECRET"
+```
+
+**Manual trigger (Producción):**
 ```bash
 curl -X POST "https://your-domain.com/api/cron/sync-creatives?clientId=xxx" \
   -H "x-cron-secret: YOUR_CRON_SECRET"

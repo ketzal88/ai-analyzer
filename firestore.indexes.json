@@ -24,6 +24,20 @@
                 },
                 {
                     "fieldPath": "lastSeenActiveAt",
+                    "order": "ASCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "meta_creatives",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "clientId",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "lastSeenActiveAt",
                     "order": "DESCENDING"
                 }
             ]
