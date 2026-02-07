@@ -208,9 +208,8 @@ export async function generateCreativeVariations(
         .limit(1)
         .get();
 
-    let systemPrompt = `Eres un experto Copywriter para Meta Ads.
-    Tu objetivo es generar 3 variaciones de texto (Primary Text + Headline) basadas en el creativo proporcionado.
-    Mantén el ángulo ganador pero prueba distintos ganchos (hooks).`;
+    // Default Fallback Prompt (Hardcoded)
+    let systemPrompt = `Eres un experto en Creative Strategy (GEM). Generá 3 variaciones de exploración real, no cambios cosméticos. Responde en JSON.`;
 
     if (!promptSnap.empty) {
         systemPrompt = promptSnap.docs[0].data().system;
@@ -221,13 +220,28 @@ export async function generateCreativeVariations(
         systemInstruction: systemPrompt
     });
 
-    const userPrompt = `Creativo Original:
-    Texto: ${creative.creative.primaryText}
-    Headline: ${creative.creative.headline}
-    KPIs: ROAS ${kpis.roas}, CPA ${kpis.cpa}
-    
-    Genera 3 variaciones en formato JSON.`;
+    const creativeData = {
+        adName: creative.ad.name,
+        format: creative.creative.format,
+        copy: creative.creative.primaryText,
+        headline: creative.creative.headline,
+        metrics: {
+            roas: kpis.roas,
+            cpa: kpis.cpa,
+            spend: kpis.spend
+        }
+    };
 
-    const result = await model.generateContent(userPrompt);
-    return result.response.text();
+    const userPrompt = `Fuente única de verdad:
+    {{summary_json}}`.replace("{{summary_json}}", JSON.stringify(creativeData, null, 2));
+
+    try {
+        const result = await model.generateContent(userPrompt);
+        const text = result.response.text();
+        const jsonStr = text.replace(/```json/g, "").replace(/```/g, "").trim();
+        return JSON.parse(jsonStr);
+    } catch (error) {
+        console.error("[Creative Variations] Error generating or parsing variations:", error);
+        return { error: "Failed to generate variations", raw: null };
+    }
 }
