@@ -19,15 +19,15 @@ export interface CreativeAIReport {
     // Structured Output
     output: {
         diagnosis: string;
-        risks: {
-            fatigue: string;
-            collision: string;
+        risks?: {
+            fatigue?: string;
+            collision?: string;
             other?: string;
         };
-        actions: {
-            horizon7d: string;
-            horizon14d: string;
-            horizon30d: string;
+        actions?: {
+            horizon7d?: string;
+            horizon14d?: string;
+            horizon30d?: string;
         };
         score?: number;
     };

@@ -168,7 +168,7 @@ export default function CreativeDetailPage() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="p-6 bg-special border border-argent rounded-2xl space-y-4">
                                         <h3 className="text-[10px] font-black text-classic uppercase tracking-[0.2em]">Diagnóstico</h3>
-                                        <p className="text-body text-text-primary leading-relaxed">{aiReport.output.diagnosis}</p>
+                                        <p className="text-body text-text-primary leading-relaxed">{aiReport.output?.diagnosis || "Sin diagnóstico disponible."}</p>
                                     </div>
 
                                     <div className="p-6 bg-special border border-argent rounded-2xl space-y-4">
@@ -176,11 +176,11 @@ export default function CreativeDetailPage() {
                                         <div className="space-y-3">
                                             <div>
                                                 <div className="text-[10px] font-bold text-text-muted mb-1">Fatiga</div>
-                                                <p className="text-small text-text-secondary">{aiReport.output.risks.fatigue}</p>
+                                                <p className="text-small text-text-secondary">{aiReport.output?.risks?.fatigue || "Sin datos"}</p>
                                             </div>
                                             <div>
                                                 <div className="text-[10px] font-bold text-text-muted mb-1">Colisión</div>
-                                                <p className="text-small text-text-secondary">{aiReport.output.risks.collision}</p>
+                                                <p className="text-small text-text-secondary">{aiReport.output?.risks?.collision || "Sin datos"}</p>
                                             </div>
                                         </div>
                                     </div>
@@ -189,9 +189,9 @@ export default function CreativeDetailPage() {
                                 <div className="p-6 bg-classic border border-classic/20 rounded-2xl shadow-xl shadow-classic/10">
                                     <h3 className="text-[10px] font-black text-white/70 uppercase tracking-[0.2em] mb-4">Plan de Acción Recomendado</h3>
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                        <ActionItem title="Siguientes 7d" desc={aiReport.output.actions.horizon7d} />
-                                        <ActionItem title="Optimización 14d" desc={aiReport.output.actions.horizon14d} />
-                                        <ActionItem title="Estrategia 30d" desc={aiReport.output.actions.horizon30d} />
+                                        <ActionItem title="Siguientes 7d" desc={aiReport.output?.actions?.horizon7d || "N/A"} />
+                                        <ActionItem title="Optimización 14d" desc={aiReport.output?.actions?.horizon14d || "N/A"} />
+                                        <ActionItem title="Estrategia 30d" desc={aiReport.output?.actions?.horizon30d || "N/A"} />
                                     </div>
                                 </div>
                             </div>
@@ -269,7 +269,7 @@ function ActionItem({ title, desc }: { title: string; desc: string }) {
     return (
         <div className="space-y-2 py-3 px-4 bg-black/20 rounded-xl">
             <h4 className="text-[9px] font-black text-white/50 uppercase tracking-widest">{title}</h4>
-            <p className="text-[11px] text-white/90 leading-snug">{desc}</p>
+            <p className="text-[11px] text-white/90 leading-snug">{desc || "Pendiente de definición"}</p>
         </div>
     );
 }
