@@ -21,19 +21,19 @@ export async function generateCreativeAudit(
     // 1. Prepare Inputs for Hashing & Prompt
     const inputData = {
         creative: {
-            id: creative.ad.id,
-            format: creative.creative.format,
-            headline: creative.creative.headline,
-            primaryText: creative.creative.primaryText,
-            cta: creative.creative.ctaType
+            id: creative.ad?.id || "N/A",
+            format: creative.creative?.format || "UNKNOWN",
+            headline: creative.creative?.headline || "",
+            primaryText: creative.creative?.primaryText || "",
+            cta: creative.creative?.ctaType || ""
         },
         metrics: {
-            spend: kpis.spend,
-            roas: kpis.roas,
-            cpa: kpis.cpa,
-            ctr: kpis.ctr,
-            frequency: kpis.frequency,
-            conv: kpis.primaryConversions
+            spend: kpis.spend || 0,
+            roas: kpis.roas || 0,
+            cpa: kpis.cpa || 0,
+            ctr: kpis.ctr || 0,
+            frequency: kpis.frequency || 0,
+            conv: kpis.primaryConversions || 0
         },
         range
     };
@@ -68,64 +68,166 @@ export async function generateCreativeAudit(
     IDIOMA: ESPAÑOL.
     SE BREVE Y ACCIONABLE.`;
 
-    let promptId = "default-creative-v1";
+    let promptId = "default";
+    let promptVersion = 1;
+
     if (!promptSnap.empty) {
         const p = promptSnap.docs[0].data();
         systemPrompt = p.system;
         promptId = promptSnap.docs[0].id;
+        promptVersion = p.version || 1;
     }
 
     // 3. Cache Check (24h)
-    // Key: clientId__adId__rangeHash__promptId
-    const rangeHash = createHash("md5").update(`${range.start}_${range.end}`).digest("hex");
-    const reportId = `${clientId}__${creative.ad.id}__${rangeHash}__${promptId}`;
+    // New Human Readable Key: clientId__adId__YYYY-MM-DD_YYYY-MM-DD__p{version}
+    const rangeKey = `${range.start}_${range.end}`;
+    const rangeHash = createHash("md5").update(rangeKey).digest("hex");
 
-    const cachedSnap = await db.collection("creative_ai_reports").doc(reportId).get();
-    if (cachedSnap.exists) {
-        const data = cachedSnap.data() as CreativeAIReport;
-        const age = (Date.now() - new Date(data.metadata.generatedAt).getTime()) / (1000 * 60 * 60);
-        if (age < 24) {
-            console.log(`[AI Analysis] Returning cached report for ${creative.ad.id}`);
-            return data;
+    const newReportId = `${clientId}__${creative.ad.id}__${rangeKey}__p${promptVersion}`;
+    const oldReportId = `${clientId}__${creative.ad.id}__${rangeHash}__${promptId}`;
+
+    const checkCache = async (id: string) => {
+        try {
+            const snap = await db.collection("creative_ai_reports").doc(id).get();
+            if (snap.exists) {
+                const data = snap.data();
+                if (!data?.metadata?.generatedAt) {
+                    console.warn(`[AI Analysis] Cached report ${id} missing metadata.generatedAt. Skipping.`);
+                    return null;
+                }
+
+                const age = (Date.now() - new Date(data.metadata.generatedAt).getTime()) / (1000 * 60 * 60);
+                if (age < 24) return data as CreativeAIReport;
+            }
+        } catch (e) {
+            console.error(`[AI Analysis] Cache check error for ${id}:`, e);
+        }
+        return null;
+    };
+
+    let cachedReport = await checkCache(newReportId);
+
+    // Fallback to old hash-based ID and migrate if found
+    if (!cachedReport) {
+        cachedReport = await checkCache(oldReportId);
+        if (cachedReport) {
+            try {
+                console.log(`[AI Analysis] Migrating legacy report ${oldReportId} -> ${newReportId}`);
+                const migratedReport = {
+                    ...cachedReport,
+                    id: newReportId,
+                    range: {
+                        start: cachedReport.range?.start || range.start,
+                        end: cachedReport.range?.end || range.end,
+                        tz: "UTC"
+                    },
+                    rangeKey
+                };
+                await db.collection("creative_ai_reports").doc(newReportId).set(migratedReport);
+                return migratedReport as CreativeAIReport;
+            } catch (migError) {
+                console.warn("[AI Analysis] Migration failed, proceeding to fresh generation:", migError);
+                cachedReport = null;
+            }
         }
     }
 
+    if (cachedReport) {
+        console.log(`[AI Analysis] Returning cached report for ${creative.ad.id}`);
+        return cachedReport;
+    }
+
     // 4. Generate with Gemini
-    console.log(`[AI Analysis] Generating fresh audit for ${creative.ad.id}...`);
+    try {
+        console.log(`[AI Analysis] Generating fresh audit for ${creative.ad.id}...`);
+        const model = genAI.getGenerativeModel({
+            model: MODEL,
+            systemInstruction: systemPrompt
+        });
+
+        const userPrompt = `Datos del Creativo y KPIs:
+        ${JSON.stringify(inputData, null, 2)}
+        
+        Analiza y responde solo con el JSON.`;
+
+        const result = await model.generateContent(userPrompt);
+        const text = result.response.text();
+
+        // Parse JSON safely
+        const jsonStr = text.replace(/```json/g, "").replace(/```/g, "").trim();
+        let output;
+        try {
+            output = JSON.parse(jsonStr);
+        } catch (parseError) {
+            console.error("[AI Analysis] Gemini output parse error:", parseError, "Raw text:", text);
+            throw new Error("La IA no devolvió un formato válido. Por favor, reintenta.");
+        }
+
+        const report: any = {
+            id: newReportId,
+            clientId,
+            adId: creative.ad.id,
+            range: {
+                ...range,
+                tz: "UTC"
+            },
+            rangeKey,
+            promptId,
+            promptVersion,
+            model: MODEL,
+            output,
+            metadata: {
+                tokensEstimate: text.length / 4, // heuristic
+                inputsHash,
+                generatedAt: new Date().toISOString()
+            }
+        };
+
+        // 5. Store in Firestore
+        await db.collection("creative_ai_reports").doc(newReportId).set(report);
+
+        return report;
+    } catch (genError: any) {
+        console.error("[AI Analysis] Generation Error:", genError);
+        throw genError;
+    }
+}
+
+/**
+ * AG-45: Creative Variations Service
+ * Generates new copy/concept variations based on a winner
+ */
+export async function generateCreativeVariations(
+    clientId: string,
+    creative: any,
+    kpis: any
+): Promise<any> {
+    const promptSnap = await db.collection("prompt_templates")
+        .where("key", "==", "creative-variations")
+        .where("status", "==", "active")
+        .limit(1)
+        .get();
+
+    let systemPrompt = `Eres un experto Copywriter para Meta Ads.
+    Tu objetivo es generar 3 variaciones de texto (Primary Text + Headline) basadas en el creativo proporcionado.
+    Mantén el ángulo ganador pero prueba distintos ganchos (hooks).`;
+
+    if (!promptSnap.empty) {
+        systemPrompt = promptSnap.docs[0].data().system;
+    }
+
     const model = genAI.getGenerativeModel({
         model: MODEL,
         systemInstruction: systemPrompt
     });
 
-    const userPrompt = `Datos del Creativo y KPIs:
-    ${JSON.stringify(inputData, null, 2)}
+    const userPrompt = `Creativo Original:
+    Texto: ${creative.creative.primaryText}
+    Headline: ${creative.creative.headline}
+    KPIs: ROAS ${kpis.roas}, CPA ${kpis.cpa}
     
-    Analiza y responde solo con el JSON.`;
+    Genera 3 variaciones en formato JSON.`;
 
     const result = await model.generateContent(userPrompt);
-    const text = result.response.text();
-
-    // Parse JSON safely
-    const jsonStr = text.replace(/```json/g, "").replace(/```/g, "").trim();
-    const output = JSON.parse(jsonStr);
-
-    const report: CreativeAIReport = {
-        id: reportId,
-        clientId,
-        adId: creative.ad.id,
-        range,
-        promptId,
-        model: MODEL,
-        output,
-        metadata: {
-            tokensEstimate: text.length / 4, // heuristic
-            inputsHash,
-            generatedAt: new Date().toISOString()
-        }
-    };
-
-    // 5. Store in Firestore
-    await db.collection("creative_ai_reports").doc(reportId).set(report);
-
-    return report;
+    return result.response.text();
 }

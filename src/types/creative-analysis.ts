@@ -9,8 +9,11 @@ export interface CreativeAIReport {
     range: {
         start: string;
         end: string;
+        tz?: string;
     };
+    rangeKey: string;
     promptId: string;
+    promptVersion: number;
     model: string;
 
     // Structured Output
