@@ -3,7 +3,7 @@ import React from "react";
 import AppLayout from "@/components/layouts/AppLayout";
 import { AdvancedKPISummary, DashboardReport, DiagnosticFinding } from "@/types"; // Cleaned imports
 
-export type DateRangeOption = "last_7d" | "last_14d" | "last_30d" | "last_90d" | "this_month" | "last_month";
+export type DateRangeOption = "today" | "yesterday" | "last_7d" | "last_30d" | "this_month" | "last_month" | "last_week_mon_sun" | "maximum";
 
 interface DashboardProps {
     report?: DashboardReport;
@@ -25,12 +25,14 @@ export default function Dashboard({
     // const [mounted, setMounted] = React.useState(false); - Removed unused
 
     const rangeLabels: Record<DateRangeOption, string> = {
+        today: "Hoy",
+        yesterday: "Ayer",
         last_7d: "Últimos 7 días",
-        last_14d: "Últimos 14 días",
         last_30d: "Últimos 30 días",
-        last_90d: "Últimos 90 días",
         this_month: "Este Mes",
-        last_month: "Mes Pasado"
+        last_month: "Mes Pasado",
+        last_week_mon_sun: "La Semana Pasada",
+        maximum: "Máximo (Histórico)"
     };
 
     if (isLoading) {

@@ -23,6 +23,7 @@ if (!admin.apps.length) {
                 privateKey: privateKey,
             }),
         });
+        admin.firestore().settings({ ignoreUndefinedProperties: true });
         console.log("✅ Firebase Admin initialized successfully");
     } catch (error: any) {
         console.error("❌ Firebase Init Error:", error.message);

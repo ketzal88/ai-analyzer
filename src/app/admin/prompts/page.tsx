@@ -5,6 +5,7 @@ import AppLayout from "@/components/layouts/AppLayout";
 import { PromptTemplate, Client } from "@/types";
 
 export default function AdminPrompts() {
+    const [selectedKey, setSelectedKey] = useState("report");
     const [prompts, setPrompts] = useState<PromptTemplate[]>([]);
     const [selectedPrompt, setSelectedPrompt] = useState<PromptTemplate | null>(null);
     const [clients, setClients] = useState<Client[]>([]);
@@ -14,18 +15,18 @@ export default function AdminPrompts() {
     const [isActionLoading, setIsActionLoading] = useState(false);
 
     // New version form
-    const [newSystem, setNewSystem] = useState("Eres un ingeniero experto en crecimiento y optimización de Meta Ads.");
-    const [newUserTemplate, setNewUserTemplate] = useState("Analiza: {{summary_json}}");
+    const [newSystem, setNewSystem] = useState("");
+    const [newUserTemplate, setNewUserTemplate] = useState("");
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [selectedKey]);
 
     const fetchData = async () => {
         setIsLoading(true);
         try {
             const [pRes, cRes] = await Promise.all([
-                fetch("/api/admin/prompts?key=report"),
+                fetch(`/api/admin/prompts?key=${selectedKey}`),
                 fetch("/api/clients")
             ]);
 
@@ -39,6 +40,10 @@ export default function AdminPrompts() {
                     setSelectedPrompt(active);
                     setNewSystem(active.system);
                     setNewUserTemplate(active.userTemplate);
+                } else {
+                    setSelectedPrompt(null);
+                    setNewSystem(selectedKey === "report" ? "Eres un analista experto en Meta Ads." : "Eres un experto en Creative Strategy para Meta Ads.");
+                    setNewUserTemplate(selectedKey === "report" ? "Analiza: {{summary_json}}" : "Analiza los datos: {{summary_json}}");
                 }
             } else if (pData.error) {
                 console.error("Prompts API error:", pData.error);
@@ -62,10 +67,12 @@ export default function AdminPrompts() {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    key: "report",
+                    key: selectedKey,
                     system: newSystem,
                     userTemplate: newUserTemplate,
-                    variables: ["summary_json", "client_name", "meta_id", "ecommerce_mode"]
+                    variables: selectedKey === "report"
+                        ? ["summary_json", "client_name", "meta_id", "ecommerce_mode"]
+                        : ["summary_json"]
                 })
             });
             if (res.ok) {
@@ -132,12 +139,33 @@ export default function AdminPrompts() {
     return (
         <AppLayout>
             <div className="space-y-8 pb-20">
-                <header className="flex justify-between items-center">
+                <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                     <div>
-                        <h1 className="text-display font-black text-text-primary">GESTIÓN DE PROMPTS</h1>
+                        <h1 className="text-display font-black text-text-primary uppercase">GESTIÓN DE PROMPTS</h1>
                         <p className="text-subheader text-text-secondary uppercase tracking-widest font-bold text-[12px]">
                             Control de Versiones IA y Pruebas A/B
                         </p>
+                    </div>
+
+                    <div className="flex bg-special border border-argent p-1 rounded-xl">
+                        <button
+                            onClick={() => setSelectedKey("report")}
+                            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${selectedKey === "report" ? "bg-classic text-white shadow-lg shadow-classic/20" : "text-text-muted hover:text-text-primary"}`}
+                        >
+                            Estructura de Reporte
+                        </button>
+                        <button
+                            onClick={() => setSelectedKey("creative-audit")}
+                            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${selectedKey === "creative-audit" ? "bg-classic text-white shadow-lg shadow-classic/20" : "text-text-muted hover:text-text-primary"}`}
+                        >
+                            Auditoría Creativa
+                        </button>
+                        <button
+                            onClick={() => setSelectedKey("creative-variations")}
+                            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${selectedKey === "creative-variations" ? "bg-classic text-white shadow-lg shadow-classic/20" : "text-text-muted hover:text-text-primary"}`}
+                        >
+                            Variaciones Copy
+                        </button>
                     </div>
                 </header>
 
@@ -145,11 +173,16 @@ export default function AdminPrompts() {
                     {/* Sidebar: Versions List */}
                     <div className="xl:col-span-4 space-y-6">
                         <div className="card bg-special border-argent p-0 overflow-hidden">
-                            <div className="p-4 border-b border-argent bg-stellar/50">
-                                <h3 className="text-body font-bold text-text-primary">Versiones Disponibles</h3>
+                            <div className="p-4 border-b border-argent bg-stellar/50 text-center">
+                                <h3 className="text-[10px] font-black uppercase tracking-widest text-text-muted">Historial de Versiones</h3>
                             </div>
-                            <div className="divide-y divide-argent max-h-[600px] overflow-y-auto">
-                                {Array.isArray(prompts) && prompts.map((p) => (
+                            <div className="divide-y divide-argent max-h-[400px] overflow-y-auto">
+                                {prompts.length === 0 && (
+                                    <div className="p-8 text-center text-text-muted text-small italic">
+                                        No hay versiones para este tipo.
+                                    </div>
+                                )}
+                                {prompts.map((p) => (
                                     <div
                                         key={p.id}
                                         onClick={() => {
@@ -182,17 +215,17 @@ export default function AdminPrompts() {
                             <select
                                 value={selectedClientId}
                                 onChange={(e) => setSelectedClientId(e.target.value)}
-                                className="w-full bg-stellar border border-argent rounded-lg px-4 py-2 text-body"
+                                className="w-full bg-stellar border border-argent rounded-lg px-4 py-2 text-body focus:border-classic outline-none"
                             >
                                 <option value="">Seleccionar Cliente para Test...</option>
                                 {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                             </select>
                             <button
                                 onClick={handleTest}
-                                disabled={isActionLoading || !selectedClientId}
+                                disabled={isActionLoading || !selectedClientId || !selectedPrompt}
                                 className="w-full btn-classic py-3 flex items-center justify-center gap-2"
                             >
-                                {isActionLoading ? "Ejecutando..." : "Run Test (Gemini)"}
+                                {isActionLoading ? "Ejecutando..." : `Run Test (${selectedKey.replace("-", " ")})`}
                             </button>
                         </div>
                     </div>
@@ -201,12 +234,12 @@ export default function AdminPrompts() {
                     <div className="xl:col-span-8 space-y-6">
                         <div className="card space-y-6">
                             <div className="flex justify-between items-center bg-stellar/30 p-4 -m-6 mb-2 border-b border-argent">
-                                <h3 className="text-body font-bold text-text-primary">Editor de Template</h3>
+                                <h3 className="text-[11px] font-black uppercase tracking-widest text-text-primary italic">Editor de {selectedKey === "report" ? "Reporte" : "Auditoría"}</h3>
                                 <div className="flex gap-2">
                                     <button
                                         onClick={handleSaveDraft}
                                         disabled={isActionLoading}
-                                        className="px-4 py-2 bg-argent/20 hover:bg-argent/30 rounded-lg text-small font-bold transition-all"
+                                        className="px-4 py-2 bg-argent/20 hover:bg-argent/30 rounded-lg text-[10px] font-black uppercase transition-all"
                                     >
                                         Guardar Draft v{prompts.length > 0 ? prompts[0].version + 1 : 1}
                                     </button>
@@ -214,7 +247,7 @@ export default function AdminPrompts() {
                                         <button
                                             onClick={() => handleActivate(selectedPrompt.id)}
                                             disabled={isActionLoading}
-                                            className="px-4 py-2 bg-synced text-white rounded-lg text-small font-bold shadow-md shadow-synced/20"
+                                            className="px-4 py-2 bg-synced text-white rounded-lg text-[10px] font-black uppercase shadow-md shadow-synced/20"
                                         >
                                             Promover a Activo
                                         </button>
@@ -222,13 +255,13 @@ export default function AdminPrompts() {
                                 </div>
                             </div>
 
-                            <div className="space-y-4">
+                            <div className="space-y-6">
                                 <div>
                                     <label className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-2 block">Instrucción del Sistema (System Prompt)</label>
                                     <textarea
                                         value={newSystem}
                                         onChange={(e) => setNewSystem(e.target.value)}
-                                        className="w-full h-32 bg-stellar border border-argent rounded-xl p-4 text-body font-mono focus:border-classic outline-none transition-all"
+                                        className="w-full h-32 bg-stellar border border-argent rounded-xl p-4 text-body font-mono focus:border-classic outline-none transition-all resize-none shadow-inner"
                                         placeholder="Eres un experto en..."
                                     />
                                 </div>
@@ -237,11 +270,14 @@ export default function AdminPrompts() {
                                     <textarea
                                         value={newUserTemplate}
                                         onChange={(e) => setNewUserTemplate(e.target.value)}
-                                        className="w-full h-64 bg-stellar border border-argent rounded-xl p-4 text-body font-mono focus:border-classic outline-none transition-all"
+                                        className="w-full h-64 bg-stellar border border-argent rounded-xl p-4 text-body font-mono focus:border-classic outline-none transition-all resize-none shadow-inner"
                                         placeholder="Analiza los datos: {{summary_json}}"
                                     />
-                                    <p className="text-[10px] text-text-muted mt-2 italic">
-                                        Variables disponibles: {"{{summary_json}}"}, {"{{client_name}}"}, {"{{meta_id}}"}, {"{{ecommerce_mode}}"}
+                                    <p className="text-[10px] text-text-muted mt-3 flex items-center gap-2">
+                                        <span className="w-1.5 h-1.5 bg-classic rounded-full"></span>
+                                        Variables: {selectedKey === "report"
+                                            ? "{{summary_json}}, {{client_name}}, {{meta_id}}, {{ecommerce_mode}}"
+                                            : "{{summary_json}}, {{creative_data}}"}
                                     </p>
                                 </div>
                             </div>
@@ -257,7 +293,7 @@ export default function AdminPrompts() {
                                         <span>LATENCIA: {testResult.metadata.latencyMs}ms</span>
                                     </div>
                                 </header>
-                                <pre className="bg-stellar p-6 rounded-xl border border-argent overflow-x-auto text-[12px] font-mono whitespace-pre-wrap max-h-[500px]">
+                                <pre className="bg-stellar p-6 rounded-xl border border-argent overflow-x-auto text-[12px] font-mono whitespace-pre-wrap max-h-[500px] shadow-inner text-text-primary">
                                     {testResult.output}
                                 </pre>
                             </div>

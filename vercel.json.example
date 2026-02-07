@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/cron/sync-creatives?clientId=REPLACE_WITH_CLIENT_ID",
+      "schedule": "0 2 * * *"
+    }
+  ]
+}

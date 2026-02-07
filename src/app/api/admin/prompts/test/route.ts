@@ -22,52 +22,49 @@ export async function POST(request: NextRequest) {
         if (!promptDoc.exists) return NextResponse.json({ error: "Prompt not found" }, { status: 404 });
         const promptTemplate = promptDoc.data()!;
 
-        // 2. Load Client & Findings (Mocking the report summary generation)
+        // 2. Load Client
         const clientDoc = await db.collection("clients").doc(clientId).get();
         if (!clientDoc.exists) return NextResponse.json({ error: "Client not found" }, { status: 404 });
         const clientData = clientDoc.data()!;
 
-        const findingsSnapshot = await db.collection("findings")
-            .where("clientId", "==", clientId)
-            .orderBy("createdAt", "desc")
-            .limit(20)
-            .get();
+        // 3. Prepare Data based on Key
+        let finalUserPrompt = "";
+        const clientName = clientData.name;
 
-        const findings = findingsSnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                type: data.type,
-                title: data.title,
-                severity: data.severity,
-                evidence: data.evidence,
-                description: data.description
+        if (promptTemplate.key === "report") {
+            const findingsSnapshot = await db.collection("findings")
+                .where("clientId", "==", clientId)
+                .orderBy("createdAt", "desc")
+                .limit(20)
+                .get();
+
+            const summary = {
+                account: {
+                    name: clientData.name,
+                    biz: clientData.businessModel || "",
+                    goal: clientData.primaryGoal || "efficiency",
+                },
+                period: range,
+                data: findingsSnapshot.docs.map(doc => ({
+                    type: doc.data().type,
+                    title: doc.data().title,
+                    sev: doc.data().severity
+                }))
             };
-        });
+            finalUserPrompt = promptTemplate.userTemplate.replace("{{summary_json}}", JSON.stringify(summary));
+        } else if (promptTemplate.key === "creative-audit" || promptTemplate.key === "creative-variations") {
+            const mockCreative = {
+                id: "test_ad_123",
+                format: "IMAGE",
+                primaryText: "¡Prueba nuestro nuevo producto hoy!",
+                headline: "Oferta limitada",
+                metrics: { spend: 1000, roas: 3.5, ctr: 1.2 }
+            };
+            finalUserPrompt = promptTemplate.userTemplate.replace("{{summary_json}}", JSON.stringify(mockCreative));
+        }
 
-        const optimizedFindings = findings.slice(0, 20).map(f => ({
-            type: f.type,
-            title: f.title,
-            desc: f.description,
-            sev: f.severity,
-            evidence: f.evidence
-        }));
-
-        const summary = {
-            account: {
-                name: clientData.name,
-                biz: clientData.businessModel || "",
-                goal: clientData.primaryGoal || "efficiency",
-                constr: clientData.constraints || {},
-            },
-            period: range,
-            data: optimizedFindings
-        };
-
-        const summaryJson = JSON.stringify(summary);
-
-        // 3. Prepare Prompt
-        const finalUserPrompt = promptTemplate.userTemplate
-            .replace("{{summary_json}}", summaryJson)
+        // Global variable replacements
+        finalUserPrompt = finalUserPrompt
             .replace("{{client_name}}", clientData.name)
             .replace("{{meta_id}}", clientData.metaAdAccountId || "N/A")
             .replace("{{ecommerce_mode}}", clientData.isEcommerce ? "ON" : "OFF");

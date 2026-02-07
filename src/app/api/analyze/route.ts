@@ -32,14 +32,44 @@ export async function POST(request: NextRequest) {
 
         const getDates = () => {
             const today = new Date();
-            let days = 14;
+            today.setHours(0, 0, 0, 0);
             let start, end;
+            let days = 14;
 
             if (currentRangePreset) {
                 switch (currentRangePreset) {
-                    case "last_7d": days = 7; break;
-                    case "last_30d": days = 30; break;
-                    case "last_90d": days = 90; break;
+                    case "today":
+                        start = new Date(today);
+                        end = new Date(today);
+                        days = 1;
+                        return { start, end, days };
+                    case "yesterday":
+                        start = new Date(today);
+                        start.setDate(today.getDate() - 1);
+                        end = new Date(start);
+                        days = 1;
+                        return { start, end, days };
+                    case "last_7d": {
+                        const s = new Date(today);
+                        s.setDate(today.getDate() - 7);
+                        const e = new Date(today);
+                        e.setDate(today.getDate() - 1);
+                        return { start: s, end: e, days: 7 };
+                    }
+                    case "last_30d": {
+                        const s = new Date(today);
+                        s.setDate(today.getDate() - 30);
+                        const e = new Date(today);
+                        e.setDate(today.getDate() - 1);
+                        return { start: s, end: e, days: 30 };
+                    }
+                    case "last_90d": {
+                        const s = new Date(today);
+                        s.setDate(today.getDate() - 90);
+                        const e = new Date(today);
+                        e.setDate(today.getDate() - 1);
+                        return { start: s, end: e, days: 90 };
+                    }
                     case "this_month": {
                         const s = new Date(today.getFullYear(), today.getMonth(), 1);
                         return { start: s, end: today, days: Math.floor((today.getTime() - s.getTime()) / 86400000) + 1 };
@@ -49,12 +79,27 @@ export async function POST(request: NextRequest) {
                         const e = new Date(today.getFullYear(), today.getMonth(), 0);
                         return { start: s, end: e, days: Math.floor((e.getTime() - s.getTime()) / 86400000) + 1 };
                     }
-                    default: days = 14;
+                    case "last_week_mon_sun": {
+                        const day = today.getDay();
+                        const diffToLastSunday = day === 0 ? 7 : day;
+                        const e = new Date(today);
+                        e.setDate(today.getDate() - diffToLastSunday);
+                        const s = new Date(e);
+                        s.setDate(e.getDate() - 6);
+                        return { start: s, end: e, days: 7 };
+                    }
+                    case "maximum": {
+                        const s = new Date(2022, 0, 1);
+                        return { start: s, end: today, days: Math.floor((today.getTime() - s.getTime()) / 86400000) + 1 };
+                    }
+                    default: {
+                        const s = new Date(today);
+                        s.setDate(today.getDate() - 7);
+                        const e = new Date(today);
+                        e.setDate(today.getDate() - 1);
+                        return { start: s, end: e, days: 7 };
+                    }
                 }
-                end = new Date();
-                start = new Date();
-                start.setDate(end.getDate() - days + 1);
-                return { start, end, days };
             } else if (currentRangeCustom) {
                 return {
                     start: new Date(currentRangeCustom.start),
@@ -62,10 +107,11 @@ export async function POST(request: NextRequest) {
                     days: Math.floor((new Date(currentRangeCustom.end).getTime() - new Date(currentRangeCustom.start).getTime()) / 86400000) + 1
                 };
             }
-            end = new Date();
-            start = new Date();
-            start.setDate(end.getDate() - 13);
-            return { start, end, days: 14 };
+            const s = new Date(today);
+            s.setDate(today.getDate() - 7);
+            const e = new Date(today);
+            e.setDate(today.getDate() - 1);
+            return { start: s, end: e, days: 7 };
         };
 
         const { start: curStart, end: curEnd, days: duration } = getDates();
@@ -98,10 +144,19 @@ export async function POST(request: NextRequest) {
         if (!forceRefresh) {
             const snapDoc = await db.collection("dash_snapshots").doc(snapshotHash).get();
             if (snapDoc.exists) {
-                snapshot = snapDoc.data() as DashboardSnapshot;
-                const findingsDoc = await db.collection("findings_runs").doc(snapshotHash).get();
-                if (findingsDoc.exists) {
-                    findingsRun = findingsDoc.data() as FindingsRun;
+                const cachedSnapshot = snapDoc.data() as DashboardSnapshot;
+
+                // Safety: If snapshot exists but has 0 days of data, and we can sync, ignore it and redo
+                const isEmpty = (cachedSnapshot.dataCoverage?.daysAvailable || 0) === 0;
+
+                if (!isEmpty || !syncIfMissing) {
+                    snapshot = cachedSnapshot;
+                    const findingsDoc = await db.collection("findings_runs").doc(snapshotHash).get();
+                    if (findingsDoc.exists) {
+                        findingsRun = findingsDoc.data() as FindingsRun;
+                    }
+                } else {
+                    console.log(`[Analyze] Cached snapshot for ${snapshotHash} is empty. Forcing fresh sync/calc.`);
                 }
             }
         }

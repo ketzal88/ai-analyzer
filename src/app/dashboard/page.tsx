@@ -15,63 +15,41 @@ export default function DashboardPage() {
     const [report, setReportInState] = useState<DashboardReport | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [range, setRange] = useState<DateRangeOption>("last_14d");
+    const [range, setRange] = useState<DateRangeOption>("last_7d");
 
     const fetchDashboardData = async (forceRefresh = false) => {
-        if (!clientId) {
-            setError("No hay cliente seleccionado.");
-            setIsLoading(false);
-            return;
-        }
-
+        if (!clientId) return;
         try {
             setIsLoading(true);
             setError(null);
-
-            // Unified Analysis Call
+            setReportInState(null);
             const response = await fetch("/api/analyze", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     clientId,
                     currentRangePreset: range,
-                    compareMode: "previous_period",
-                    flags: {
-                        forceRefresh,
-                        syncIfMissing: forceRefresh // Only sync if user explicitly refreshes
-                    }
+                    flags: { forceRefresh, syncIfMissing: true }
                 })
             });
-
             if (!response.ok) {
                 const errData = await response.json();
                 throw new Error(errData.error || "Error en análisis");
             }
-
             const data = await response.json();
-            const { snapshot, findingsRun, meta } = data;
-
-            if (!snapshot) throw new Error("No se pudo generar el snapshot.");
-
-            // Map to DashboardReport expected by UI
+            const { snapshot, findingsRun } = data;
+            if (!snapshot) throw new Error("No se pudo obtener el análisis para este rango.");
             const finalReport: DashboardReport = {
                 id: snapshot.id,
                 clientId: snapshot.clientId,
                 generatedAt: snapshot.createdAt,
                 dateRange: snapshot.currentRange,
                 comparisonRange: snapshot.compareRange,
-                config: snapshot.config,
                 kpis: snapshot.kpis,
+                config: snapshot.config,
                 findings: findingsRun?.findings || []
             };
-
             setReportInState(finalReport);
-            // setReport(clientId, finalReport); // Context cache optional now that backend caches
-
-            if (meta?.cacheHit && !forceRefresh) {
-                console.log("Loaded from backend cache:", meta.dataFreshness);
-            }
-
         } catch (err: any) {
             console.error(err);
             setError(err.message);
@@ -82,7 +60,6 @@ export default function DashboardPage() {
 
     useEffect(() => {
         if (clientId) {
-            // Initial load: Try to get cached data, don't force refresh
             fetchDashboardData(false);
         }
     }, [clientId, range]);
