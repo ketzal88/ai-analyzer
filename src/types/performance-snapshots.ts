@@ -85,6 +85,8 @@ export interface EntityRollingMetrics {
         impressions_7d?: number;
         clicks_7d?: number;
         purchases_7d?: number;
+        leads_7d?: number;
+        whatsapp_7d?: number;
 
         cpa_3d?: number;
         cpa_7d?: number;

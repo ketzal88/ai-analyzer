@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebase-admin";
 import { SlackService } from "@/lib/slack-service";
-import { AlertEngine, Alert } from "@/lib/alert-engine";
+import { AlertEngine } from "@/lib/alert-engine";
 import { EntityRollingMetrics } from "@/types/performance-snapshots";
-import { Client } from "@/types";
+import { Client, Alert } from "@/types";
 import { reportError } from "@/lib/error-reporter";
 
 /**
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
 
         for (const clientDoc of clientsSnap.docs) {
             const client = clientDoc.data() as Client;
-            const clientId = client.id;
+            const clientId = clientDoc.id;
 
             try {
                 // ── 1. DAILY SNAPSHOT ─────────────────────────

@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
 
         for (const clientDoc of clientsSnap.docs) {
             const client = clientDoc.data() as Client;
-            const clientId = client.id;
+            const clientId = clientDoc.id;
 
             if (!client.metaAdAccountId) {
                 results.push({ clientId, status: "skipped_no_ad_account" });
@@ -37,11 +37,11 @@ export async function GET(request: NextRequest) {
                 // 2. Update rolling metrics
                 await PerformanceService.updateRollingMetrics(clientId);
 
-                results.push({ clientId, status: "success" });
+                results.push({ clientId: clientId, status: "success" });
             } catch (e: any) {
                 console.error(`Sync failed for ${clientId}:`, e);
-                reportError("Cron Data Sync (Client)", e, { clientId });
-                results.push({ clientId, status: "failed", error: e.message });
+                reportError("Cron Data Sync (Client)", e, { clientId: clientId });
+                results.push({ clientId: clientId, status: "failed", error: e.message });
             }
         }
 

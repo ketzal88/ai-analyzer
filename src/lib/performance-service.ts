@@ -337,6 +337,8 @@ export class PerformanceService {
                     impressions_7d: r7d.impressions,
                     clicks_7d: r7d.clicks,
                     purchases_7d: r7d.purchases,
+                    leads_7d: r7d.leads,
+                    whatsapp_7d: r7d.whatsapp,
                     ctr_7d: r7d.impressions > 0 ? (r7d.clicks / r7d.impressions) * 100 : 0,
 
                     cpa_3d: r3d.purchases > 0 ? r3d.spend / r3d.purchases : undefined,
@@ -466,6 +468,8 @@ export class PerformanceService {
         return snapshots.reduce((acc, s) => {
             acc.spend += s.performance.spend;
             acc.purchases += (s.performance.purchases || 0);
+            acc.leads += (s.performance.leads || 0);
+            acc.whatsapp += (s.performance.whatsapp || 0);
             acc.revenue += (s.performance.revenue || 0);
             acc.impressions += s.performance.impressions;
             acc.clicks += s.performance.clicks;
@@ -477,7 +481,7 @@ export class PerformanceService {
             acc.videoP100Count += (s.engagement?.videoP100Count || 0);
             return acc;
         }, {
-            spend: 0, purchases: 0, revenue: 0, impressions: 0, clicks: 0, reach: 0,
+            spend: 0, purchases: 0, leads: 0, whatsapp: 0, revenue: 0, impressions: 0, clicks: 0, reach: 0,
             hookViews: 0, videoPlayCount: 0, videoP50Count: 0, videoP75Count: 0, videoP100Count: 0
         });
     }

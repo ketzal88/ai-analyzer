@@ -22,6 +22,7 @@ export class EngineConfigService {
             findings: { ...defaults.findings, ...data.findings },
             learning: { ...defaults.learning, ...data.learning },
             intent: { ...defaults.intent, ...data.intent },
+            alertTemplates: { ...defaults.alertTemplates, ...data.alertTemplates },
             updatedAt: data.updatedAt || defaults.updatedAt
         };
     }

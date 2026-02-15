@@ -64,9 +64,12 @@ export type severity = "CRITICAL" | "WARNING" | "INFO" | "HEALTHY" | "INACTIVE";
 export interface Alert {
     id: string;
     clientId: string;
-    level: string;
+    level: string; // "account" | "campaign" | "adset" | "ad"
     entityId: string;
-    type: string; // "SCALING_OPPORTUNITY" | "CPA_SPIKE" | "BUDGET_BLEED" | ...
+    entityName?: string;
+    adsetName?: string;
+    campaignName?: string;
+    type: string;
     severity: severity;
     title: string;
     description: string;

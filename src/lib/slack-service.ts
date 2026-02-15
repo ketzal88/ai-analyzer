@@ -1,6 +1,5 @@
 import { db } from "@/lib/firebase-admin";
-import { Alert } from "./alert-engine";
-import { Client } from "@/types";
+import { Alert, Client } from "@/types";
 import { EntityRollingMetrics } from "@/types/performance-snapshots";
 
 interface DailySnapshotKPIs {
@@ -202,15 +201,15 @@ export class SlackService {
         dateRange: SnapshotDateRange,
         kpis: DailySnapshotKPIs
     ) {
-        const { channel, botToken, webhook } = await this.resolveChannel(clientId);
+        const { client, channel, botToken, webhook } = await this.resolveChannel(clientId);
 
         if (!botToken && !webhook) {
             console.warn("Slack not configured, skipping daily snapshot");
             return;
         }
 
-        const isEcommerce = kpis.purchases > 0 || kpis.purchaseValue > 0;
-        const isLeadGen = kpis.leads > 0;
+        const isEcommerce = client?.isEcommerce ?? (kpis.purchases > 0 || kpis.purchaseValue > 0);
+        const isLeadGen = client?.businessModel === "Lead Gen" || kpis.leads > 0;
         const hasWhatsapp = kpis.whatsapp > 0;
 
         // ── Build mrkdwn text (simpler, like the user's example) ──

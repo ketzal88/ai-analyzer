@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 
         for (const clientDoc of clientsSnap.docs) {
             const client = clientDoc.data() as Client;
-            const clientId = client.id;
+            const clientId = clientDoc.id;
 
             // 1. Get account-level rolling metrics
             const rollingDoc = await db.collection("entity_rolling_metrics")
@@ -36,10 +36,10 @@ export async function GET(request: NextRequest) {
                 if (altRolling.empty) continue;
 
                 const rolling = altRolling.docs[0].data() as EntityRollingMetrics;
-                await processClientWeekly(client, rolling, results);
+                await processClientWeekly(clientId, client, rolling, results);
             } else {
                 const rolling = rollingDoc.data() as EntityRollingMetrics;
-                await processClientWeekly(client, rolling, results);
+                await processClientWeekly(clientId, client, rolling, results);
             }
         }
 
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
     }
 }
 
-async function processClientWeekly(client: Client, rolling: EntityRollingMetrics, results: any[]) {
+async function processClientWeekly(clientId: string, client: Client, rolling: EntityRollingMetrics, results: any[]) {
     const r = rolling.rolling;
 
     // Only process if there's spend in the last 7 days
@@ -77,10 +77,10 @@ async function processClientWeekly(client: Client, rolling: EntityRollingMetrics
     // If we have ROAS delta and Spend delta, we can infer revenue delta.
     // Let's keep it simple with what we have.
 
-    await SlackService.sendWeeklySummary(client.id, client.name, kpis);
+    await SlackService.sendWeeklySummary(clientId, client.name, kpis);
 
     results.push({
-        clientId: client.id,
+        clientId: clientId,
         clientName: client.name,
         status: "sent"
     });
