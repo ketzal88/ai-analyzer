@@ -30,7 +30,9 @@ export class DecisionEngine {
     ): EntityClassification {
 
         // Layer 1: Learning State
-        const learningState = this.classifyLearningState(snap);
+        // Use entity-specific conversions, not account-wide
+        const entityConversions7d = (rolling.rolling.conversion_velocity_7d || 0) * 7;
+        const learningState = this.classifyLearningState(snap, entityConversions7d);
 
         // Layer 2: Intent Engine
         const { score: intentScore, stage: intentStage } = this.computeIntent(snap, percentiles);
@@ -74,10 +76,13 @@ export class DecisionEngine {
         };
     }
 
-    private static classifyLearningState(snap: DailyEntitySnapshot): LearningState {
+    private static classifyLearningState(snap: DailyEntitySnapshot, conversions7d: number): LearningState {
         const { daysActive, daysSinceLastEdit } = snap.stability;
 
         if (daysSinceLastEdit < 3) return "UNSTABLE";
+        // Nuance: Volume-based exit from learning
+        if (conversions7d >= 50) return "EXPLOITATION";
+
         if (daysActive <= 4) return "EXPLORATION";
         if (daysActive <= 14) return "STABILIZING";
         return "EXPLOITATION";
@@ -123,6 +128,10 @@ export class DecisionEngine {
             const highConcentration = (spend_top1_ad_pct || 0) > f.concentrationThreshold;
 
             if (cpaWorse && hookDrop && highConcentration) return "REAL";
+
+            // Nuance: Audience Saturation (High Freq + CPA Rising but Hook Rate Stable)
+            if (frequency_7d > 3.0 && cpaWorse && !hookDrop) return "AUDIENCE_SATURATION";
+
             if (!cpaWorse && !hookDrop) return "HEALTHY_REPETITION";
         }
 
@@ -147,6 +156,12 @@ export class DecisionEngine {
         const s = config.structure;
         if (snap.level === 'account' || snap.level === 'campaign') {
             if (conversions7d < 30 && activeAdsets > s.fragmentationAdsetsMax) return "FRAGMENTED";
+
+            // Nuance: Budget Fragmentation
+            const spend7d = rolling.rolling.spend_7d || 0;
+            const avgDailySpend = spend7d / 7;
+            const spendPerAdset = activeAdsets > 0 ? avgDailySpend / activeAdsets : 0;
+            if (activeAdsets > 2 && spendPerAdset < 10) return "FRAGMENTED"; // Less than $10/day/adset
         }
 
         const spendTop1 = rolling.rolling.spend_top1_ad_pct || 0;
@@ -217,6 +232,11 @@ export class DecisionEngine {
         if (fatigue === "CONCEPT_DECAY") {
             facts.push("CPA promedio del concepto al alza + Tasa de Gancho a la baja en escala.");
             return { decision: "ROTATE_CONCEPT", confidence: 0.85, facts };
+        }
+
+        if (fatigue === "AUDIENCE_SATURATION") {
+            facts.push("Frecuencia > 3.0 con CPA en aumento, pero Hook Rate estable. Saturación de Audiencia.");
+            return { decision: "ROTATE_CONCEPT", confidence: 0.80, facts };
         }
 
         if (structure === "FRAGMENTED") {

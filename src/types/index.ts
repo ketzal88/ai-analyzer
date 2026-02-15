@@ -59,7 +59,24 @@ export interface AnalyzeResponse {
     };
 }
 
-export type Severity = "CRITICAL" | "WARNING" | "HEALTHY" | "INACTIVE";
+export type severity = "CRITICAL" | "WARNING" | "INFO" | "HEALTHY" | "INACTIVE";
+
+export interface Alert {
+    id: string;
+    clientId: string;
+    level: string;
+    entityId: string;
+    type: string; // "SCALING_OPPORTUNITY" | "CPA_SPIKE" | "BUDGET_BLEED" | ...
+    severity: severity;
+    title: string;
+    description: string;
+    impactScore: number;
+    evidence: string[];
+    createdAt: string;
+}
+
+export type Severity = severity; // maintain backward compatibility
+
 export type Currency = "USD" | "EUR" | "GBP" | "CAD" | "AUD" | "BRL" | "MXN";
 
 /**
@@ -227,6 +244,7 @@ export interface DashboardReport {
     config: KPIConfig;
     kpis: AdvancedKPISummary[];
     findings: DiagnosticFinding[];
+    alerts: Alert[];
 }
 
 /**

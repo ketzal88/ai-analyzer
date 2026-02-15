@@ -646,6 +646,7 @@ function FatigueTag({ state }: { state?: FatigueState }) {
     const config = {
         REAL: { label: 'FATIGA', color: 'bg-red-500 text-white shadow-[0_4px_12px_rgba(239,68,68,0.3)]' },
         CONCEPT_DECAY: { label: 'DECAIMIENTO', color: 'bg-orange-500 text-white' },
+        AUDIENCE_SATURATION: { label: 'SATURACIÓN', color: 'bg-yellow-500 text-black shadow-[0_4px_12px_rgba(234,179,8,0.3)]' },
         HEALTHY_REPETITION: { label: 'REPETICIÓN', color: 'bg-synced/20 text-synced border border-synced/30' },
         NONE: { label: '', color: '' }
     };

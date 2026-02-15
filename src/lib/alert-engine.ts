@@ -4,19 +4,7 @@ import { EntityRollingMetrics, DailyEntitySnapshot } from "@/types/performance-s
 import { Client } from "@/types";
 import { EngineConfigService } from "./engine-config-service";
 
-export interface Alert {
-    id: string;
-    clientId: string;
-    level: string;
-    entityId: string;
-    type: FinalDecision | "LEARNING_RESET_RISK" | "SCALING_OPPORTUNITY" | "CPA_SPIKE" | "BUDGET_BLEED" | "UNDERFUNDED_WINNER" | "CPA_VOLATILITY";
-    severity: "CRITICAL" | "WARNING" | "INFO";
-    title: string;
-    description: string;
-    impactScore: number;
-    evidence: string[];
-    createdAt: string;
-}
+import { Alert } from "@/types";
 
 export class AlertEngine {
     static async run(clientId: string) {
@@ -233,8 +221,23 @@ export class AlertEngine {
                 // ─────────────────────────────────────────────
                 // 🔴 FATIGA REAL
                 // ─────────────────────────────────────────────
-                if (classif.fatigueState === "REAL" || classif.fatigueState === "CONCEPT_DECAY") {
-                    const fatigueLabel = classif.fatigueState === "REAL" ? "Fatiga Real" : "Fatiga Conceptual";
+                if (classif.fatigueState === "REAL" || classif.fatigueState === "CONCEPT_DECAY" || classif.fatigueState === "AUDIENCE_SATURATION") {
+                    const fatigueLabel = {
+                        REAL: "Fatiga Real",
+                        CONCEPT_DECAY: "Decaimiento Conceptual",
+                        AUDIENCE_SATURATION: "Saturación de Audiencia",
+                        HEALTHY_REPETITION: "Repetición Saludable",
+                        NONE: "Ninguna"
+                    }[classif.fatigueState];
+
+                    const description = {
+                        REAL: `Frecuencia > ${config.fatigue.frequencyThreshold} + CPA al alza + Tasa de Gancho a la baja.`,
+                        CONCEPT_DECAY: `El concepto está decayendo. CPA promedio al alza con hook rate en baja.`,
+                        AUDIENCE_SATURATION: `Frecuencia alta (>3.0) y CPA en aumento con Hook Rate estable. La audiencia está agotada.`,
+                        HEALTHY_REPETITION: "",
+                        NONE: ""
+                    }[classif.fatigueState];
+
                     alerts.push({
                         id: `FATIGUE_${rolling.entityId}_${Date.now()}`,
                         clientId,
@@ -243,9 +246,7 @@ export class AlertEngine {
                         type: "ROTATE_CONCEPT",
                         severity: "CRITICAL",
                         title: `${fatigueLabel} Detectada`,
-                        description: classif.fatigueState === "REAL"
-                            ? `Frecuencia > ${config.fatigue.frequencyThreshold} + CPA al alza + Tasa de Gancho a la baja.`
-                            : `El concepto está decayendo. CPA promedio al alza con hook rate en baja.`,
+                        description: description,
                         impactScore: classif.impactScore,
                         evidence: classif.evidence,
                         createdAt: new Date().toISOString()

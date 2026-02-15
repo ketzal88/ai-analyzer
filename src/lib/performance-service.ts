@@ -255,7 +255,7 @@ export class PerformanceService {
             entityGroups[key].push(s);
         }
 
-        const batch = db.batch();
+        let batch = db.batch();
 
         // Pre-calculate concentration metrics (spend per ad entity in last 7d relative to refDate)
         const adEntitySpends7d: Record<string, number> = {};
@@ -270,6 +270,8 @@ export class PerformanceService {
         const totalAdSpend7d = sortedAdSpends.reduce((a, b) => a + b, 0);
         const globalSpendTop1Pct = totalAdSpend7d > 0 ? (sortedAdSpends[0] || 0) / totalAdSpend7d : 0;
         const globalSpendTop3Pct = totalAdSpend7d > 0 ? sortedAdSpends.slice(0, 3).reduce((a, b) => a + b, 0) / totalAdSpend7d : 0;
+
+        let opCount = 0;
 
         for (const [key, group] of Object.entries(entityGroups)) {
             const [entityId, level] = key.split("__") as [string, EntityLevel];
@@ -358,13 +360,23 @@ export class PerformanceService {
             const docId = `${clientId}__${entityId.replace(/\//g, '_')}__${level}`;
             const docRef = db.collection("entity_rolling_metrics").doc(docId);
             batch.set(docRef, rollingMetrics, { merge: true });
+            opCount++;
+
+            if (opCount >= 400) {
+                await batch.commit();
+                batch = db.batch();
+                opCount = 0;
+            }
         }
 
-        await batch.commit();
+        if (opCount > 0) {
+            await batch.commit();
+        }
 
         // Trigger concept metrics update
         await this.updateConceptMetrics(clientId, snapshots, refDate);
     }
+
 
     /**
      * Recalculate concept-level rolling metrics
@@ -381,7 +393,8 @@ export class PerformanceService {
             conceptGroups[cid].push(s);
         }
 
-        const batch = db.batch();
+        let batch = db.batch();
+        let opCount = 0;
 
         for (const [conceptId, group] of Object.entries(conceptGroups)) {
             const r7d = this.sumPerformance(group.filter(s => this.isWithinDays(s.date, 7, refDate)));
@@ -418,9 +431,18 @@ export class PerformanceService {
             const docId = `${clientId}__${conceptId.replace(/\//g, '_')}`;
             const docRef = db.collection("concept_rolling_metrics").doc(docId);
             batch.set(docRef, conceptMetrics, { merge: true });
+            opCount++;
+
+            if (opCount >= 400) {
+                await batch.commit();
+                batch = db.batch();
+                opCount = 0;
+            }
         }
 
-        await batch.commit();
+        if (opCount > 0) {
+            await batch.commit();
+        }
     }
 
     private static sumPerformance(snapshots: DailyEntitySnapshot[]) {

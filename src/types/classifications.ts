@@ -1,6 +1,6 @@
 export type LearningState = 'EXPLORATION' | 'STABILIZING' | 'EXPLOITATION' | 'UNSTABLE';
 export type IntentStage = 'TOFU' | 'MOFU' | 'BOFU';
-export type FatigueState = 'REAL' | 'HEALTHY_REPETITION' | 'CONCEPT_DECAY' | 'NONE';
+export type FatigueState = 'REAL' | 'HEALTHY_REPETITION' | 'CONCEPT_DECAY' | 'AUDIENCE_SATURATION' | 'NONE';
 export type StructuralState = 'FRAGMENTED' | 'OVERCONCENTRATED' | 'HEALTHY';
 export type FinalDecision = 'HOLD' | 'ROTATE_CONCEPT' | 'CONSOLIDATE' | 'SCALE' | 'INTRODUCE_BOFU_VARIANTS' | 'KILL_RETRY';
 

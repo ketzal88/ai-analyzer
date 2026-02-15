@@ -37,7 +37,7 @@ export default function DashboardPage() {
                 throw new Error(errData.error || "Error en análisis");
             }
             const data = await response.json();
-            const { snapshot, findingsRun } = data;
+            const { snapshot, findingsRun, alerts } = data;
             if (!snapshot) throw new Error("No se pudo obtener el análisis para este rango.");
             const finalReport: DashboardReport = {
                 id: snapshot.id,
@@ -47,7 +47,8 @@ export default function DashboardPage() {
                 comparisonRange: snapshot.compareRange,
                 kpis: snapshot.kpis,
                 config: snapshot.config,
-                findings: findingsRun?.findings || []
+                findings: findingsRun?.findings || [],
+                alerts: alerts || []
             };
             setReportInState(finalReport);
         } catch (err: any) {

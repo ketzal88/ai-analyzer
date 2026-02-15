@@ -10,7 +10,7 @@ import {
     AdvancedKPISummary
     // DiagnosticFinding - Removed unused
 } from "@/types";
-import { syncClientInsights } from "@/lib/meta-service";
+// import { syncClientInsights } from "@/lib/meta-service"; // Removed for Arch Enforcement
 import { generateGeminiReport } from "@/lib/gemini-service";
 import { runDiagnosticRules } from "@/lib/findings-engine";
 
@@ -163,16 +163,10 @@ export async function POST(request: NextRequest) {
         }
 
         if (!snapshot || forceRefresh) {
-            if (forceRefresh || syncIfMissing) {
-                const syncRange = currentRangePreset || "maximum";
-                try {
-                    console.log(`Triggering Sync for ${clientId} range: ${syncRange}`);
-                    if (clientData.metaAdAccountId) {
-                        await syncClientInsights(clientId, clientData.metaAdAccountId, syncRange);
-                    }
-                } catch (e) {
-                    reportError("Analyze Auto-sync", e, { clientId, metadata: { syncRange } });
-                }
+            // [ARCH-ENFORCEMENT] Runtime Meta Sync removed. 
+            // Logic for forceRefresh/syncIfMissing only affects internal Firestore cache invalidation now.
+            if (forceRefresh) {
+                console.log(`[Analyze] Force Refresh requested for ${clientId}. Skipping snapshot cache.`);
             }
 
             const qStart = ranges.compare.start;
@@ -364,9 +358,17 @@ export async function POST(request: NextRequest) {
             }
         }
 
+        // Fetch latest alerts (Architecture Enforcement: Read from Firestore, do not calc on fly)
+        const alertsSnap = await db.collection("alerts")
+            .where("clientId", "==", clientId)
+            .get();
+
+        const alerts = alertsSnap.docs.map(d => d.data());
+
         return NextResponse.json({
             snapshot,
             findingsRun,
+            alerts, // Include alerts in response
             report,
             meta: {
                 cacheHit: !forceRefresh && !!snapshot,
