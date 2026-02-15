@@ -1,6 +1,7 @@
 import { db } from "@/lib/firebase-admin";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createHash } from "crypto";
+import { reportError } from "@/lib/error-reporter";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 const PRIMARY_MODEL = process.env.GEMINI_MODEL || "gemini-1.5-flash";
@@ -41,7 +42,7 @@ export async function generateGeminiReport(
         if (e.code === 9 || e.message?.toLowerCase().includes("index")) {
             console.warn("Index missing for llm_reports rate limit check. Proceeding with generation.");
         } else {
-            console.error("Rate limit check error:", e);
+            reportError("LLM Rate Limit Check", e, { clientId });
         }
     }
 
@@ -268,7 +269,7 @@ export async function generateGeminiReport(
     try {
         await db.collection("llm_reports").add(sanitizedRecord);
     } catch (dbError) {
-        console.error("Failed to cache report in Firestore:", dbError);
+        reportError("Firebase LLM Cache", dbError, { clientId, metadata: { digest } });
         // We don't throw here, because we still want to return the report to the user
         // even if caching fails (e.g. due to index or permission issues)
     }

@@ -1,5 +1,6 @@
 import { auth, db } from "@/lib/firebase-admin";
 import { NextRequest, NextResponse } from "next/server";
+import { reportError } from "@/lib/error-reporter";
 
 const META_API_VERSION = process.env.META_API_VERSION || "v24.0";
 const META_ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
@@ -15,6 +16,9 @@ async function fetchWithRetry(url: string, options: RequestInit = {}, retries = 
 
             const errorData = await response.json();
             console.error(`Meta API Error (Attempt ${i + 1}):`, errorData);
+            if (i === retries - 1) {
+                reportError("API Sync Meta API", new Error(JSON.stringify(errorData)), { metadata: { url, attempt: i + 1 } });
+            }
 
             // If rate limited, wait longer
             if (response.status === 429) {
@@ -147,7 +151,7 @@ export async function POST(request: NextRequest) {
         });
 
     } catch (error: any) {
-        console.error("Sync Error:", error);
+        reportError("API Sync (Fatal)", error, { metadata: { clientId: new URL(request.url).searchParams.get('clientId') } });
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

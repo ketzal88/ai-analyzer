@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ClassificationService } from "@/lib/classification-service";
+import { reportError } from "@/lib/error-reporter";
 
 export async function POST(request: NextRequest) {
     try {
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest) {
         });
 
     } catch (error: any) {
-        console.error("[Classification API] Error:", error);
+        reportError("Cron Classification", error, { metadata: { clientId: new URL(request.url).searchParams.get('clientId') } });
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

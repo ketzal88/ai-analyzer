@@ -3,6 +3,7 @@ import { db } from "@/lib/firebase-admin";
 import { SlackService } from "@/lib/slack-service";
 import { EntityRollingMetrics } from "@/types/performance-snapshots";
 import { Client } from "@/types";
+import { reportError } from "@/lib/error-reporter";
 
 export async function GET(request: NextRequest) {
     // Check for authorization (CRON_SECRET)
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest) {
             details: results
         });
     } catch (error: any) {
-        console.error("Weekly Alerts Error:", error);
+        reportError("Cron Weekly Alerts", error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

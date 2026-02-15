@@ -1,5 +1,6 @@
 import { auth, db } from "@/lib/firebase-admin";
 import { NextRequest, NextResponse } from "next/server";
+import { reportError } from "@/lib/error-reporter";
 import { PerformanceService } from "@/lib/performance-service";
 
 export async function POST(request: NextRequest) {
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest) {
         });
 
     } catch (error: any) {
-        console.error("[Sync v2] Error:", error);
+        reportError("API Sync V2 (Fatal)", error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

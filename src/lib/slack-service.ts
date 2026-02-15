@@ -101,6 +101,98 @@ export class SlackService {
     }
 
     // ═════════════════════════════════════════════════════════
+    //  0. ERROR LOGGER — Errores al canal #errors
+    // ═════════════════════════════════════════════════════════
+
+    static async sendError(opts: {
+        source: string;       // e.g. "API /api/sync", "CronJob daily-digest", "LLM Gemini"
+        message: string;
+        stack?: string;
+        clientId?: string;
+        clientName?: string;
+        metadata?: Record<string, any>;
+    }) {
+        const botToken = process.env.SLACK_BOT_TOKEN;
+        const errorChannel = process.env.SLACK_ERROR_CHANNEL;
+
+        if (!botToken || !errorChannel) {
+            console.error(`[SlackError] ${opts.source}: ${opts.message}`);
+            return;
+        }
+
+        const now = new Date().toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" });
+
+        const sourceEmoji: Record<string, string> = {
+            api: "🌐",
+            cron: "⏰",
+            llm: "🤖",
+            meta: "📘",
+            firebase: "🔥",
+            slack: "💬",
+            sync: "🔄",
+            classification: "🎯",
+            alert: "🚨",
+            creative: "🎨",
+        };
+
+        const emoji = Object.entries(sourceEmoji).find(([key]) =>
+            opts.source.toLowerCase().includes(key)
+        )?.[1] || "❌";
+
+        let text = `${emoji} *ERROR — ${opts.source}*\n\n`;
+        text += `⏰ ${now}\n`;
+
+        if (opts.clientId || opts.clientName) {
+            text += `👤 Cliente: ${opts.clientName || opts.clientId}\n`;
+        }
+
+        text += `\n💬 *Mensaje:*\n\`\`\`${opts.message}\`\`\`\n`;
+
+        if (opts.stack) {
+            // Truncate stack to avoid Slack's 3000 char limit
+            const shortStack = opts.stack.length > 800 ? opts.stack.substring(0, 800) + "\n..." : opts.stack;
+            text += `\n📋 *Stack Trace:*\n\`\`\`${shortStack}\`\`\`\n`;
+        }
+
+        if (opts.metadata && Object.keys(opts.metadata).length > 0) {
+            const metaStr = Object.entries(opts.metadata)
+                .map(([k, v]) => `• *${k}:* ${typeof v === 'object' ? JSON.stringify(v) : v}`)
+                .join("\n");
+            text += `\n📎 *Contexto:*\n${metaStr}\n`;
+        }
+
+        const blocks: any[] = [
+            { type: "section", text: { type: "mrkdwn", text } },
+            { type: "divider" },
+            {
+                type: "context",
+                elements: [{
+                    type: "mrkdwn",
+                    text: `_AI Analyzer Error Logger_ · ${opts.source}`
+                }]
+            }
+        ];
+
+        try {
+            await fetch("https://slack.com/api/chat.postMessage", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${botToken}`
+                },
+                body: JSON.stringify({
+                    channel: errorChannel,
+                    blocks,
+                    text: `Error en ${opts.source}: ${opts.message}`
+                })
+            });
+        } catch (e) {
+            // Last resort: don't throw from the error logger itself
+            console.error("[SlackError] Failed to send error to Slack:", e);
+        }
+    }
+
+    // ═════════════════════════════════════════════════════════
     //  1. DAILY SNAPSHOT — Reporte diario formateado
     // ═════════════════════════════════════════════════════════
 
