@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Client } from "@/types";
+import { EngineConfig, getDefaultEngineConfig } from "@/types/engine-config";
 
 interface ClientFormProps {
     initialData?: Client;
@@ -23,6 +24,8 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
         isGoogle: initialData?.isGoogle ?? false,
         metaAdAccountId: initialData?.metaAdAccountId || "",
         googleAdsId: initialData?.googleAdsId || "",
+        slackPublicChannel: initialData?.slackPublicChannel || "",
+        slackInternalChannel: initialData?.slackInternalChannel || "",
 
         // Mission 18 Fields
         businessModel: initialData?.businessModel || "",
@@ -39,6 +42,24 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
     });
 
     const [slugModifiedManually, setSlugModifiedManually] = useState(false);
+    const [configData, setConfigData] = useState<EngineConfig | null>(null);
+    const [loadingConfig, setLoadingConfig] = useState(false);
+
+    // Fetch config if editing
+    useEffect(() => {
+        if (isEditing && initialData?.id) {
+            setLoadingConfig(true);
+            fetch(`/api/clients/${initialData.id}/engine-config`)
+                .then(res => res.json())
+                .then(data => {
+                    setConfigData(data);
+                })
+                .catch(err => console.error("Error loading config:", err))
+                .finally(() => setLoadingConfig(false));
+        } else {
+            setConfigData(getDefaultEngineConfig("new-client"));
+        }
+    }, [isEditing, initialData?.id]);
 
     // Auto-generate slug from name
     useEffect(() => {
@@ -87,6 +108,18 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
                 throw new Error(data.error || "Failed to save client");
             }
 
+            const savedClient = await res.json();
+            const clientId = isEditing ? initialData?.id : savedClient.id;
+
+            // Save Engine Config
+            if (configData && clientId) {
+                await fetch(`/api/clients/${clientId}/engine-config`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(configData)
+                });
+            }
+
             setSuccess(true);
             setTimeout(() => {
                 router.push("/admin/clients");
@@ -120,7 +153,7 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
     };
 
     return (
-        <form onSubmit={handleSubmit} className="max-w-4xl space-y-8">
+        <form onSubmit={handleSubmit} className="max-w-4xl space-y-8 pb-20">
             {/* Header Status */}
             <div className="flex items-center justify-between p-4 bg-special border border-argent rounded-lg">
                 <div className="flex items-center gap-4">
@@ -179,7 +212,7 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
                             />
                         </div>
                         {slugModifiedManually && !isEditing && (
-                            <p className="mt-2 text-small text-yellow-500">⚠️ Manual slug changes may affect SEO and deep links.</p>
+                            <p className="mt-2 text-small text-yellow-500">⚠ Manual slug changes may affect SEO and deep links.</p>
                         )}
                     </div>
                 </div>
@@ -214,6 +247,33 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
                                 <span className="text-small text-text-muted">Sync Google Ads performance for cross-channel audit.</span>
                             </div>
                         </label>
+                    </div>
+
+                    {/* Slack Tuning */}
+                    <div className="space-y-4 mt-6">
+                        <h3 className="text-small font-bold text-text-muted uppercase mb-2">Slack Integration</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-tiny text-text-muted mb-1 font-bold">PUBLIC CHANNEL</label>
+                                <input
+                                    type="text"
+                                    value={formData.slackPublicChannel || ""}
+                                    onChange={(e) => setFormData({ ...formData, slackPublicChannel: e.target.value })}
+                                    placeholder="e.g. C02GBS..."
+                                    className="w-full text-small font-mono"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-tiny text-text-muted mb-1 font-bold">INTERNAL CHANNEL</label>
+                                <input
+                                    type="text"
+                                    value={formData.slackInternalChannel || ""}
+                                    onChange={(e) => setFormData({ ...formData, slackInternalChannel: e.target.value })}
+                                    placeholder="e.g. C02GBS..."
+                                    className="w-full text-small font-mono"
+                                />
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -360,7 +420,6 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
             {/* Account Details */}
             <div className="col-span-1 md:col-span-2 p-6 bg-stellar border border-argent rounded-lg space-y-6">
                 <h2 className="text-subheader text-text-primary">Platform Configuration</h2>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                         <label className="block text-small font-bold text-text-muted uppercase mb-2">Meta Ad Account ID</label>
@@ -389,6 +448,110 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
                     )}
                 </div>
             </div>
+
+            {/* AI Engine Tuning - Phase 1 Enhancements */}
+            {configData && (
+                <div className="col-span-1 md:col-span-2 space-y-6 pt-6 border-t border-argent">
+                    <div className="flex items-center justify-between">
+                        <h2 className="text-subheader text-text-primary">AI Engine Tuning</h2>
+                        <span className="text-small text-text-muted bg-special px-2 py-1 rounded">V2 CONFIG</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {/* Fatigue Tuning */}
+                        <div className="p-4 bg-special border border-argent rounded-lg space-y-4">
+                            <h3 className="text-small font-bold text-text-primary border-b border-argent pb-2 uppercase">Fatigue</h3>
+                            <div>
+                                <label className="block text-tiny text-text-muted mb-1 font-bold uppercase">Frequency Limit</label>
+                                <input
+                                    type="number" step="0.5"
+                                    value={configData.fatigue.frequencyThreshold}
+                                    onChange={(e) => setConfigData({ ...configData, fatigue: { ...configData.fatigue, frequencyThreshold: Number(e.target.value) } })}
+                                    className="w-full bg-stellar border border-argent p-1 text-small rounded outline-none focus:border-classic"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-tiny text-text-muted mb-1 font-bold uppercase">CPA Mult (Δ)</label>
+                                <input
+                                    type="number" step="0.05"
+                                    value={configData.fatigue.cpaMultiplierThreshold}
+                                    onChange={(e) => setConfigData({ ...configData, fatigue: { ...configData.fatigue, cpaMultiplierThreshold: Number(e.target.value) } })}
+                                    className="w-full bg-stellar border border-argent p-1 text-small rounded outline-none focus:border-classic"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Structure Tuning */}
+                        <div className="p-4 bg-special border border-argent rounded-lg space-y-4">
+                            <h3 className="text-small font-bold text-text-primary border-b border-argent pb-2 uppercase">Structure</h3>
+                            <div>
+                                <label className="block text-tiny text-text-muted mb-1 font-bold uppercase">Max Adsets</label>
+                                <input
+                                    type="number"
+                                    value={configData.structure.fragmentationAdsetsMax}
+                                    onChange={(e) => setConfigData({ ...configData, structure: { ...configData.structure, fragmentationAdsetsMax: Number(e.target.value) } })}
+                                    className="w-full bg-stellar border border-argent p-1 text-small rounded outline-none focus:border-classic"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-tiny text-text-muted mb-1 font-bold uppercase">Over-concent %</label>
+                                <input
+                                    type="number" step="0.05"
+                                    value={configData.structure.overconcentrationPct}
+                                    onChange={(e) => setConfigData({ ...configData, structure: { ...configData.structure, overconcentrationPct: Number(e.target.value) } })}
+                                    className="w-full bg-stellar border border-argent p-1 text-small rounded outline-none focus:border-classic"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Alert Tuning */}
+                        <div className="p-4 bg-special border border-argent rounded-lg space-y-4">
+                            <h3 className="text-small font-bold text-text-primary border-b border-argent pb-2 uppercase">Sensitivity</h3>
+                            <div>
+                                <label className="block text-tiny text-text-muted mb-1 font-bold uppercase">Budget Δ% (Limit)</label>
+                                <input
+                                    type="number"
+                                    value={configData.alerts.learningResetBudgetChangePct}
+                                    onChange={(e) => setConfigData({ ...configData, alerts: { ...configData.alerts, learningResetBudgetChangePct: Number(e.target.value) } })}
+                                    className="w-full bg-stellar border border-argent p-1 text-small rounded outline-none focus:border-classic"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-tiny text-text-muted mb-1 font-bold uppercase">Scaling Cap</label>
+                                <input
+                                    type="number" step="0.5"
+                                    value={configData.alerts.scalingFrequencyMax}
+                                    onChange={(e) => setConfigData({ ...configData, alerts: { ...configData.alerts, scalingFrequencyMax: Number(e.target.value) } })}
+                                    className="w-full bg-stellar border border-argent p-1 text-small rounded outline-none focus:border-classic"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Findings Tuning */}
+                        <div className="p-4 bg-special border border-argent rounded-lg space-y-4">
+                            <h3 className="text-small font-bold text-text-primary border-b border-argent pb-2 uppercase">Findings</h3>
+                            <div>
+                                <label className="block text-tiny text-text-muted mb-1 font-bold uppercase">CPA Spike %</label>
+                                <input
+                                    type="number" step="0.05"
+                                    value={configData.findings.cpaSpikeThreshold}
+                                    onChange={(e) => setConfigData({ ...configData, findings: { ...configData.findings, cpaSpikeThreshold: Number(e.target.value) } })}
+                                    className="w-full bg-stellar border border-argent p-1 text-small rounded outline-none focus:border-classic"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-tiny text-text-muted mb-1 font-bold uppercase">Volatility (CoV)</label>
+                                <input
+                                    type="number" step="0.1"
+                                    value={configData.findings.volatilityThreshold}
+                                    onChange={(e) => setConfigData({ ...configData, findings: { ...configData.findings, volatilityThreshold: Number(e.target.value) } })}
+                                    className="w-full bg-stellar border border-argent p-1 text-small rounded outline-none focus:border-classic"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Feedback & Actions */}
             <div className="flex items-center justify-between pt-6 border-t border-argent">

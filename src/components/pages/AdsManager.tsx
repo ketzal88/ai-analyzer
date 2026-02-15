@@ -6,12 +6,28 @@ import { EntityRollingMetrics, EntityLevel } from "@/types/performance-snapshots
 import { EntityClassification, FinalDecision, IntentStage, LearningState, FatigueState } from "@/types/classifications";
 import { RecommendationDoc } from "@/types/ai-recommendations";
 
+interface AlertDoc {
+    id: string;
+    clientId: string;
+    level: string;
+    entityId: string;
+    type: string;
+    severity: "CRITICAL" | "WARNING" | "INFO";
+    title: string;
+    description: string;
+    impactScore: number;
+    evidence: string[];
+    createdAt: string;
+}
+
 export default function AdsManager() {
     const { selectedClientId: clientId } = useClient();
     const [level, setLevel] = useState<EntityLevel>("ad");
     const [rollingMetrics, setRollingMetrics] = useState<EntityRollingMetrics[]>([]);
     const [classifications, setClassifications] = useState<EntityClassification[]>([]);
+    const [alerts, setAlerts] = useState<AlertDoc[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [showAlerts, setShowAlerts] = useState(false);
 
     const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -26,6 +42,7 @@ export default function AdsManager() {
             const data = await res.json();
             setRollingMetrics(data.rolling || []);
             setClassifications(data.classifications || []);
+            setAlerts(data.alerts || []);
         } catch (e) {
             console.error(e);
         } finally {
@@ -86,6 +103,11 @@ export default function AdsManager() {
 
     const selectedMetrics = useMemo(() => rollingMetrics.find(m => m.entityId === selectedEntityId), [rollingMetrics, selectedEntityId]);
     const selectedClass = useMemo(() => classifications.find(c => c.entityId === selectedEntityId && c.level === level), [classifications, selectedEntityId, level]);
+    const entityAlerts = useMemo(() => alerts.filter(a => a.entityId === selectedEntityId), [alerts, selectedEntityId]);
+
+    // Alert counts for badges
+    const criticalAlerts = alerts.filter(a => a.severity === "CRITICAL").length;
+    const warningAlerts = alerts.filter(a => a.severity === "WARNING").length;
 
     if (isLoading && !rollingMetrics.length) {
         return (
@@ -111,20 +133,104 @@ export default function AdsManager() {
                         <p className="text-[10px] text-text-muted font-black uppercase tracking-[0.25em] pl-5">Nivel de Control Operativo GEM v2.0</p>
                     </div>
 
-                    <div className="flex bg-second/80 backdrop-blur-md border border-argent/40 p-1 rounded-2xl shadow-xl">
-                        {(['account', 'campaign', 'adset', 'ad'] as EntityLevel[]).map((l) => (
-                            <button
-                                key={l}
-                                onClick={() => setLevel(l)}
-                                className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${level === l ? 'bg-classic text-white shadow-[0_8px_20px_-5px_rgba(var(--classic-rgb),0.4)] scale-[1.05]' : 'text-text-muted hover:text-text-primary hover:bg-argent/10'}`}
-                            >
-                                {l === 'ad' ? 'Anuncios' : l === 'adset' ? 'Conjuntos' : l === 'campaign' ? 'Campañas' : 'Cuenta'}
-                            </button>
-                        ))}
+                    <div className="flex items-center gap-4">
+                        {/* Alerts Toggle */}
+                        <button
+                            onClick={() => setShowAlerts(!showAlerts)}
+                            className={`relative flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 border ${showAlerts ? 'bg-classic/20 border-classic/40 text-classic' : 'bg-second/80 border-argent/40 text-text-muted hover:text-text-primary hover:bg-argent/10'}`}
+                        >
+                            <span>🔔</span>
+                            <span>Alertas</span>
+                            {(criticalAlerts + warningAlerts) > 0 && (
+                                <span className={`absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center text-[8px] font-black rounded-full ${criticalAlerts > 0 ? 'bg-red-500 text-white' : 'bg-yellow-500 text-black'}`}>
+                                    {criticalAlerts + warningAlerts}
+                                </span>
+                            )}
+                        </button>
+
+                        {/* Level Tabs */}
+                        <div className="flex bg-second/80 backdrop-blur-md border border-argent/40 p-1 rounded-2xl shadow-xl">
+                            {(['account', 'campaign', 'adset', 'ad'] as EntityLevel[]).map((l) => (
+                                <button
+                                    key={l}
+                                    onClick={() => setLevel(l)}
+                                    className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${level === l ? 'bg-classic text-white shadow-[0_8px_20px_-5px_rgba(var(--classic-rgb),0.4)] scale-[1.05]' : 'text-text-muted hover:text-text-primary hover:bg-argent/10'}`}
+                                >
+                                    {l === 'ad' ? 'Anuncios' : l === 'adset' ? 'Conjuntos' : l === 'campaign' ? 'Campañas' : 'Cuenta'}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </header>
 
-                {/* Main Table View - NOW DARK TO MATCH THEME */}
+                {/* Alerts Panel */}
+                {showAlerts && alerts.length > 0 && (
+                    <div className="relative group/alerts">
+                        <div className="absolute -inset-1 bg-gradient-to-r from-red-500/10 via-yellow-500/10 to-classic/10 rounded-[2rem] blur-2xl opacity-30" />
+                        <div className="relative bg-second/40 backdrop-blur-xl border border-argent/30 rounded-[1.5rem] overflow-hidden shadow-2xl p-6 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <span className="text-sm">🚨</span>
+                                    <h3 className="text-[11px] font-black text-text-primary uppercase tracking-[0.2em]">Smart Alerts Engine</h3>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {criticalAlerts > 0 && (
+                                        <span className="text-[8px] font-black bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full border border-red-500/30">
+                                            {criticalAlerts} CRÍTICAS
+                                        </span>
+                                    )}
+                                    {warningAlerts > 0 && (
+                                        <span className="text-[8px] font-black bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full border border-yellow-500/30">
+                                            {warningAlerts} WARNING
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {alerts.sort((a, b) => {
+                                    const sev = { CRITICAL: 0, WARNING: 1, INFO: 2 };
+                                    return (sev[a.severity] - sev[b.severity]) || b.impactScore - a.impactScore;
+                                }).slice(0, 6).map((alert) => (
+                                    <div
+                                        key={alert.id}
+                                        onClick={() => handleRowClick(alert.entityId)}
+                                        className={`p-4 rounded-2xl border cursor-pointer transition-all duration-300 hover:scale-[1.01] ${alert.severity === 'CRITICAL'
+                                            ? 'bg-red-500/5 border-red-500/20 hover:border-red-500/40'
+                                            : alert.severity === 'WARNING'
+                                                ? 'bg-yellow-500/5 border-yellow-500/20 hover:border-yellow-500/40'
+                                                : 'bg-synced/5 border-synced/20 hover:border-synced/40'
+                                            }`}
+                                    >
+                                        <div className="flex items-start justify-between gap-2 mb-2">
+                                            <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider ${alert.severity === 'CRITICAL' ? 'bg-red-500 text-white' :
+                                                alert.severity === 'WARNING' ? 'bg-yellow-500 text-black' :
+                                                    'bg-synced/20 text-synced'
+                                                }`}>
+                                                {alert.type === 'LEARNING_RESET_RISK' ? '🟡 RESET' :
+                                                    alert.type === 'SCALING_OPPORTUNITY' ? '🟢 SCALE' :
+                                                        alert.type === 'ROTATE_CONCEPT' ? '🔥 ROTAR' :
+                                                            alert.type === 'CONSOLIDATE' ? '🧩 CONSOLIDAR' :
+                                                                alert.type === 'KILL_RETRY' ? '💀 KILL' : '💡 UPSELL'}
+                                            </span>
+                                            <span className="text-[9px] font-black text-text-muted">{alert.impactScore}</span>
+                                        </div>
+                                        <p className="text-[10px] font-bold text-text-primary leading-snug line-clamp-2">{alert.title}</p>
+                                        <p className="text-[9px] text-text-muted mt-1 line-clamp-2">{alert.description}</p>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {alerts.length > 6 && (
+                                <p className="text-[9px] font-bold text-text-muted text-center pt-2">
+                                    ...y {alerts.length - 6} alertas más
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Main Table View */}
                 <div className="relative group/table">
                     <div className="absolute -inset-1 bg-gradient-to-r from-classic/20 to-special/20 rounded-[2rem] blur-2xl opacity-20 group-hover/table:opacity-40 transition-opacity duration-1000" />
 
@@ -150,6 +256,7 @@ export default function AdsManager() {
                                 <tbody>
                                     {filteredRolling.map((m) => {
                                         const cl = classifications.find(c => c.entityId === m.entityId && c.level === m.level);
+                                        const entityAlertCount = alerts.filter(a => a.entityId === m.entityId).length;
                                         return (
                                             <tr
                                                 key={m.entityId}
@@ -158,7 +265,12 @@ export default function AdsManager() {
                                             >
                                                 <td className="p-6 sticky left-0 bg-second/90 group-hover/row:bg-second z-20 transition-colors shadow-[4px_0_15px_rgba(0,0,0,0.2)] border-r border-argent/20">
                                                     <div className="flex flex-col min-w-[180px]">
-                                                        <span className="text-small font-black text-text-primary truncate transition-all group-hover/row:text-classic">{m.entityId}</span>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-small font-black text-text-primary truncate transition-all group-hover/row:text-classic">{m.entityId}</span>
+                                                            {entityAlertCount > 0 && (
+                                                                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+                                                            )}
+                                                        </div>
                                                         <div className="flex items-center gap-2 mt-1">
                                                             <span className="text-[8px] font-black bg-argent/30 text-text-secondary px-1.5 py-0.5 rounded leading-none uppercase">{level}</span>
                                                             {cl?.conceptId && <span className="text-[8px] font-black text-classic uppercase truncate max-w-[100px]">{cl.conceptId}</span>}
@@ -221,7 +333,7 @@ export default function AdsManager() {
                 </div>
             </div>
 
-            {/* Premium Drawer - ALSO DARK */}
+            {/* Premium Drawer */}
             {isDrawerOpen && (
                 <div className="fixed inset-0 z-[100] flex justify-end">
                     <div className="absolute inset-0 bg-stellar/80 backdrop-blur-md transition-opacity duration-300" onClick={() => setIsDrawerOpen(false)} />
@@ -261,6 +373,63 @@ export default function AdsManager() {
                                     prefix="$"
                                 />
                             </section>
+
+                            {/* NEW: Signal Indicators Section */}
+                            <section className="space-y-4">
+                                <header className="flex items-center gap-3 border-b border-argent/20 pb-4">
+                                    <h3 className="text-[11px] font-black text-text-muted uppercase tracking-[0.2em]">Señales Operativas</h3>
+                                </header>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                    <SignalCard
+                                        label="Velocidad Conv"
+                                        value={selectedMetrics?.rolling.conversion_velocity_7d?.toFixed(2)}
+                                        suffix="/día"
+                                        prev={selectedMetrics?.rolling.conversion_velocity_14d}
+                                    />
+                                    <SignalCard
+                                        label="Frecuencia 7d"
+                                        value={selectedMetrics?.rolling.frequency_7d?.toFixed(1)}
+                                        warn={(selectedMetrics?.rolling.frequency_7d || 0) > 4}
+                                    />
+                                    <SignalCard
+                                        label="Δ Budget 3d"
+                                        value={selectedMetrics?.rolling.budget_change_3d_pct ? `${selectedMetrics.rolling.budget_change_3d_pct.toFixed(0)}%` : undefined}
+                                        warn={Math.abs(selectedMetrics?.rolling.budget_change_3d_pct || 0) > 30}
+                                    />
+                                    <SignalCard
+                                        label="Concentración"
+                                        value={selectedMetrics?.rolling.spend_top1_ad_pct ? `${(selectedMetrics.rolling.spend_top1_ad_pct * 100).toFixed(0)}%` : undefined}
+                                        warn={(selectedMetrics?.rolling.spend_top1_ad_pct || 0) > 0.6}
+                                    />
+                                </div>
+                            </section>
+
+                            {/* Entity Alerts */}
+                            {entityAlerts.length > 0 && (
+                                <section className="space-y-4">
+                                    <header className="flex items-center justify-between border-b border-argent/20 pb-4">
+                                        <h3 className="text-[11px] font-black text-text-muted uppercase tracking-[0.2em]">Alertas de esta Entidad</h3>
+                                        <span className="text-[9px] font-black text-text-muted">{entityAlerts.length} alerta{entityAlerts.length !== 1 ? 's' : ''}</span>
+                                    </header>
+                                    <div className="space-y-3">
+                                        {entityAlerts.map((alert) => (
+                                            <div key={alert.id} className={`p-4 rounded-2xl border ${alert.severity === 'CRITICAL' ? 'bg-red-500/5 border-red-500/20' :
+                                                alert.severity === 'WARNING' ? 'bg-yellow-500/5 border-yellow-500/20' :
+                                                    'bg-synced/5 border-synced/20'
+                                                }`}>
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase ${alert.severity === 'CRITICAL' ? 'bg-red-500 text-white' :
+                                                        alert.severity === 'WARNING' ? 'bg-yellow-500 text-black' :
+                                                            'bg-synced/20 text-synced'
+                                                        }`}>{alert.severity}</span>
+                                                    <span className="text-[9px] font-bold text-text-primary">{alert.title}</span>
+                                                </div>
+                                                <p className="text-[10px] text-text-muted leading-relaxed">{alert.description}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </section>
+                            )}
 
                             {/* Intent & Evidence Section */}
                             <section className="space-y-6">
@@ -331,7 +500,8 @@ export default function AdsManager() {
     );
 }
 
-// Subcomponents with Visual Polish
+// ─── Subcomponents ───────────────────────────────────────────
+
 function DeltaTag({ val }: { val?: number }) {
     if (val === undefined || Math.abs(val) < 0.1) return null;
     const isImproved = val > 0;
@@ -407,6 +577,23 @@ function DecisionTag({ decision, confidence }: { decision?: FinalDecision, confi
                     <span className="text-[8px] font-black text-text-muted leading-none">AI CONF</span>
                     <span className="text-[10px] font-black text-text-primary">{Math.round(confidence * 100)}%</span>
                 </div>
+            )}
+        </div>
+    );
+}
+
+function SignalCard({ label, value, suffix, prev, warn }: { label: string, value?: string, suffix?: string, prev?: number, warn?: boolean }) {
+    return (
+        <div className={`p-3 rounded-xl border transition-all ${warn ? 'bg-red-500/5 border-red-500/20' : 'bg-special/20 border-argent/20'}`}>
+            <p className="text-[8px] font-black text-text-muted uppercase tracking-widest">{label}</p>
+            <div className="flex items-baseline gap-1 mt-1">
+                <span className={`text-[14px] font-black ${warn ? 'text-red-400' : 'text-text-primary'}`}>
+                    {value || "-"}
+                </span>
+                {suffix && <span className="text-[9px] text-text-muted">{suffix}</span>}
+            </div>
+            {prev !== undefined && prev > 0 && value && (
+                <p className="text-[8px] text-text-muted mt-0.5">prev: {prev.toFixed(2)}</p>
             )}
         </div>
     );

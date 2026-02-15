@@ -211,6 +211,20 @@ export class PerformanceService {
 
         const batch = db.batch();
 
+        // Pre-calculate concentration metrics (spend per ad entity in last 7d)
+        const adEntitySpends7d: Record<string, number> = {};
+        for (const [k, g] of Object.entries(entityGroups)) {
+            const [eid, lvl] = k.split("__");
+            if (lvl === 'ad') {
+                const s7 = this.sumPerformance(g.slice(0, 7));
+                adEntitySpends7d[eid] = s7.spend;
+            }
+        }
+        const sortedAdSpends = Object.values(adEntitySpends7d).sort((a, b) => b - a);
+        const totalAdSpend7d = sortedAdSpends.reduce((a, b) => a + b, 0);
+        const globalSpendTop1Pct = totalAdSpend7d > 0 ? (sortedAdSpends[0] || 0) / totalAdSpend7d : 0;
+        const globalSpendTop3Pct = totalAdSpend7d > 0 ? sortedAdSpends.slice(0, 3).reduce((a, b) => a + b, 0) / totalAdSpend7d : 0;
+
         for (const [key, group] of Object.entries(entityGroups)) {
             const [entityId, level] = key.split("__") as [string, EntityLevel];
 
@@ -221,6 +235,27 @@ export class PerformanceService {
 
             // Comparison windows for deltas
             const prev7d = this.sumPerformance(group.slice(7, 14));
+
+            // CPA delta
+            const cpa7d = r7d.purchases > 0 ? r7d.spend / r7d.purchases : 0;
+            const cpa14d = r14d.purchases > 0 ? r14d.spend / r14d.purchases : 0;
+            const cpaDeltaPct = this.calcDelta(cpa7d, cpa14d);
+
+            // Conversion per impression delta
+            const convPerImp7d = r7d.impressions > 0 ? r7d.purchases / r7d.impressions : 0;
+            const convPerImpPrev = prev7d.impressions > 0 ? prev7d.purchases / prev7d.impressions : 0;
+            const convPerImpDelta = this.calcDelta(convPerImp7d, convPerImpPrev);
+
+            // Budget change (compare last 3d spend vs previous 3d spend)
+            const prev3d = this.sumPerformance(group.slice(3, 6));
+            const budgetChange3dPct = this.calcDelta(r3d.spend, prev3d.spend);
+
+            // Concentration at entity level (for account/campaign parents)
+            let spendTop1Pct = globalSpendTop1Pct;
+            let spendTop3Pct = globalSpendTop3Pct;
+            if (level === 'ad') {
+                spendTop1Pct = totalAdSpend7d > 0 ? (adEntitySpends7d[entityId] || 0) / totalAdSpend7d : 0;
+            }
 
             const rollingMetrics: EntityRollingMetrics = {
                 clientId,
@@ -241,6 +276,7 @@ export class PerformanceService {
                     cpa_3d: r3d.purchases > 0 ? r3d.spend / r3d.purchases : undefined,
                     cpa_7d: r7d.purchases > 0 ? r7d.spend / r7d.purchases : undefined,
                     cpa_14d: r14d.purchases > 0 ? r14d.spend / r14d.purchases : undefined,
+                    cpa_delta_pct: cpaDeltaPct,
 
                     roas_7d: r7d.spend > 0 ? r7d.revenue / r7d.spend : undefined,
                     roas_delta_pct: this.calcDelta(
@@ -250,6 +286,7 @@ export class PerformanceService {
 
                     conversion_velocity_3d: r3d.purchases / 3,
                     conversion_velocity_7d: r7d.purchases / 7,
+                    conversion_velocity_14d: r14d.purchases / 14,
 
                     frequency_7d: r7d.impressions > 0 ? r7d.impressions / (r7d.reach || 1) : undefined,
                     ctr_delta_pct: this.calcDelta(
@@ -261,7 +298,12 @@ export class PerformanceService {
                         r7d.impressions > 0 ? (r7d.hookViews / r7d.impressions) * 100 : 0,
                         prev7d.impressions > 0 ? (prev7d.hookViews / prev7d.impressions) * 100 : 0
                     ),
-                    fitr_7d: r7d.clicks > 0 ? (r7d.purchases / r7d.clicks) * 100 : 0
+                    fitr_7d: r7d.clicks > 0 ? (r7d.purchases / r7d.clicks) * 100 : 0,
+                    conversion_per_impression_delta: convPerImpDelta,
+
+                    spend_top1_ad_pct: spendTop1Pct,
+                    spend_top3_ads_pct: spendTop3Pct,
+                    budget_change_3d_pct: budgetChange3dPct
                 }
             };
 

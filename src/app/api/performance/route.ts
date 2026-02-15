@@ -26,8 +26,7 @@ export async function GET(request: NextRequest) {
             .limit(50)
             .get();
         const alerts = alertsSnap.docs.map(d => d.data())
-            .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-            .slice(0, 10);
+            .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
         // Fetch Classifications
         const classSnap = await db.collection("entity_classifications")

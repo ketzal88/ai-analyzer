@@ -8,6 +8,13 @@ import {
     ClientPercentiles
 } from "@/types/classifications";
 import { DailyEntitySnapshot, EntityRollingMetrics, ConceptRollingMetrics } from "@/types/performance-snapshots";
+import { EngineConfig } from "@/types/engine-config";
+
+export interface ClientTargets {
+    targetCpa?: number;
+    targetRoas?: number;
+    primaryGoal?: "scale" | "efficiency" | "stability";
+}
 
 export class DecisionEngine {
 
@@ -15,9 +22,11 @@ export class DecisionEngine {
         snap: DailyEntitySnapshot,
         rolling: EntityRollingMetrics,
         percentiles: ClientPercentiles,
+        config: EngineConfig, // Added config
         conceptMetrics?: ConceptRollingMetrics,
         activeAdsetsCount: number = 0,
-        conversions7d: number = 0
+        conversions7d: number = 0,
+        clientTargets?: ClientTargets
     ): EntityClassification {
 
         // Layer 1: Learning State
@@ -26,20 +35,22 @@ export class DecisionEngine {
         // Layer 2: Intent Engine
         const { score: intentScore, stage: intentStage } = this.computeIntent(snap, percentiles);
 
-        // Layer 3: Fatigue Engine
-        const fatigueState = this.classifyFatigue(rolling, conceptMetrics);
+        // Layer 3: Fatigue Engine (now with concentration check)
+        const fatigueState = this.classifyFatigue(rolling, config, conceptMetrics);
 
         // Layer 4: Structure Engine
-        const structuralState = this.classifyStructure(snap, activeAdsetsCount, conversions7d);
+        const structuralState = this.classifyStructure(snap, activeAdsetsCount, conversions7d, rolling, config);
 
-        // Layer 5: Final Decision Matrix
+        // Layer 5: Final Decision Matrix (now with client targets)
         const { decision: finalDecision, confidence: confidenceScore, facts } = this.makeDecision(
             learningState,
             intentStage,
             fatigueState,
             structuralState,
             rolling,
-            snap
+            snap,
+            config,
+            clientTargets
         );
 
         // Impact Score Calculation
@@ -57,7 +68,7 @@ export class DecisionEngine {
             fatigueState,
             structuralState,
             finalDecision,
-            evidence: facts, // <--- Added evidence facts
+            evidence: facts,
             confidenceScore,
             impactScore
         };
@@ -97,22 +108,28 @@ export class DecisionEngine {
         return { score: Number(score.toFixed(4)), stage };
     }
 
-    private static classifyFatigue(rolling: EntityRollingMetrics, concept?: ConceptRollingMetrics): FatigueState {
-        const { frequency_7d, cpa_7d, cpa_14d, hook_rate_delta_pct } = rolling.rolling;
+    private static classifyFatigue(
+        rolling: EntityRollingMetrics,
+        config: EngineConfig,
+        concept?: ConceptRollingMetrics
+    ): FatigueState {
+        const { frequency_7d, cpa_7d, cpa_14d, hook_rate_delta_pct, spend_top1_ad_pct } = rolling.rolling;
+        const f = config.fatigue;
 
         // Entity Level
-        if (frequency_7d && frequency_7d > 4) {
-            const cpaWorse = cpa_14d && cpa_14d > 0 ? (cpa_7d! > cpa_14d * 1.25) : false;
-            const hookDrop = (hook_rate_delta_pct || 0) < -20;
+        if (frequency_7d && frequency_7d > f.frequencyThreshold) {
+            const cpaWorse = cpa_14d && cpa_14d > 0 ? (cpa_7d! > cpa_14d * f.cpaMultiplierThreshold) : false;
+            const hookDrop = (hook_rate_delta_pct || 0) < (f.hookRateDeltaThreshold * 100);
+            const highConcentration = (spend_top1_ad_pct || 0) > f.concentrationThreshold;
 
-            if (cpaWorse && hookDrop) return "REAL";
+            if (cpaWorse && hookDrop && highConcentration) return "REAL";
             if (!cpaWorse && !hookDrop) return "HEALTHY_REPETITION";
         }
 
         // Concept Level
         if (concept) {
             const { avg_cpa_7d, avg_cpa_14d, hook_rate_delta } = concept.rolling;
-            if (avg_cpa_7d > avg_cpa_14d * 1.25 && hook_rate_delta < -25) {
+            if (avg_cpa_7d > avg_cpa_14d * f.cpaMultiplierThreshold && hook_rate_delta < f.hookRateDeltaThreshold) {
                 return "CONCEPT_DECAY";
             }
         }
@@ -120,12 +137,23 @@ export class DecisionEngine {
         return "NONE";
     }
 
-    private static classifyStructure(snap: DailyEntitySnapshot, activeAdsets: number, conversions7d: number): StructuralState {
+    private static classifyStructure(
+        snap: DailyEntitySnapshot,
+        activeAdsets: number,
+        conversions7d: number,
+        rolling: EntityRollingMetrics,
+        config: EngineConfig
+    ): StructuralState {
+        const s = config.structure;
         if (snap.level === 'account' || snap.level === 'campaign') {
-            if (conversions7d < 30 && activeAdsets > 4) return "FRAGMENTED";
+            if (conversions7d < 30 && activeAdsets > s.fragmentationAdsetsMax) return "FRAGMENTED";
         }
 
-        // Check concentration if needed
+        const spendTop1 = rolling.rolling.spend_top1_ad_pct || 0;
+        if (spendTop1 > s.overconcentrationPct && (rolling.rolling.spend_7d || 0) > s.overconcentrationMinSpend) {
+            return "OVERCONCENTRATED";
+        }
+
         return "HEALTHY";
     }
 
@@ -135,7 +163,9 @@ export class DecisionEngine {
         fatigue: FatigueState,
         structure: StructuralState,
         rolling: EntityRollingMetrics,
-        snap: DailyEntitySnapshot
+        snap: DailyEntitySnapshot,
+        config: EngineConfig,
+        clientTargets?: ClientTargets
     ): { decision: FinalDecision, confidence: number, facts: string[] } {
         const facts: string[] = [];
 
@@ -143,16 +173,24 @@ export class DecisionEngine {
         const cpa7d = rolling.rolling.cpa_7d || 0;
         const spend7d = rolling.rolling.spend_7d || 0;
         const velocity7d = rolling.rolling.conversion_velocity_7d || 0;
+        const velocity14d = rolling.rolling.conversion_velocity_14d || 0;
         const roas7d = rolling.rolling.roas_7d || 0;
         const roasDelta = rolling.rolling.roas_delta_pct || 0;
         const hookDelta = rolling.rolling.hook_rate_delta_pct || 0;
+        const freq7d = rolling.rolling.frequency_7d || 0;
+        const budgetChange = rolling.rolling.budget_change_3d_pct || 0;
 
         if (spend7d > 0) facts.push(`Gasto 7d: $${spend7d.toFixed(2)}`);
         if (cpa7d > 0) facts.push(`CPA 7d: $${cpa7d.toFixed(2)}`);
         if (roas7d > 0) facts.push(`ROAS 7d: ${roas7d.toFixed(2)}`);
         if (velocity7d > 0) facts.push(`Convs/día: ${velocity7d.toFixed(2)}`);
+        if (freq7d > 0) facts.push(`Frecuencia 7d: ${freq7d.toFixed(1)}`);
         if (Math.abs(roasDelta) > 5) facts.push(`Delta ROAS: ${roasDelta.toFixed(1)}%`);
         if (Math.abs(hookDelta) > 5) facts.push(`Delta Gancho: ${hookDelta.toFixed(1)}%`);
+        if (Math.abs(budgetChange) > 10) facts.push(`Δ Budget 3d: ${budgetChange.toFixed(1)}%`);
+
+        const targetCpa = clientTargets?.targetCpa;
+        const targetRoas = clientTargets?.targetRoas || 2.0;
 
         if (learning === "EXPLORATION") {
             if (spend7d > 50 && velocity7d === 0) {
@@ -163,8 +201,16 @@ export class DecisionEngine {
             return { decision: "HOLD", confidence: 0.9, facts };
         }
 
+        if (learning === "UNSTABLE") {
+            if (budgetChange > config.alerts.learningResetBudgetChangePct) {
+                facts.push(`Edición reciente con cambio de budget > ${config.alerts.learningResetBudgetChangePct}%. Riesgo de reinicio de aprendizaje.`);
+            }
+            facts.push("Entidad editada recientemente (< 3 días). En período de re-estabilización.");
+            return { decision: "HOLD", confidence: 0.85, facts };
+        }
+
         if (fatigue === "REAL") {
-            facts.push("Frecuencia > 4 + CPA al alza + Tasa de Gancho a la baja.");
+            facts.push(`Frecuencia > ${config.fatigue.frequencyThreshold} + CPA al alza + Tasa de Gancho a la baja + Concentración > ${config.fatigue.concentrationThreshold * 100}%.`);
             return { decision: "ROTATE_CONCEPT", confidence: 0.85, facts };
         }
 
@@ -174,13 +220,26 @@ export class DecisionEngine {
         }
 
         if (structure === "FRAGMENTED") {
-            facts.push("Conversiones totales < 30/semana con > 4 adsets activos.");
+            facts.push(`Conversiones totales < 30/semana con > ${config.structure.fragmentationAdsetsMax} adsets activos.`);
             return { decision: "CONSOLIDATE", confidence: 0.8, facts };
         }
 
+        if (structure === "OVERCONCENTRATED") {
+            facts.push(`Un único ad concentra > ${config.structure.overconcentrationPct * 100}% del gasto total. Riesgo de dependencia.`);
+            return { decision: "CONSOLIDATE", confidence: 0.7, facts };
+        }
+
+        // SCALE decision now uses client targets
         if (learning === "EXPLOITATION" && intent === "BOFU") {
-            if (roas7d > 2.0) {
-                facts.push("Performance alta y estable en fase de explotación.");
+            const cpaMeetTarget = targetCpa ? cpa7d <= targetCpa : true;
+            const roasMeetTarget = roas7d >= targetRoas;
+            const velocityStable = velocity14d > 0 ? velocity7d >= velocity14d : velocity7d > 0;
+            const daysStable = snap.stability.daysSinceLastEdit >= 3;
+
+            if ((cpaMeetTarget || roasMeetTarget) && velocityStable && freq7d < config.alerts.scalingFrequencyMax && daysStable) {
+                facts.push(`Performance alta y estable en fase de explotación.`);
+                if (targetCpa) facts.push(`CPA ($${cpa7d.toFixed(2)}) dentro del target ($${targetCpa}).`);
+                if (roasMeetTarget) facts.push(`ROAS (${roas7d.toFixed(2)}x) supera objetivo (${targetRoas}x).`);
                 return { decision: "SCALE", confidence: 0.88, facts };
             }
         }

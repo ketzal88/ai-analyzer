@@ -92,6 +92,18 @@ Explain how the UI handles layers. Describe the presence and quality of shadows 
 - **Precision:** Include exact hex codes for colors while using descriptive names
 - **Context:** Explain the "why" behind design decisions, not just the "what"
 
+## Standard Design System (Project 5165520689568295033)
+
+When generating designs for the AI Analyzer/AI Worker project, always adhere to the following core design system:
+
+- **Theme:** Dark Mode (Deep Charcoal/Black)
+- **Primary Color:** Electric Blue (#135BEC)
+- **Typography:** Inter (Modern Sans-Serif)
+- **Geometry:** 8px Rounded Corners (Subtly Rounded)
+- **Atmosphere:** Professional, Technical, "Command Center" aesthetic
+
+Use the detailed reference in `examples/DESIGN.md` for specific component stylings.
+
 ## Output Format (DESIGN.md Structure)
 
 ```markdown
@@ -118,16 +130,16 @@ Explain how the UI handles layers. Describe the presence and quality of shadows 
 
 ## Usage Example
 
-To use this skill for the Furniture Collection project:
+To use this skill for the AI Analyzer project:
 
 1. **Retrieve project information:**
    ```
-   Use the Stitch MCP Server to get the Furniture Collection project
+   Use the Stitch MCP Server to get project 5165520689568295033
    ```
 
-2. **Get the Home page screen details:**
+2. **Get the Login Screen details:**
    ```
-   Retrieve the Home page screen's code, image, and screen object information
+   Retrieve the Login Screen (screenId: 2cab4561395a4055a339ee3fa7bbaf52) code, image, and screen object information
    ```
 
 3. **Reference best practices:**

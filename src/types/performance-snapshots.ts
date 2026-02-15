@@ -83,12 +83,14 @@ export interface EntityRollingMetrics {
         cpa_3d?: number;
         cpa_7d?: number;
         cpa_14d?: number;
+        cpa_delta_pct?: number;
 
         roas_7d?: number;
         roas_delta_pct?: number;
 
         conversion_velocity_3d?: number;
         conversion_velocity_7d?: number;
+        conversion_velocity_14d?: number;
 
         frequency_7d?: number;
         ctr_7d?: number;
@@ -96,6 +98,12 @@ export interface EntityRollingMetrics {
         hook_rate_7d?: number;
         hook_rate_delta_pct?: number;
         fitr_7d?: number;
+        conversion_per_impression_delta?: number;
+
+        // Concentration metrics
+        spend_top1_ad_pct?: number;
+        spend_top3_ads_pct?: number;
+        budget_change_3d_pct?: number;
     };
     lastUpdate: string; // YYYY-MM-DD
 }

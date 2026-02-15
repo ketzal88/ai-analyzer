@@ -1,7 +1,9 @@
 import { db } from "@/lib/firebase-admin";
-import { DecisionEngine } from "./decision-engine";
+import { DecisionEngine, ClientTargets } from "./decision-engine";
 import { DailyEntitySnapshot, EntityRollingMetrics, ConceptRollingMetrics } from "@/types/performance-snapshots";
 import { EntityClassification, ClientPercentiles } from "@/types/classifications";
+import { Client } from "@/types";
+import { EngineConfigService } from "./engine-config-service";
 
 export class ClassificationService {
     /**
@@ -9,18 +11,28 @@ export class ClassificationService {
      */
     static async classifyEntitiesForClient(clientId: string, date: string) {
         // 1. Fetch data
-        const [rollingSnap, dailySnap, conceptSnap] = await Promise.all([
+        const [rollingSnap, dailySnap, conceptSnap, clientDoc, config] = await Promise.all([
             db.collection("entity_rolling_metrics").where("clientId", "==", clientId).get(),
             db.collection("daily_entity_snapshots")
                 .where("clientId", "==", clientId)
                 .where("date", "==", date)
                 .get(),
-            db.collection("concept_rolling_metrics").where("clientId", "==", clientId).get()
+            db.collection("concept_rolling_metrics").where("clientId", "==", clientId).get(),
+            db.collection("clients").doc(clientId).get(),
+            EngineConfigService.getEngineConfig(clientId)
         ]);
 
         const rollingMetrics = rollingSnap.docs.map(d => d.data() as EntityRollingMetrics);
         const dailySnapshots = dailySnap.docs.map(d => d.data() as DailyEntitySnapshot);
         const conceptMetrics = conceptSnap.docs.map(d => d.data() as ConceptRollingMetrics);
+
+        // Extract client targets for the decision engine
+        const clientData = clientDoc.exists ? clientDoc.data() as Client : null;
+        const clientTargets: ClientTargets = {
+            targetCpa: clientData?.targetCpa,
+            targetRoas: clientData?.targetRoas,
+            primaryGoal: clientData?.primaryGoal
+        };
 
         // Structural inputs
         const activeAdsets = rollingMetrics.filter(r => r.level === 'adset' && (r.rolling.spend_7d || 0) > 0);
@@ -41,14 +53,16 @@ export class ClassificationService {
 
             const concept = snap.meta.conceptId ? conceptMetrics.find(c => c.conceptId === snap.meta.conceptId) : undefined;
 
-            // CORE DECISION ENGINE CALL
+            // CORE DECISION ENGINE CALL — now passing client targets and config
             const decision = DecisionEngine.compute(
                 snap,
                 rolling,
                 percentiles,
+                config,
                 concept,
                 activeAdsets.length,
-                conversions7d
+                conversions7d,
+                clientTargets
             );
 
             const docId = `${clientId}__${snap.level}__${snap.entityId}`;
