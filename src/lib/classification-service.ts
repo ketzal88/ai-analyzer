@@ -39,21 +39,39 @@ export class ClassificationService {
         const accountRolling = rollingMetrics.find(r => r.level === 'account');
         const conversions7d = accountRolling?.rolling.conversion_velocity_7d ? accountRolling.rolling.conversion_velocity_7d * 7 : 0;
 
-        // Filter only those with spend > 0 today
-        const activeSnapshots = dailySnapshots.filter(s => s.performance.spend > 0);
+        // Take daily snapshots for the entities we want to classify
+        // We'll use the daily snapshots from the target date for 'today' state
+        // but fall back to the generic rolling data for everything else
+        const activeEntities = rollingMetrics.filter(r => (r.rolling.spend_7d || 0) > 0);
 
         // 2. Calculate percentiles for normalization
         const percentiles = await this.calculateClientPercentiles(clientId, rollingMetrics);
 
         const batch = db.batch();
+        let classifiedCount = 0;
 
-        for (const snap of activeSnapshots) {
-            const rolling = rollingMetrics.find(r => r.entityId === snap.entityId && r.level === snap.level);
-            if (!rolling) continue;
+        for (const rolling of activeEntities) {
+            // Find daily snapshot for today, or create dummy if missing
+            let snap = dailySnapshots.find(s => s.entityId === rolling.entityId && s.level === rolling.level);
 
-            const concept = snap.meta.conceptId ? conceptMetrics.find(c => c.conceptId === snap.meta.conceptId) : undefined;
+            if (!snap) {
+                snap = {
+                    clientId,
+                    date,
+                    level: rolling.level,
+                    entityId: rolling.entityId,
+                    name: rolling.name,
+                    performance: { spend: 0, impressions: 0, reach: 0, clicks: 0, ctr: 0, cpc: 0 },
+                    engagement: {},
+                    audience: {},
+                    stability: { daysActive: 0, daysSinceLastEdit: 0 },
+                    meta: {}
+                };
+            }
 
-            // CORE DECISION ENGINE CALL — now passing client targets and config
+            const conceptId = snap.meta?.conceptId || rolling.entityId.split(/[|_-]/)[0]; // Minimal fallback
+            const concept = conceptId ? conceptMetrics.find(c => c.conceptId === conceptId) : undefined;
+
             const decision = DecisionEngine.compute(
                 snap,
                 rolling,
@@ -65,13 +83,14 @@ export class ClassificationService {
                 clientTargets
             );
 
-            const docId = `${clientId}__${snap.level}__${snap.entityId}`;
+            const docId = `${clientId}__${rolling.level}__${rolling.entityId.replace(/\//g, '_')}`;
             const docRef = db.collection("entity_classifications").doc(docId);
             batch.set(docRef, decision, { merge: true });
+            classifiedCount++;
         }
 
         await batch.commit();
-        return activeSnapshots.length;
+        return classifiedCount;
     }
 
     private static async calculateClientPercentiles(clientId: string, rolling: EntityRollingMetrics[]): Promise<ClientPercentiles> {

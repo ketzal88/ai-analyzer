@@ -4,10 +4,10 @@ import { EngineConfigService } from "@/lib/engine-config-service";
 
 export async function GET(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const clientId = params.id;
+        const { id: clientId } = await params;
         if (!clientId) {
             return NextResponse.json({ error: "Client ID is required" }, { status: 400 });
         }
@@ -22,10 +22,10 @@ export async function GET(
 
 export async function PATCH(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const clientId = params.id;
+        const { id: clientId } = await params;
         if (!clientId) {
             return NextResponse.json({ error: "Client ID is required" }, { status: 400 });
         }

@@ -24,20 +24,39 @@ export class AlertEngine {
         const today = new Date().toISOString().split("T")[0];
 
         // 1. Fetch all needed data
-        const [classSnap, rollingSnap, dailySnap, clientDoc, config] = await Promise.all([
+        const [classSnap, rollingSnap, clientDoc, config] = await Promise.all([
             db.collection("entity_classifications")
                 .where("clientId", "==", clientId)
                 .get(),
             db.collection("entity_rolling_metrics")
                 .where("clientId", "==", clientId)
                 .get(),
-            db.collection("daily_entity_snapshots")
-                .where("clientId", "==", clientId)
-                .where("date", "==", today)
-                .get(),
             db.collection("clients").doc(clientId).get(),
             EngineConfigService.getEngineConfig(clientId)
         ]);
+
+        let dailySnap = await db.collection("daily_entity_snapshots")
+            .where("clientId", "==", clientId)
+            .where("date", "==", today)
+            .get();
+
+        if (dailySnap.empty) {
+            // Fallback to latest date available
+            const latestSnapRef = await db.collection("daily_entity_snapshots")
+                .where("clientId", "==", clientId)
+                .orderBy("date", "desc")
+                .limit(1)
+                .get();
+
+            if (!latestSnapRef.empty) {
+                const latestDate = latestSnapRef.docs[0].data().date;
+                dailySnap = await db.collection("daily_entity_snapshots")
+                    .where("clientId", "==", clientId)
+                    .where("date", "==", latestDate)
+                    .get();
+                console.log(`AlertEngine using latest available date: ${latestDate}`);
+            }
+        }
 
         const classifications = classSnap.docs.map(d => d.data() as EntityClassification);
         const rollingMetrics = rollingSnap.docs.map(d => d.data() as EntityRollingMetrics);

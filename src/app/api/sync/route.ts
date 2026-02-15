@@ -1,7 +1,7 @@
 import { auth, db } from "@/lib/firebase-admin";
 import { NextRequest, NextResponse } from "next/server";
 
-const META_API_VERSION = "v18.0";
+const META_API_VERSION = process.env.META_API_VERSION || "v24.0";
 const META_ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
 
 /**

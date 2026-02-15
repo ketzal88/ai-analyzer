@@ -60,7 +60,7 @@ export class DecisionEngine {
             clientId: snap.clientId,
             level: snap.level,
             entityId: snap.entityId,
-            conceptId: snap.meta.conceptId,
+            conceptId: snap.meta?.conceptId,
             updatedAt: new Date().toISOString(),
             learningState,
             intentScore,

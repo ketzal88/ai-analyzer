@@ -101,8 +101,8 @@ export default function PerformanceDiagnostic() {
 
     return (
         <AppLayout>
-            <div className="space-y-8 pb-20">
-                <header className="flex flex-col md:flex-row justify-between items-start md:items-center bg-stellar/50 p-6 rounded-xl border border-argent/50 gap-4">
+            <div className="flex flex-col gap-8 h-[calc(100vh-200px)]">
+                <header className="flex flex-col md:flex-row justify-between items-start md:items-center bg-stellar/50 p-6 rounded-xl border border-argent/50 gap-4 flex-shrink-0">
                     <div>
                         <h1 className="text-display font-black text-text-primary uppercase tracking-tighter">Matriz de Decisión GEM</h1>
                         <p className="text-small text-text-muted font-bold uppercase tracking-widest mt-1">Nivel: Motor de Optimización Probabilística</p>
@@ -124,213 +124,215 @@ export default function PerformanceDiagnostic() {
                     </div>
                 </header>
 
-                {/* Main Grid: Decisions-First Column */}
-                <section className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {filteredRolling.slice(0, 15).map(ad => {
-                        const cl = classifications.find(c => c.entityId === ad.entityId && c.level === ad.level);
-                        return (
-                            <div key={ad.entityId} className="card group hover:border-classic transition-all relative overflow-hidden flex flex-col">
-                                {/* Impact Score Ribbon */}
-                                {cl && (
-                                    <div className="absolute top-0 right-0 p-2">
-                                        <div className="text-[9px] font-black text-text-muted uppercase bg-argent/10 px-2 py-0.5 rounded">
-                                            Impacto: {cl.impactScore}
-                                        </div>
-                                    </div>
-                                )}
-
-                                <div className="flex justify-between items-start mb-6">
-                                    <div className="flex flex-col gap-1">
-                                        <DecisionBadge classification={cl} />
-                                        <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest mt-1">Ad ID: {ad.entityId.slice(0, 8)}</span>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-6 mb-6">
-                                    <div className="space-y-2">
-                                        <p className="text-[10px] font-black text-text-muted uppercase">Estado de Aprendizaje</p>
-                                        <StateBadge value={cl?.learningState || "DESCONOCIDO"} type="LEARNING" />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <p className="text-[10px] font-black text-text-muted uppercase">Estado de Fatiga</p>
-                                        <StateBadge value={cl?.fatigueState || "NONE"} type="FATIGUE" />
-                                    </div>
-                                </div>
-
-                                <div className="space-y-4 pt-4 border-t border-argent/50 flex-1">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] font-black text-text-muted uppercase">Etapa {cl?.intentStage || "TOFU"}</span>
-                                            <span className="text-[18px] font-black text-text-primary leading-tight">${ad.rolling.spend_7d?.toFixed(0)} <span className="text-[11px] text-text-muted">Gasto 7d</span></span>
-                                        </div>
-                                        <div className="text-right">
-                                            <span className="text-[10px] font-black text-text-muted uppercase">Confianza</span>
-                                            <p className="text-small font-black text-synced">{((cl?.confidenceScore || 0) * 100).toFixed(0)}%</p>
-                                        </div>
-                                    </div>
-
-                                    {/* Intent Progress Bar */}
-                                    <div className="space-y-1">
-                                        <div className="flex justify-between text-[9px] font-black text-text-muted uppercase">
-                                            <span>Reconocimiento</span>
-                                            <span>Conversión</span>
-                                        </div>
-                                        <div className="w-full h-1.5 bg-silver/20 rounded-full overflow-hidden">
-                                            <div
-                                                className={`h-full transition-all duration-1000 ${cl?.intentStage === 'BOFU' ? 'bg-special' : cl?.intentStage === 'MOFU' ? 'bg-classic' : 'bg-silver'}`}
-                                                style={{ width: `${(cl?.intentScore || 0) * 100}%` }}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {cl && cl.finalDecision !== "HOLD" && (
-                                    <button
-                                        onClick={() => handleTakeAction(ad.entityId, ad.level, cl.finalDecision)}
-                                        className="mt-6 w-full bg-classic hover:bg-classic-dark text-white text-[11px] font-black py-2.5 rounded-lg uppercase tracking-widest transition-all"
-                                    >
-                                        Tomar Acción
-                                    </button>
-                                )}
-                            </div>
-                        );
-                    })}
-                </section>
-
-                {/* Drawer Overlay */}
-                {isDrawerOpen && (
-                    <div className="fixed inset-0 z-50 flex justify-end">
-                        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsDrawerOpen(false)} />
-                        <div className="relative w-full max-w-xl bg-stellar h-full shadow-2xl border-l border-argent animate-in slide-in-from-right duration-300 overflow-y-auto">
-                            <div className="p-8 space-y-8">
-                                <header className="flex justify-between items-start">
-                                    <div>
-                                        <span className="text-[10px] font-black text-text-muted uppercase tracking-widest">GEM Playbook</span>
-                                        <h2 className="text-display font-black text-text-primary uppercase leading-tight">Acción Estratégica</h2>
-                                        <div className="mt-2">
-                                            <span className={`text-[12px] font-black px-3 py-1 rounded bg-classic text-white`}>
-                                                {selectedEntity?.decision}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <button onClick={() => setIsDrawerOpen(false)} className="text-text-muted hover:text-text-primary text-2xl font-bold">×</button>
-                                </header>
-
-                                {!recommendation ? (
-                                    <div className="space-y-6 py-12 text-center">
-                                        <div className="w-16 h-16 bg-silver/10 rounded-full flex items-center justify-center mx-auto">
-                                            <span className="text-3xl">🤖</span>
-                                        </div>
-                                        <div>
-                                            <h3 className="text-subheader font-black text-text-primary uppercase">No hay recomendación generada</h3>
-                                            <p className="text-small text-text-muted mt-2">El motor de IA necesita analizar la evidencia para construir el playbook operativo.</p>
-                                        </div>
-                                        <button
-                                            onClick={generateRecommendation}
-                                            disabled={isGenerating}
-                                            className="bg-special text-white font-black px-8 py-4 rounded-xl uppercase tracking-widest hover:scale-105 transition-all text-small disabled:opacity-50"
-                                        >
-                                            {isGenerating ? "Procesando con Gemini..." : "Generar Recomendación AI"}
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-8 pb-12">
-                                        {/* Evidence */}
-                                        <section className="space-y-4">
-                                            <h4 className="text-[11px] font-black text-text-muted uppercase tracking-widest border-b border-argent pb-2">Evidencia con Números</h4>
-                                            <ul className="space-y-2">
-                                                {recommendation.evidence.map((ev, i) => (
-                                                    <li key={i} className="flex gap-3 text-small text-text-primary font-medium">
-                                                        <span className="text-synced">✓</span> {ev}
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </section>
-
-                                        {/* Actions */}
-                                        <section className="space-y-4">
-                                            <h4 className="text-[11px] font-black text-text-muted uppercase tracking-widest border-b border-argent pb-2">Playbook Operativo</h4>
-                                            <div className="space-y-3">
-                                                {recommendation.actions.map((act, i) => (
-                                                    <div key={i} className="bg-stellar border border-argent p-4 rounded-xl flex gap-3 items-start">
-                                                        <input type="checkbox" className="mt-1" />
-                                                        <span className="text-small text-text-primary leading-tight">{act}</span>
-                                                    </div>
-                                                ))}
+                <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-argent/50 pr-2 -mr-2 space-y-8 pb-20">
+                    {/* Main Grid: Decisions-First Column */}
+                    <section className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                        {filteredRolling.slice(0, 15).map(ad => {
+                            const cl = classifications.find(c => c.entityId === ad.entityId && c.level === ad.level);
+                            return (
+                                <div key={ad.entityId} className="card group hover:border-classic transition-all relative overflow-hidden flex flex-col">
+                                    {/* Impact Score Ribbon */}
+                                    {cl && (
+                                        <div className="absolute top-0 right-0 p-2">
+                                            <div className="text-[9px] font-black text-text-muted uppercase bg-argent/10 px-2 py-0.5 rounded">
+                                                Impacto: {cl.impactScore}
                                             </div>
-                                        </section>
+                                        </div>
+                                    )}
 
-                                        {/* Experiments */}
-                                        {recommendation.experiments.length > 0 && (
+                                    <div className="flex justify-between items-start mb-6">
+                                        <div className="flex flex-col gap-1">
+                                            <DecisionBadge classification={cl} />
+                                            <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest mt-1">Ad ID: {ad.entityId.slice(0, 8)}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-6 mb-6">
+                                        <div className="space-y-2">
+                                            <p className="text-[10px] font-black text-text-muted uppercase">Estado de Aprendizaje</p>
+                                            <StateBadge value={cl?.learningState || "DESCONOCIDO"} type="LEARNING" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <p className="text-[10px] font-black text-text-muted uppercase">Estado de Fatiga</p>
+                                            <StateBadge value={cl?.fatigueState || "NONE"} type="FATIGUE" />
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-4 pt-4 border-t border-argent/50 flex-1">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] font-black text-text-muted uppercase">Etapa {cl?.intentStage || "TOFU"}</span>
+                                                <span className="text-[18px] font-black text-text-primary leading-tight">${ad.rolling.spend_7d?.toFixed(0)} <span className="text-[11px] text-text-muted">Gasto 7d</span></span>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className="text-[10px] font-black text-text-muted uppercase">Confianza</span>
+                                                <p className="text-small font-black text-synced">{((cl?.confidenceScore || 0) * 100).toFixed(0)}%</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Intent Progress Bar */}
+                                        <div className="space-y-1">
+                                            <div className="flex justify-between text-[9px] font-black text-text-muted uppercase">
+                                                <span>Reconocimiento</span>
+                                                <span>Conversión</span>
+                                            </div>
+                                            <div className="w-full h-1.5 bg-silver/20 rounded-full overflow-hidden">
+                                                <div
+                                                    className={`h-full transition-all duration-1000 ${cl?.intentStage === 'BOFU' ? 'bg-special' : cl?.intentStage === 'MOFU' ? 'bg-classic' : 'bg-silver'}`}
+                                                    style={{ width: `${(cl?.intentScore || 0) * 100}%` }}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {cl && cl.finalDecision !== "HOLD" && (
+                                        <button
+                                            onClick={() => handleTakeAction(ad.entityId, ad.level, cl.finalDecision)}
+                                            className="mt-6 w-full bg-classic hover:bg-classic-dark text-white text-[11px] font-black py-2.5 rounded-lg uppercase tracking-widest transition-all"
+                                        >
+                                            Tomar Acción
+                                        </button>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </section>
+
+                    {/* Drawer Overlay */}
+                    {isDrawerOpen && (
+                        <div className="fixed inset-0 z-50 flex justify-end">
+                            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsDrawerOpen(false)} />
+                            <div className="relative w-full max-w-xl bg-stellar h-full shadow-2xl border-l border-argent animate-in slide-in-from-right duration-300 overflow-y-auto">
+                                <div className="p-8 space-y-8">
+                                    <header className="flex justify-between items-start">
+                                        <div>
+                                            <span className="text-[10px] font-black text-text-muted uppercase tracking-widest">GEM Playbook</span>
+                                            <h2 className="text-display font-black text-text-primary uppercase leading-tight">Acción Estratégica</h2>
+                                            <div className="mt-2">
+                                                <span className={`text-[12px] font-black px-3 py-1 rounded bg-classic text-white`}>
+                                                    {selectedEntity?.decision}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <button onClick={() => setIsDrawerOpen(false)} className="text-text-muted hover:text-text-primary text-2xl font-bold">×</button>
+                                    </header>
+
+                                    {!recommendation ? (
+                                        <div className="space-y-6 py-12 text-center">
+                                            <div className="w-16 h-16 bg-silver/10 rounded-full flex items-center justify-center mx-auto">
+                                                <span className="text-3xl">🤖</span>
+                                            </div>
+                                            <div>
+                                                <h3 className="text-subheader font-black text-text-primary uppercase">No hay recomendación generada</h3>
+                                                <p className="text-small text-text-muted mt-2">El motor de IA necesita analizar la evidencia para construir el playbook operativo.</p>
+                                            </div>
+                                            <button
+                                                onClick={generateRecommendation}
+                                                disabled={isGenerating}
+                                                className="bg-special text-white font-black px-8 py-4 rounded-xl uppercase tracking-widest hover:scale-105 transition-all text-small disabled:opacity-50"
+                                            >
+                                                {isGenerating ? "Procesando con Gemini..." : "Generar Recomendación AI"}
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-8 pb-12">
+                                            {/* Evidence */}
                                             <section className="space-y-4">
-                                                <h4 className="text-[11px] font-black text-text-muted uppercase tracking-widest border-b border-argent pb-2">Próximos Experimentos</h4>
-                                                <div className="grid grid-cols-1 gap-3">
-                                                    {recommendation.experiments.map((exp, i) => (
-                                                        <div key={i} className="p-4 bg-special/5 border border-special/20 rounded-xl">
-                                                            <p className="text-small font-bold text-text-primary italic">"{exp}"</p>
+                                                <h4 className="text-[11px] font-black text-text-muted uppercase tracking-widest border-b border-argent pb-2">Evidencia con Números</h4>
+                                                <ul className="space-y-2">
+                                                    {recommendation.evidence.map((ev, i) => (
+                                                        <li key={i} className="flex gap-3 text-small text-text-primary font-medium">
+                                                            <span className="text-synced">✓</span> {ev}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </section>
+
+                                            {/* Actions */}
+                                            <section className="space-y-4">
+                                                <h4 className="text-[11px] font-black text-text-muted uppercase tracking-widest border-b border-argent pb-2">Playbook Operativo</h4>
+                                                <div className="space-y-3">
+                                                    {recommendation.actions.map((act, i) => (
+                                                        <div key={i} className="bg-stellar border border-argent p-4 rounded-xl flex gap-3 items-start">
+                                                            <input type="checkbox" className="mt-1" />
+                                                            <span className="text-small text-text-primary leading-tight">{act}</span>
                                                         </div>
                                                     ))}
                                                 </div>
                                             </section>
-                                        )}
 
-                                        {/* Creative Brief */}
-                                        {recommendation.creativeBrief && (
-                                            <section className="space-y-4">
-                                                <h4 className="text-[11px] font-black text-text-muted uppercase tracking-widest border-b border-argent pb-2">Creative Brief Rápido</h4>
-                                                <div className="bg-stellar border border-argent p-6 rounded-xl">
-                                                    <p className="text-small text-text-secondary leading-relaxed whitespace-pre-wrap">{recommendation.creativeBrief}</p>
+                                            {/* Experiments */}
+                                            {recommendation.experiments.length > 0 && (
+                                                <section className="space-y-4">
+                                                    <h4 className="text-[11px] font-black text-text-muted uppercase tracking-widest border-b border-argent pb-2">Próximos Experimentos</h4>
+                                                    <div className="grid grid-cols-1 gap-3">
+                                                        {recommendation.experiments.map((exp, i) => (
+                                                            <div key={i} className="p-4 bg-special/5 border border-special/20 rounded-xl">
+                                                                <p className="text-small font-bold text-text-primary italic">"{exp}"</p>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </section>
+                                            )}
+
+                                            {/* Creative Brief */}
+                                            {recommendation.creativeBrief && (
+                                                <section className="space-y-4">
+                                                    <h4 className="text-[11px] font-black text-text-muted uppercase tracking-widest border-b border-argent pb-2">Creative Brief Rápido</h4>
+                                                    <div className="bg-stellar border border-argent p-6 rounded-xl">
+                                                        <p className="text-small text-text-secondary leading-relaxed whitespace-pre-wrap">{recommendation.creativeBrief}</p>
+                                                    </div>
+                                                </section>
+                                            )}
+
+                                            {/* Footer Stats */}
+                                            <div className="pt-8 grid grid-cols-2 gap-4">
+                                                <div className="text-center p-4 bg-argent/10 rounded-xl">
+                                                    <p className="text-[10px] font-black text-text-muted uppercase">Confianza</p>
+                                                    <p className="text-subheader font-black text-synced">{(recommendation.confidence * 100).toFixed(0)}%</p>
                                                 </div>
-                                            </section>
-                                        )}
+                                                <div className="text-center p-4 bg-argent/10 rounded-xl">
+                                                    <p className="text-[10px] font-black text-text-muted uppercase">Impacto Estimado</p>
+                                                    <p className="text-subheader font-black text-special">{recommendation.impactScore}/100</p>
+                                                </div>
+                                            </div>
 
-                                        {/* Footer Stats */}
-                                        <div className="pt-8 grid grid-cols-2 gap-4">
-                                            <div className="text-center p-4 bg-argent/10 rounded-xl">
-                                                <p className="text-[10px] font-black text-text-muted uppercase">Confianza</p>
-                                                <p className="text-subheader font-black text-synced">{(recommendation.confidence * 100).toFixed(0)}%</p>
-                                            </div>
-                                            <div className="text-center p-4 bg-argent/10 rounded-xl">
-                                                <p className="text-[10px] font-black text-text-muted uppercase">Impacto Estimado</p>
-                                                <p className="text-subheader font-black text-special">{recommendation.impactScore}/100</p>
-                                            </div>
+                                            <button
+                                                onClick={generateRecommendation}
+                                                disabled={isGenerating}
+                                                className="w-full border border-argent text-text-muted text-[10px] font-black py-2 rounded uppercase hover:text-text-primary transition-all"
+                                            >
+                                                {isGenerating ? "Generando..." : "Regenerar Recomendación"}
+                                            </button>
                                         </div>
-
-                                        <button
-                                            onClick={generateRecommendation}
-                                            disabled={isGenerating}
-                                            className="w-full border border-argent text-text-muted text-[10px] font-black py-2 rounded uppercase hover:text-text-primary transition-all"
-                                        >
-                                            {isGenerating ? "Generando..." : "Regenerar Recomendación"}
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Alerts / Smart Digest */}
-                <section className="bg-stellar/30 p-8 rounded-2xl border border-argent/50">
-                    <h2 className="text-subheader font-black text-text-primary uppercase tracking-widest mb-6 flex items-center gap-3">
-                        <span className="w-2 h-8 bg-special rounded-full"></span>
-                        Alertas de Prioridad Estratégica
-                    </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {alerts.filter(a => a.severity !== "INFO").map(alert => (
-                            <div key={alert.id} className={`p-5 rounded-xl border flex gap-4 transition-all hover:scale-[1.01] ${alert.severity === "CRITICAL" ? "bg-red-500/5 border-red-500/20 shadow-lg shadow-red-500/5" : "bg-stellar border-argent"}`}>
-                                <div className="text-2xl mt-1">{alert.severity === "CRITICAL" ? "🔥" : "🧩"}</div>
-                                <div>
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${alert.severity === 'CRITICAL' ? 'bg-red-500 text-white' : 'bg-yellow-500 text-white'}`}>{alert.severity}</span>
-                                        <p className="font-black text-text-primary uppercase text-small">{alert.title}</p>
-                                    </div>
-                                    <p className="text-small text-text-secondary leading-relaxed">{alert.description}</p>
+                                    )}
                                 </div>
                             </div>
-                        ))}
-                    </div>
-                </section>
+                        </div>
+                    )}
+
+                    {/* Alerts / Smart Digest */}
+                    <section className="bg-stellar/30 p-8 rounded-2xl border border-argent/50">
+                        <h2 className="text-subheader font-black text-text-primary uppercase tracking-widest mb-6 flex items-center gap-3">
+                            <span className="w-2 h-8 bg-special rounded-full"></span>
+                            Alertas de Prioridad Estratégica
+                        </h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {alerts.filter(a => a.severity !== "INFO").map(alert => (
+                                <div key={alert.id} className={`p-5 rounded-xl border flex gap-4 transition-all hover:scale-[1.01] ${alert.severity === "CRITICAL" ? "bg-red-500/5 border-red-500/20 shadow-lg shadow-red-500/5" : "bg-stellar border-argent"}`}>
+                                    <div className="text-2xl mt-1">{alert.severity === "CRITICAL" ? "🔥" : "🧩"}</div>
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${alert.severity === 'CRITICAL' ? 'bg-red-500 text-white' : 'bg-yellow-500 text-white'}`}>{alert.severity}</span>
+                                            <p className="font-black text-text-primary uppercase text-small">{alert.title}</p>
+                                        </div>
+                                        <p className="text-small text-text-primary font-medium leading-relaxed opacity-90">{alert.description}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+                </div>
             </div>
         </AppLayout>
     );

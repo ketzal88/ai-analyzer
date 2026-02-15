@@ -19,6 +19,10 @@ export interface PerformanceMetrics {
 export interface EngagementMetrics {
     hookRate?: number;
     hookViews?: number;
+    videoPlayCount?: number;
+    videoP50Count?: number;
+    videoP75Count?: number;
+    videoP100Count?: number;
     fitr?: number; // First Impression Truncation Rate (likely)
     retentionRate?: number;
 }
@@ -56,6 +60,7 @@ export interface DailyEntitySnapshot {
     entityId: string;
     parentId?: string;
     meta: MetaInfo;
+    name?: string;
     performance: PerformanceMetrics;
     engagement: EngagementMetrics;
     audience: AudienceMetrics;
@@ -70,6 +75,7 @@ export interface EntityRollingMetrics {
     clientId: string;
     entityId: string;
     level: EntityLevel;
+    name?: string;
     rolling: {
         spend_3d?: number;
         spend_7d?: number;
@@ -98,6 +104,7 @@ export interface EntityRollingMetrics {
         hook_rate_7d?: number;
         hook_rate_delta_pct?: number;
         fitr_7d?: number;
+        retention_rate_7d?: number;
         conversion_per_impression_delta?: number;
 
         // Concentration metrics

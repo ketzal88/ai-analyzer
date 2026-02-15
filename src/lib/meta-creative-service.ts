@@ -2,7 +2,7 @@ import { db } from "@/lib/firebase-admin";
 import { MetaCreativeDoc, CreativeSyncMetrics, CreativeFormat } from "@/types/meta-creative";
 import { createHash } from "crypto";
 
-const META_API_VERSION = "v18.0";
+const META_API_VERSION = process.env.META_API_VERSION || "v24.0";
 const META_ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
 const MAX_ADS_PER_SYNC = 2000; // Hard limit to prevent runaway costs
 

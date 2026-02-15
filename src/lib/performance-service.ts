@@ -8,7 +8,7 @@ import {
     MetaInfo
 } from "@/types/performance-snapshots";
 
-const META_API_VERSION = "v18.0";
+const META_API_VERSION = process.env.META_API_VERSION || "v24.0";
 const META_ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
 
 export class PerformanceService {
@@ -59,55 +59,91 @@ export class PerformanceService {
                 "campaign_id",
                 "adset_id",
                 "ad_id",
+                "ad_name",
+                "adset_name",
+                "campaign_name",
+                "account_name",
                 "spend",
                 "impressions",
                 "reach",
                 "clicks",
                 "actions",
                 "action_values",
-                "frequency"
+                "frequency",
+                "ctr",
+                "cpc",
+                "video_play_actions",
+                "video_p25_watched_actions",
+                "video_p50_watched_actions",
+                "video_p75_watched_actions",
+                "video_p100_watched_actions"
             ].join(",");
 
-            const url = `https://graph.facebook.com/${META_API_VERSION}/${cleanAdAccountId}/insights?level=${level}&time_increment=1&date_preset=${range}&fields=${fields}&access_token=${META_ACCESS_TOKEN}`;
+            let nextUrl = `https://graph.facebook.com/${META_API_VERSION}/${cleanAdAccountId}/insights?level=${level}&time_increment=1&date_preset=${range}&fields=${fields}&limit=500&access_token=${META_ACCESS_TOKEN}`;
+            let pageCount = 0;
 
-            const data = await this.fetchWithRetry(url);
-            const rawInsights = data.data || [];
+            while (nextUrl && pageCount < 20) {
+                pageCount++;
+                const data = await this.fetchWithRetry(nextUrl);
+                const rawInsights = data.data || [];
 
-            const batch = db.batch();
+                const batch = db.batch();
+                let batchCount = 0;
 
-            for (const item of rawInsights) {
-                const date = item.date_start;
-                const entityId = this.getEntityId(level, item);
-                const docId = `${clientId}__${date}__${level}__${entityId}`;
+                for (const item of rawInsights) {
+                    const date = item.date_start;
+                    const entityId = this.getEntityId(level, item);
+                    const sanitizedEntityId = entityId.replace(/\//g, '_');
+                    const docId = `${clientId}__${date}__${level}__${sanitizedEntityId}`;
 
-                const performance = this.mapPerformanceMetrics(item);
-                const meta = this.extractMetaInfo(level, item);
+                    const performance = this.mapPerformanceMetrics(item);
+                    const meta = this.extractMetaInfo(level, item);
+                    const name = item.ad_name || item.adset_name || item.campaign_name || item.account_name || "";
 
-                const snapshot: DailyEntitySnapshot = {
-                    clientId,
-                    date,
-                    level,
-                    entityId,
-                    parentId: this.getParentId(level, item),
-                    meta,
-                    performance,
-                    engagement: {
-                        hookViews: Number(item.inline_video_view_2s || 0),
-                        hookRate: performance.impressions > 0 ? (Number(item.inline_video_view_2s || 0) / performance.impressions) * 100 : 0
-                    },
-                    audience: {}, // Placeholder for future enhancement
-                    stability: {
-                        daysActive: 1, // Will be calculated/updated
-                        daysSinceLastEdit: 0 // Placeholder
-                    }
-                };
+                    const getActionValueFromList = (list: any[], type: string) => Number(list?.find((a: any) => a.action_type === type)?.value || 0);
 
-                const docRef = db.collection("daily_entity_snapshots").doc(docId);
-                batch.set(docRef, snapshot, { merge: true });
-                results[level]++;
+                    const hookViews = getActionValueFromList(item.video_p25_watched_actions, 'video_view');
+                    const videoPlayCount = getActionValueFromList(item.video_play_actions, 'video_view');
+                    const videoP50Count = getActionValueFromList(item.video_p50_watched_actions, 'video_view');
+                    const videoP75Count = getActionValueFromList(item.video_p75_watched_actions, 'video_view');
+                    const videoP100Count = getActionValueFromList(item.video_p100_watched_actions, 'video_view');
+
+                    const snapshot: DailyEntitySnapshot = {
+                        clientId,
+                        date,
+                        level,
+                        entityId,
+                        parentId: this.getParentId(level, item),
+                        meta,
+                        name,
+                        performance,
+                        engagement: {
+                            hookViews,
+                            videoPlayCount,
+                            videoP50Count,
+                            videoP75Count,
+                            videoP100Count,
+                            hookRate: performance.impressions > 0 ? (hookViews / performance.impressions) * 100 : 0
+                        },
+                        audience: {},
+                        stability: {
+                            daysActive: 1,
+                            daysSinceLastEdit: 0
+                        }
+                    };
+
+                    const docRef = db.collection("daily_entity_snapshots").doc(docId);
+                    batch.set(docRef, snapshot, { merge: true });
+                    results[level]++;
+                    batchCount++;
+                }
+
+                if (batchCount > 0) {
+                    await batch.commit();
+                }
+
+                nextUrl = data.paging?.next || null;
             }
-
-            await batch.commit();
         }
 
         return results;
@@ -146,8 +182,8 @@ export class PerformanceService {
             impressions,
             reach: Number(item.reach || 0),
             clicks,
-            ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
-            cpc: clicks > 0 ? spend / clicks : 0,
+            ctr: item.ctr ? Number(item.ctr) : (impressions > 0 ? (clicks / impressions) * 100 : 0),
+            cpc: item.cpc ? Number(item.cpc) : (clicks > 0 ? spend / clicks : 0),
             purchases,
             leads: getAction("lead"),
             whatsapp: getAction("onsite_conversion.messaging_conversation_started_7d"),
@@ -195,11 +231,16 @@ export class PerformanceService {
         // 1. Get last 30 days of snapshots
         const snapshotsRef = db.collection("daily_entity_snapshots")
             .where("clientId", "==", clientId)
-            .orderBy("date", "desc")
             .limit(5000);
 
         const snapshotDocs = await snapshotsRef.get();
-        const snapshots = snapshotDocs.docs.map(d => d.data() as DailyEntitySnapshot);
+        const allSnapshots = snapshotDocs.docs.map(d => d.data() as DailyEntitySnapshot);
+        if (allSnapshots.length === 0) return;
+
+        // Sort in memory and determine latest date for relative calculations
+        const snapshots = allSnapshots.sort((a, b) => b.date.localeCompare(a.date));
+        const refDateStr = snapshots[0].date;
+        const refDate = new Date(refDateStr);
 
         // Group by entity
         const entityGroups: Record<string, DailyEntitySnapshot[]> = {};
@@ -211,12 +252,12 @@ export class PerformanceService {
 
         const batch = db.batch();
 
-        // Pre-calculate concentration metrics (spend per ad entity in last 7d)
+        // Pre-calculate concentration metrics (spend per ad entity in last 7d relative to refDate)
         const adEntitySpends7d: Record<string, number> = {};
         for (const [k, g] of Object.entries(entityGroups)) {
             const [eid, lvl] = k.split("__");
             if (lvl === 'ad') {
-                const s7 = this.sumPerformance(g.slice(0, 7));
+                const s7 = this.sumPerformance(g.filter(s => this.isWithinDays(s.date, 7, refDate)));
                 adEntitySpends7d[eid] = s7.spend;
             }
         }
@@ -228,13 +269,13 @@ export class PerformanceService {
         for (const [key, group] of Object.entries(entityGroups)) {
             const [entityId, level] = key.split("__") as [string, EntityLevel];
 
-            const r3d = this.sumPerformance(group.slice(0, 3));
-            const r7d = this.sumPerformance(group.slice(0, 7));
-            const r14d = this.sumPerformance(group.slice(0, 14));
-            const r30d = this.sumPerformance(group.slice(0, 30));
+            const r3d = this.sumPerformance(group.filter(s => this.isWithinDays(s.date, 3, refDate)));
+            const r7d = this.sumPerformance(group.filter(s => this.isWithinDays(s.date, 7, refDate)));
+            const r14d = this.sumPerformance(group.filter(s => this.isWithinDays(s.date, 14, refDate)));
+            const r30d = this.sumPerformance(group.filter(s => this.isWithinDays(s.date, 30, refDate)));
 
             // Comparison windows for deltas
-            const prev7d = this.sumPerformance(group.slice(7, 14));
+            const prev7d = this.sumPerformance(group.filter(s => this.isWithinDays(s.date, 14, refDate) && !this.isWithinDays(s.date, 7, refDate)));
 
             // CPA delta
             const cpa7d = r7d.purchases > 0 ? r7d.spend / r7d.purchases : 0;
@@ -247,7 +288,7 @@ export class PerformanceService {
             const convPerImpDelta = this.calcDelta(convPerImp7d, convPerImpPrev);
 
             // Budget change (compare last 3d spend vs previous 3d spend)
-            const prev3d = this.sumPerformance(group.slice(3, 6));
+            const prev3d = this.sumPerformance(group.filter(s => this.isWithinDays(s.date, 6, refDate) && !this.isWithinDays(s.date, 3, refDate)));
             const budgetChange3dPct = this.calcDelta(r3d.spend, prev3d.spend);
 
             // Concentration at entity level (for account/campaign parents)
@@ -261,6 +302,7 @@ export class PerformanceService {
                 clientId,
                 entityId,
                 level,
+                name: group[0]?.name,
                 lastUpdate: today,
                 rolling: {
                     spend_3d: r3d.spend,
@@ -299,6 +341,7 @@ export class PerformanceService {
                         prev7d.impressions > 0 ? (prev7d.hookViews / prev7d.impressions) * 100 : 0
                     ),
                     fitr_7d: r7d.clicks > 0 ? (r7d.purchases / r7d.clicks) * 100 : 0,
+                    retention_rate_7d: r7d.videoPlayCount > 0 ? (r7d.videoP50Count / r7d.videoPlayCount) * 100 : 0,
                     conversion_per_impression_delta: convPerImpDelta,
 
                     spend_top1_ad_pct: spendTop1Pct,
@@ -307,7 +350,7 @@ export class PerformanceService {
                 }
             };
 
-            const docId = `${clientId}__${entityId}__${level}`;
+            const docId = `${clientId}__${entityId.replace(/\//g, '_')}__${level}`;
             const docRef = db.collection("entity_rolling_metrics").doc(docId);
             batch.set(docRef, rollingMetrics, { merge: true });
         }
@@ -315,13 +358,13 @@ export class PerformanceService {
         await batch.commit();
 
         // Trigger concept metrics update
-        await this.updateConceptMetrics(clientId, snapshots);
+        await this.updateConceptMetrics(clientId, snapshots, refDate);
     }
 
     /**
      * Recalculate concept-level rolling metrics
      */
-    static async updateConceptMetrics(clientId: string, snapshots: DailyEntitySnapshot[]) {
+    static async updateConceptMetrics(clientId: string, snapshots: DailyEntitySnapshot[], refDate: Date = new Date()) {
         const today = new Date().toISOString().split("T")[0];
         const adSnapshots = snapshots.filter(s => s.level === "ad" && s.meta.conceptId);
 
@@ -336,10 +379,10 @@ export class PerformanceService {
         const batch = db.batch();
 
         for (const [conceptId, group] of Object.entries(conceptGroups)) {
-            const r7d = this.sumPerformance(group.filter(s => this.isWithinDays(s.date, 7)));
-            const r14d = this.sumPerformance(group.filter(s => this.isWithinDays(s.date, 14)));
+            const r7d = this.sumPerformance(group.filter(s => this.isWithinDays(s.date, 7, refDate)));
+            const r14d = this.sumPerformance(group.filter(s => this.isWithinDays(s.date, 14, refDate)));
 
-            const adsInConcept = group.filter(s => this.isWithinDays(s.date, 7));
+            const adsInConcept = group.filter(s => this.isWithinDays(s.date, 7, refDate));
             const adSpends = adsInConcept.reduce((acc, s) => {
                 acc[s.entityId] = (acc[s.entityId] || 0) + s.performance.spend;
                 return acc;
@@ -367,7 +410,7 @@ export class PerformanceService {
                 lastUpdate: today
             };
 
-            const docId = `${clientId}__${conceptId}`;
+            const docId = `${clientId}__${conceptId.replace(/\//g, '_')}`;
             const docRef = db.collection("concept_rolling_metrics").doc(docId);
             batch.set(docRef, conceptMetrics, { merge: true });
         }
@@ -384,8 +427,15 @@ export class PerformanceService {
             acc.clicks += s.performance.clicks;
             acc.reach += (s.performance.reach || 0);
             acc.hookViews += (s.engagement?.hookViews || 0);
+            acc.videoPlayCount += (s.engagement?.videoPlayCount || 0);
+            acc.videoP50Count += (s.engagement?.videoP50Count || 0);
+            acc.videoP75Count += (s.engagement?.videoP75Count || 0);
+            acc.videoP100Count += (s.engagement?.videoP100Count || 0);
             return acc;
-        }, { spend: 0, purchases: 0, revenue: 0, impressions: 0, clicks: 0, reach: 0, hookViews: 0 });
+        }, {
+            spend: 0, purchases: 0, revenue: 0, impressions: 0, clicks: 0, reach: 0,
+            hookViews: 0, videoPlayCount: 0, videoP50Count: 0, videoP75Count: 0, videoP100Count: 0
+        });
     }
 
     private static calcDelta(curr: number, prev: number) {
@@ -393,10 +443,9 @@ export class PerformanceService {
         return ((curr / prev) - 1) * 100;
     }
 
-    private static isWithinDays(dateStr: string, days: number) {
+    private static isWithinDays(dateStr: string, days: number, refDate: Date = new Date()) {
         const d = new Date(dateStr);
-        const now = new Date();
-        const diff = (now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24);
-        return diff <= days;
+        const diff = (refDate.getTime() - d.getTime()) / (1000 * 60 * 60 * 24);
+        return diff >= 0 && diff < days;
     }
 }

@@ -1,24 +1,282 @@
 import { db } from "@/lib/firebase-admin";
 import { Alert } from "./alert-engine";
 import { Client } from "@/types";
+import { EntityRollingMetrics } from "@/types/performance-snapshots";
+
+interface DailySnapshotKPIs {
+    // Gastos y Tráfico
+    spend: number;
+    clicks: number;
+    cpc: number;
+    ctr: number;
+    impressions: number;
+    // Conversiones
+    purchases: number;
+    purchaseValue: number;
+    costPerPurchase: number;
+    roas: number;
+    // Eventos de intención
+    addToCart: number;
+    addToCartValue: number;
+    costPerAddToCart: number;
+    checkout: number;
+    checkoutValue: number;
+    costPerCheckout: number;
+    // Leads (si aplica)
+    leads: number;
+    costPerLead: number;
+    // WhatsApp (si aplica)
+    whatsapp: number;
+    costPerWhatsapp: number;
+}
+
+interface SnapshotDateRange {
+    start: string;
+    end: string;
+}
 
 export class SlackService {
-    static async sendDigest(clientId: string, clientName: string, alerts: Alert[]) {
-        const botToken = process.env.SLACK_BOT_TOKEN;
-        const globalWebhook = process.env.SLACK_WEBHOOK_URL;
 
-        if (!botToken && !globalWebhook) {
+    // ─── Helper: resolve target channel ──────────────────────
+
+    private static async resolveChannel(clientId: string): Promise<{ client: Client | null; channel: string | null; botToken: string | null; webhook: string | null }> {
+        const botToken = process.env.SLACK_BOT_TOKEN || null;
+        const webhook = process.env.SLACK_WEBHOOK_URL || null;
+
+        const clientDoc = await db.collection("clients").doc(clientId).get();
+        const client = clientDoc.exists ? (clientDoc.data() as Client) : null;
+        const channel = client?.slackInternalChannel || null;
+
+        return { client, channel, botToken, webhook };
+    }
+
+    // ─── Helper: send a Slack message ────────────────────────
+
+    private static async postMessage(botToken: string | null, webhook: string | null, channel: string | null, blocks: any[], fallbackText: string) {
+        try {
+            if (botToken && channel) {
+                const res = await fetch("https://slack.com/api/chat.postMessage", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${botToken}`
+                    },
+                    body: JSON.stringify({ channel, blocks, text: fallbackText })
+                });
+                const data = await res.json();
+                if (!data.ok) console.error("Slack API Error:", data.error);
+            } else if (webhook) {
+                await fetch(webhook, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ blocks })
+                });
+            } else {
+                console.warn("No Slack delivery method configured (bot token + channel or webhook)");
+            }
+        } catch (e) {
+            console.error("Error sending Slack message:", e);
+        }
+    }
+
+    // ─── Formatting Helpers ──────────────────────────────────
+
+    private static fmtNum(n: number): string {
+        if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
+        if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}K`;
+        return n % 1 === 0 ? n.toLocaleString("es-AR") : n.toFixed(2);
+    }
+
+    private static fmtCurrency(n: number): string {
+        return `$${this.fmtNum(n)}`;
+    }
+
+    private static fmtPct(n: number): string {
+        return `${n.toFixed(2)}%`;
+    }
+
+    private static fmtDelta(val: number): string {
+        const emoji = val > 0 ? "📈" : val < 0 ? "📉" : "➖";
+        return `${emoji} ${val > 0 ? "+" : ""}${val.toFixed(1)}%`;
+    }
+
+    // ═════════════════════════════════════════════════════════
+    //  1. DAILY SNAPSHOT — Reporte diario formateado
+    // ═════════════════════════════════════════════════════════
+
+    static async sendDailySnapshot(
+        clientId: string,
+        clientName: string,
+        dateRange: SnapshotDateRange,
+        kpis: DailySnapshotKPIs
+    ) {
+        const { channel, botToken, webhook } = await this.resolveChannel(clientId);
+
+        if (!botToken && !webhook) {
+            console.warn("Slack not configured, skipping daily snapshot");
+            return;
+        }
+
+        const isEcommerce = kpis.purchases > 0 || kpis.purchaseValue > 0;
+        const isLeadGen = kpis.leads > 0;
+        const hasWhatsapp = kpis.whatsapp > 0;
+
+        // ── Build mrkdwn text (simpler, like the user's example) ──
+
+        let text = `📊 *Reporte de ${clientName} de Meta del ${dateRange.start} al ${dateRange.end}*\n\n`;
+
+        // Gastos y Tráfico
+        text += `💰 *Gastos y Tráfico*\n`;
+        text += `• Inversión: ${this.fmtCurrency(kpis.spend)}\n`;
+        text += `• Clicks: ${this.fmtNum(kpis.clicks)}\n`;
+        text += `• CPC: ${this.fmtCurrency(kpis.cpc)}\n`;
+        text += `• CTR: ${this.fmtPct(kpis.ctr)}\n`;
+        text += `• Impresiones: ${this.fmtNum(kpis.impressions)}\n\n`;
+
+        // Conversiones (ecommerce)
+        if (isEcommerce) {
+            text += `🛒 *Conversiones*\n`;
+            text += `• Purchases: ${kpis.purchases}\n`;
+            text += `• Valor de compra: ${this.fmtCurrency(kpis.purchaseValue)}\n`;
+            text += `• Coste por compra: ${this.fmtCurrency(kpis.costPerPurchase)}\n`;
+            text += `• ROAS: ${kpis.roas.toFixed(2)}\n\n`;
+        }
+
+        // Leads
+        if (isLeadGen) {
+            text += `📋 *Generación de Leads*\n`;
+            text += `• Leads: ${kpis.leads}\n`;
+            text += `• Coste por Lead: ${this.fmtCurrency(kpis.costPerLead)}\n\n`;
+        }
+
+        // WhatsApp
+        if (hasWhatsapp) {
+            text += `💬 *WhatsApp*\n`;
+            text += `• Conversaciones: ${kpis.whatsapp}\n`;
+            text += `• Coste por conversación: ${this.fmtCurrency(kpis.costPerWhatsapp)}\n\n`;
+        }
+
+        // Eventos de intención
+        if (kpis.addToCart > 0 || kpis.checkout > 0) {
+            text += `🧺 *Eventos de intención*\n`;
+            if (kpis.addToCart > 0) {
+                text += `• Add to Cart: ${kpis.addToCart}\n`;
+                if (kpis.addToCartValue > 0) text += `• Valor ATC: ${this.fmtCurrency(kpis.addToCartValue)}\n`;
+                text += `• Coste ATC: ${this.fmtCurrency(kpis.costPerAddToCart)}\n\n`;
+            }
+            if (kpis.checkout > 0) {
+                text += `• Checkout: ${kpis.checkout}\n`;
+                if (kpis.checkoutValue > 0) text += `• Valor Checkout: ${this.fmtCurrency(kpis.checkoutValue)}\n`;
+                text += `• Coste Checkout: ${this.fmtCurrency(kpis.costPerCheckout)}\n\n`;
+            }
+        }
+
+        text += `_Generado automáticamente por AI Analyzer_`;
+
+        const blocks: any[] = [
+            {
+                type: "section",
+                text: { type: "mrkdwn", text }
+            },
+            { type: "divider" },
+            {
+                type: "context",
+                elements: [{
+                    type: "mrkdwn",
+                    text: `<https://ai-analyzer.vercel.app/ads-manager?clientId=${clientId}|📊 Ver Ads Manager> · <https://ai-analyzer.vercel.app/decision-board?clientId=${clientId}|🎯 Decision Board>`
+                }]
+            }
+        ];
+
+        await this.postMessage(botToken, webhook, channel, blocks, `Reporte diario de ${clientName}`);
+    }
+
+    // ═════════════════════════════════════════════════════════
+    //  2. CRITICAL ALERT — Alerta individual inmediata
+    // ═════════════════════════════════════════════════════════
+
+    static async sendCriticalAlert(clientId: string, clientName: string, alert: Alert) {
+        const { channel, botToken, webhook } = await this.resolveChannel(clientId);
+
+        if (!botToken && !webhook) return;
+
+        const severityEmoji = alert.severity === "CRITICAL" ? "🚨" : alert.severity === "WARNING" ? "⚠️" : "ℹ️";
+        const typeEmoji: Record<string, string> = {
+            SCALING_OPPORTUNITY: "🟢",
+            CPA_SPIKE: "🔴",
+            BUDGET_BLEED: "🩸",
+            ROTATE_CONCEPT: "🔥",
+            CONSOLIDATE: "🧩",
+            KILL_RETRY: "💀",
+            UNDERFUNDED_WINNER: "🌟",
+            LEARNING_RESET_RISK: "🟡",
+            CPA_VOLATILITY: "📊"
+        };
+
+        const blocks: any[] = [
+            {
+                type: "header",
+                text: {
+                    type: "plain_text",
+                    text: `${severityEmoji} Alerta ${alert.severity} — ${clientName}`,
+                    emoji: true
+                }
+            },
+            {
+                type: "section",
+                text: {
+                    type: "mrkdwn",
+                    text: `${typeEmoji[alert.type] || "📌"} *${alert.title}*\n${alert.description}`
+                }
+            }
+        ];
+
+        if (alert.evidence && alert.evidence.length > 0) {
+            blocks.push({
+                type: "section",
+                text: {
+                    type: "mrkdwn",
+                    text: `📊 *Evidencia:*\n${alert.evidence.map(e => `• ${e}`).join("\n")}`
+                }
+            });
+        }
+
+        blocks.push(
+            {
+                type: "section",
+                fields: [
+                    { type: "mrkdwn", text: `*Impacto:* ${alert.impactScore}/100` },
+                    { type: "mrkdwn", text: `*Nivel:* ${alert.level}` }
+                ]
+            },
+            { type: "divider" },
+            {
+                type: "context",
+                elements: [{
+                    type: "mrkdwn",
+                    text: `<https://ai-analyzer.vercel.app/ads-manager?clientId=${clientId}|Ver en AI Analyzer →>`
+                }]
+            }
+        );
+
+        await this.postMessage(botToken, webhook, channel, blocks, `Alerta ${alert.severity}: ${alert.title}`);
+    }
+
+    // ═════════════════════════════════════════════════════════
+    //  3. DIGEST — Resumen de alertas agrupadas (existente, mejorado)
+    // ═════════════════════════════════════════════════════════
+
+    static async sendDigest(clientId: string, clientName: string, alerts: Alert[]) {
+        const { channel, botToken, webhook } = await this.resolveChannel(clientId);
+
+        if (!botToken && !webhook) {
             console.warn("Neither SLACK_BOT_TOKEN nor SLACK_WEBHOOK_URL configured");
             return;
         }
 
         if (alerts.length === 0) return;
 
-        // Fetch client to get specific channel
-        const clientDoc = await db.collection("clients").doc(clientId).get();
-        const clientData = clientDoc.data() as Client;
-
-        // Grouping by Decision Type
+        // Group by type
         const grouped = alerts.reduce((acc, a) => {
             if (!acc[a.type]) acc[a.type] = [];
             acc[a.type].push(a);
@@ -43,15 +301,12 @@ export class SlackService {
             }
         ];
 
-        // Top 3 by Impact Score (overall)
+        // Top 3 by Impact Score
         const topImpact = [...alerts].sort((a, b) => b.impactScore - a.impactScore).slice(0, 3);
         if (topImpact.length > 0) {
             blocks.push({
                 type: "section",
-                text: {
-                    type: "mrkdwn",
-                    text: `*🚨 PRIORIDADES CRÍTICAS*`
-                }
+                text: { type: "mrkdwn", text: `*🚨 PRIORIDADES CRÍTICAS*` }
             });
 
             topImpact.forEach(item => {
@@ -68,7 +323,6 @@ export class SlackService {
             blocks.push({ type: "divider" });
         }
 
-        const decisionOrder = ["SCALING_OPPORTUNITY", "CPA_SPIKE", "BUDGET_BLEED", "ROTATE_CONCEPT", "CONSOLIDATE", "INTRODUCE_BOFU_VARIANTS", "KILL_RETRY"];
         const emojis: Record<string, string> = {
             SCALING_OPPORTUNITY: "🟢 SCALE",
             CPA_SPIKE: "🔴 CPA SPIKE",
@@ -77,72 +331,51 @@ export class SlackService {
             CONSOLIDATE: "🧩 CONSOLIDATE",
             INTRODUCE_BOFU_VARIANTS: "💡 UPSELL",
             KILL_RETRY: "💀 KILL",
-            UNDERFUNDED_WINNER: "🌟 WINNER"
+            UNDERFUNDED_WINNER: "🌟 WINNER",
+            LEARNING_RESET_RISK: "🟡 RESET RISK",
+            CPA_VOLATILITY: "📊 VOLATILITY"
         };
+
+        const decisionOrder = [
+            "SCALING_OPPORTUNITY", "CPA_SPIKE", "BUDGET_BLEED",
+            "ROTATE_CONCEPT", "CONSOLIDATE", "INTRODUCE_BOFU_VARIANTS",
+            "KILL_RETRY", "UNDERFUNDED_WINNER", "LEARNING_RESET_RISK", "CPA_VOLATILITY"
+        ];
 
         for (const type of decisionOrder) {
             const items = grouped[type]?.filter(a => !topImpact.find(ti => ti.id === a.id));
             if (items && items.length > 0) {
                 blocks.push({
                     type: "section",
-                    text: {
-                        type: "mrkdwn",
-                        text: `*${emojis[type] || type} (${items.length})*`
-                    }
+                    text: { type: "mrkdwn", text: `*${emojis[type] || type} (${items.length})*` }
                 });
 
                 items.slice(0, 3).forEach(item => {
                     blocks.push({
                         type: "section",
-                        text: {
-                            type: "mrkdwn",
-                            text: `• ${item.title}`
-                        }
+                        text: { type: "mrkdwn", text: `• ${item.title}` }
                     });
                 });
             }
         }
 
-        blocks.push({
-            type: "divider"
-        }, {
-            type: "context",
-            elements: [
-                {
+        blocks.push(
+            { type: "divider" },
+            {
+                type: "context",
+                elements: [{
                     type: "mrkdwn",
-                    text: `Ver matriz completa: <https://ai-analyzer.vercel.app/diagnostic?clientId=${clientId}|Abrir Diagnostic Platform>`
-                }
-            ]
-        });
-
-        try {
-            const targetChannel = clientData?.slackPublicChannel || clientData?.slackInternalChannel;
-            if (botToken && targetChannel) {
-                // Slack Web API
-                await fetch("https://slack.com/api/chat.postMessage", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${botToken}`
-                    },
-                    body: JSON.stringify({
-                        channel: targetChannel,
-                        blocks,
-                        text: `Digest para ${clientName}`
-                    })
-                });
-            } else if (globalWebhook) {
-                // Legacy Webhook
-                await fetch(globalWebhook, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ blocks })
-                });
+                    text: `<https://ai-analyzer.vercel.app/decision-board?clientId=${clientId}|Ver Decision Board> · <https://ai-analyzer.vercel.app/ads-manager?clientId=${clientId}|Ver Ads Manager>`
+                }]
             }
-        } catch (e) {
-            console.error("Error sending Slack notification:", e);
-        }
+        );
+
+        await this.postMessage(botToken, webhook, channel, blocks, `Digest para ${clientName}`);
     }
+
+    // ═════════════════════════════════════════════════════════
+    //  4. WEEKLY SUMMARY — Resumen semanal comparativo
+    // ═════════════════════════════════════════════════════════
 
     static async sendWeeklySummary(clientId: string, clientName: string, kpis: {
         spend: number, spendDelta: number,
@@ -150,19 +383,9 @@ export class SlackService {
         roas: number, roasDelta: number,
         purchases: number, purchasesDelta: number
     }) {
-        const botToken = process.env.SLACK_BOT_TOKEN;
-        const globalWebhook = process.env.SLACK_WEBHOOK_URL;
+        const { channel, botToken, webhook } = await this.resolveChannel(clientId);
 
-        if (!botToken && !globalWebhook) return;
-
-        const clientDoc = await db.collection("clients").doc(clientId).get();
-        const clientData = clientDoc.data() as Client;
-        const targetChannel = clientData?.slackPublicChannel || clientData?.slackInternalChannel;
-
-        const formatDelta = (val: number) => {
-            const emoji = val > 0 ? "📈" : val < 0 ? "📉" : "➖";
-            return `${emoji} ${val > 0 ? "+" : ""}${val.toFixed(1)}%`;
-        };
+        if (!botToken && !webhook) return;
 
         const blocks = [
             {
@@ -177,53 +400,108 @@ export class SlackService {
                 type: "section",
                 text: {
                     type: "mrkdwn",
-                    text: `Aquí tienes la comparación de rendimiento acumulado 7d vs. la semana anterior:`
+                    text: `Comparación de rendimiento acumulado 7d vs. la semana anterior:`
                 }
             },
             {
                 type: "section",
                 fields: [
-                    { type: "mrkdwn", text: `*Gasto 7d:*\n$${kpis.spend.toLocaleString()} (${formatDelta(kpis.spendDelta)})` },
-                    { type: "mrkdwn", text: `*CPA 7d:*\n$${kpis.cpa.toFixed(2)} (${formatDelta(kpis.cpaDelta * -1)})` }, // Inverse because lower CPA is better
-                    { type: "mrkdwn", text: `*ROAS 7d:*\n${kpis.roas ? kpis.roas.toFixed(2) : '0'}x (${formatDelta(kpis.roasDelta)})` },
-                    { type: "mrkdwn", text: `*Compras:*\n${kpis.purchases} (${formatDelta(kpis.purchasesDelta)})` }
+                    { type: "mrkdwn", text: `*Gasto 7d:*\n${this.fmtCurrency(kpis.spend)} (${this.fmtDelta(kpis.spendDelta)})` },
+                    { type: "mrkdwn", text: `*CPA 7d:*\n${this.fmtCurrency(kpis.cpa)} (${this.fmtDelta(kpis.cpaDelta * -1)})` },
+                    { type: "mrkdwn", text: `*ROAS 7d:*\n${kpis.roas ? kpis.roas.toFixed(2) : '0'}x (${this.fmtDelta(kpis.roasDelta)})` },
+                    { type: "mrkdwn", text: `*Compras:*\n${kpis.purchases} (${this.fmtDelta(kpis.purchasesDelta)})` }
                 ]
             },
+            { type: "divider" },
             {
-                type: "divider"
-            },
-            {
-                type: "section",
-                text: {
+                type: "context",
+                elements: [{
                     type: "mrkdwn",
-                    text: `_Este resumen se genera automáticamente comparando períodos rodantes de 7 días._`
-                }
+                    text: `_Generado automáticamente por AI Analyzer_ · <https://ai-analyzer.vercel.app/dashboard?clientId=${clientId}|Ver Dashboard>`
+                }]
             }
         ];
 
-        try {
-            if (botToken && targetChannel) {
-                await fetch("https://slack.com/api/chat.postMessage", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${botToken}`
-                    },
-                    body: JSON.stringify({
-                        channel: targetChannel,
-                        blocks,
-                        text: `Resumen Semanal para ${clientName}`
-                    })
-                });
-            } else if (globalWebhook) {
-                await fetch(globalWebhook, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ blocks })
-                });
-            }
-        } catch (e) {
-            console.error("Error sending Slack weekly summary:", e);
+        await this.postMessage(botToken, webhook, channel, blocks, `Resumen Semanal para ${clientName}`);
+    }
+
+    // ═════════════════════════════════════════════════════════
+    //  5. BUILD SNAPSHOT KPIs from Rolling Metrics
+    // ═════════════════════════════════════════════════════════
+
+    static buildSnapshotFromRolling(rolling: EntityRollingMetrics): DailySnapshotKPIs {
+        const r = rolling.rolling;
+        const spend = r.spend_7d || 0;
+        const clicks = r.clicks_7d || 0;
+        const purchases = r.purchases_7d || 0;
+
+        return {
+            spend,
+            clicks,
+            cpc: clicks > 0 ? spend / clicks : 0,
+            ctr: r.ctr_7d || 0,
+            impressions: r.impressions_7d || 0,
+            purchases,
+            purchaseValue: (r.roas_7d || 0) * spend,
+            costPerPurchase: r.cpa_7d || 0,
+            roas: r.roas_7d || 0,
+            addToCart: 0, // Will be populated from daily snapshots if available
+            addToCartValue: 0,
+            costPerAddToCart: 0,
+            checkout: 0,
+            checkoutValue: 0,
+            costPerCheckout: 0,
+            leads: 0,
+            costPerLead: 0,
+            whatsapp: 0,
+            costPerWhatsapp: 0
+        };
+    }
+
+    /**
+     * Build snapshot KPIs from aggregated daily entity snapshots (more detailed data)
+     */
+    static buildSnapshotFromDailyAggregation(
+        snapshots: Array<{ performance: any }>,
+        spend: number
+    ): DailySnapshotKPIs {
+        let totalClicks = 0, totalImpressions = 0;
+        let totalPurchases = 0, totalRevenue = 0;
+        let totalATC = 0, totalCheckout = 0;
+        let totalLeads = 0, totalWhatsapp = 0;
+
+        for (const snap of snapshots) {
+            const p = snap.performance;
+            totalClicks += p.clicks || 0;
+            totalImpressions += p.impressions || 0;
+            totalPurchases += p.purchases || 0;
+            totalRevenue += p.revenue || 0;
+            totalATC += p.addToCart || 0;
+            totalCheckout += p.checkout || 0;
+            totalLeads += p.leads || 0;
+            totalWhatsapp += p.whatsapp || 0;
         }
+
+        return {
+            spend,
+            clicks: totalClicks,
+            cpc: totalClicks > 0 ? spend / totalClicks : 0,
+            ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
+            impressions: totalImpressions,
+            purchases: totalPurchases,
+            purchaseValue: totalRevenue,
+            costPerPurchase: totalPurchases > 0 ? spend / totalPurchases : 0,
+            roas: spend > 0 ? totalRevenue / spend : 0,
+            addToCart: totalATC,
+            addToCartValue: 0, // Requires extended data
+            costPerAddToCart: totalATC > 0 ? spend / totalATC : 0,
+            checkout: totalCheckout,
+            checkoutValue: 0, // Requires extended data
+            costPerCheckout: totalCheckout > 0 ? spend / totalCheckout : 0,
+            leads: totalLeads,
+            costPerLead: totalLeads > 0 ? spend / totalLeads : 0,
+            whatsapp: totalWhatsapp,
+            costPerWhatsapp: totalWhatsapp > 0 ? spend / totalWhatsapp : 0,
+        };
     }
 }

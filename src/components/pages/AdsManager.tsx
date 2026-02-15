@@ -1,6 +1,7 @@
 "use client";
 import React, { useEffect, useState, useMemo } from "react";
 import AppLayout from "@/components/layouts/AppLayout";
+import Link from "next/link";
 import { useClient } from "@/contexts/ClientContext";
 import { EntityRollingMetrics, EntityLevel } from "@/types/performance-snapshots";
 import { EntityClassification, FinalDecision, IntentStage, LearningState, FatigueState } from "@/types/classifications";
@@ -34,6 +35,11 @@ export default function AdsManager() {
     const [recommendation, setRecommendation] = useState<RecommendationDoc | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
 
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({
+        key: 'impactScore',
+        direction: 'desc'
+    });
+
     const fetchData = async () => {
         if (!clientId) return;
         setIsLoading(true);
@@ -55,8 +61,47 @@ export default function AdsManager() {
     }, [clientId]);
 
     const filteredRolling = useMemo(() => {
-        return rollingMetrics.filter(m => m.level === level);
-    }, [rollingMetrics, level]);
+        const list = rollingMetrics.filter(m => m.level === level);
+
+        return list.sort((a, b) => {
+            const clA = classifications.find(c => c.entityId === a.entityId && c.level === a.level);
+            const clB = classifications.find(c => c.entityId === b.entityId && c.level === b.level);
+
+            let valA: any;
+            let valB: any;
+
+            switch (sortConfig.key) {
+                case 'name': valA = a.name; valB = b.name; break;
+                case 'spend_7d': valA = a.rolling.spend_7d; valB = b.rolling.spend_7d; break;
+                case 'impressions_7d': valA = a.rolling.impressions_7d; valB = b.rolling.impressions_7d; break;
+                case 'ctr_7d': valA = a.rolling.ctr_7d; valB = b.rolling.ctr_7d; break;
+                case 'hook_rate_7d': valA = a.rolling.hook_rate_7d; valB = b.rolling.hook_rate_7d; break;
+                case 'funnel': valA = clA?.intentStage; valB = clB?.intentStage; break;
+                case 'fitr_7d': valA = a.rolling.fitr_7d; valB = b.rolling.fitr_7d; break;
+                case 'cpa_7d': valA = a.rolling.cpa_7d; valB = b.rolling.cpa_7d; break;
+                case 'roas_7d': valA = a.rolling.roas_7d; valB = b.rolling.roas_7d; break;
+                case 'learningState': valA = clA?.learningState; valB = clB?.learningState; break;
+                case 'fatigueState': valA = clA?.fatigueState; valB = clB?.fatigueState; break;
+                case 'finalDecision': valA = clA?.finalDecision; valB = clB?.finalDecision; break;
+                case 'impactScore': valA = clA?.impactScore; valB = clB?.impactScore; break;
+                default: valA = 0; valB = 0;
+            }
+
+            if (valA === valB) return 0;
+            if (valA === undefined || valA === null) return 1;
+            if (valB === undefined || valB === null) return -1;
+
+            const multiplier = sortConfig.direction === 'asc' ? 1 : -1;
+            return valA < valB ? -1 * multiplier : 1 * multiplier;
+        });
+    }, [rollingMetrics, level, sortConfig, classifications]);
+
+    const handleSort = (key: string) => {
+        setSortConfig(prev => ({
+            key,
+            direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc'
+        }));
+    };
 
     const handleRowClick = async (entityId: string) => {
         setSelectedEntityId(entityId);
@@ -216,41 +261,71 @@ export default function AdsManager() {
                                             <span className="text-[9px] font-black text-text-muted">{alert.impactScore}</span>
                                         </div>
                                         <p className="text-[10px] font-bold text-text-primary leading-snug line-clamp-2">{alert.title}</p>
-                                        <p className="text-[9px] text-text-muted mt-1 line-clamp-2">{alert.description}</p>
+                                        <p className="text-[9px] text-text-primary mt-1 line-clamp-2 opacity-90">{alert.description}</p>
                                     </div>
                                 ))}
                             </div>
 
                             {alerts.length > 6 && (
-                                <p className="text-[9px] font-bold text-text-muted text-center pt-2">
+                                <Link
+                                    href="/decision-board"
+                                    className="block text-[9px] font-bold text-classic hover:text-text-primary text-center pt-2 transition-colors cursor-pointer"
+                                >
                                     ...y {alerts.length - 6} alertas más
-                                </p>
+                                </Link>
                             )}
                         </div>
                     </div>
                 )}
 
                 {/* Main Table View */}
-                <div className="relative group/table">
+                <div className="relative group/table h-[calc(100vh-320px)]">
                     <div className="absolute -inset-1 bg-gradient-to-r from-classic/20 to-special/20 rounded-[2rem] blur-2xl opacity-20 group-hover/table:opacity-40 transition-opacity duration-1000" />
 
-                    <div className="relative bg-second/40 backdrop-blur-xl border border-argent/30 rounded-[1.5rem] overflow-hidden shadow-2xl">
-                        <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-argent/50">
-                            <table className="w-full text-left border-collapse min-w-[1200px]">
-                                <thead>
+                    <div className="relative h-full bg-second/40 backdrop-blur-xl border border-argent/30 rounded-[1.5rem] overflow-hidden shadow-2xl flex flex-col">
+                        <div className="overflow-auto scrollbar-thin scrollbar-thumb-argent/50 h-full">
+                            <table className="w-full text-left border-collapse min-w-[1400px]">
+                                <thead className="sticky top-0 z-50">
                                     <tr className="bg-special/80 border-b border-argent/50">
-                                        <th className="p-6 font-black text-[10px] text-text-muted uppercase tracking-[0.2em] sticky left-0 bg-special/95 z-30 shadow-[4px_0_15px_rgba(0,0,0,0.2)] border-r border-argent/20">Entidad</th>
-                                        <th className="p-4 font-black text-[10px] text-text-muted uppercase tracking-[0.2em] text-right">Inversión (7d)</th>
-                                        <th className="p-4 font-black text-[10px] text-text-muted uppercase tracking-[0.2em] text-right">Imps</th>
-                                        <th className="p-4 font-black text-[10px] text-text-muted uppercase tracking-[0.2em] text-right">CTR</th>
-                                        <th className="p-4 font-black text-[10px] text-text-muted uppercase tracking-[0.2em] text-right">Hook Rate</th>
-                                        <th className="p-4 font-black text-[10px] text-text-muted uppercase tracking-[0.2em] text-right whitespace-nowrap">Intention (FitR)</th>
-                                        <th className="p-4 font-black text-[10px] text-text-muted uppercase tracking-[0.2em] text-right">CPA (7d)</th>
-                                        <th className="p-4 font-black text-[10px] text-text-muted uppercase tracking-[0.2em] text-right">ROAS (7d)</th>
-                                        <th className="p-4 font-black text-[10px] text-text-muted uppercase tracking-[0.2em] text-center">Fase</th>
-                                        <th className="p-4 font-black text-[10px] text-text-muted uppercase tracking-[0.2em] text-center">Fatiga</th>
-                                        <th className="p-4 font-black text-[10px] text-text-muted uppercase tracking-[0.2em]">Decisión GEM</th>
-                                        <th className="p-4 font-black text-[10px] text-text-muted uppercase tracking-[0.2em] text-center">Impacto</th>
+                                        <th onClick={() => handleSort('name')} className="p-6 font-black text-[10px] text-text-muted uppercase tracking-[0.2em] sticky left-0 bg-special/95 z-40 shadow-[4px_0_15px_rgba(0,0,0,0.2)] border-r border-argent/20 cursor-pointer hover:text-text-primary transition-colors min-w-[280px]" title="Nombre y tipo de la entidad.">
+                                            <div className="flex items-center gap-2">Entidad <SortIcon active={sortConfig.key === 'name'} direction={sortConfig.direction} /></div>
+                                        </th>
+                                        <th onClick={() => handleSort('spend_7d')} className="p-4 font-black text-[10px] text-text-muted uppercase tracking-[0.2em] text-right cursor-pointer hover:text-text-primary transition-colors min-w-[120px]" title="Gasto total (7d).">
+                                            <div className="flex items-center justify-end gap-2">Inversión <SortIcon active={sortConfig.key === 'spend_7d'} direction={sortConfig.direction} /></div>
+                                        </th>
+                                        <th onClick={() => handleSort('impressions_7d')} className="p-4 font-black text-[10px] text-text-muted uppercase tracking-[0.2em] text-right cursor-pointer hover:text-text-primary transition-colors min-w-[100px]" title="Impresiones totales (7d).">
+                                            <div className="flex items-center justify-end gap-2">Imps <SortIcon active={sortConfig.key === 'impressions_7d'} direction={sortConfig.direction} /></div>
+                                        </th>
+                                        <th onClick={() => handleSort('ctr_7d')} className="p-4 font-black text-[10px] text-text-muted uppercase tracking-[0.2em] text-right cursor-pointer hover:text-text-primary transition-colors min-w-[90px]" title="CTR% (Clicks / Imps).">
+                                            <div className="flex items-center justify-end gap-2">CTR <SortIcon active={sortConfig.key === 'ctr_7d'} direction={sortConfig.direction} /></div>
+                                        </th>
+                                        <th onClick={() => handleSort('hook_rate_7d')} className="p-4 font-black text-[10px] text-text-muted uppercase tracking-[0.2em] text-right cursor-pointer hover:text-text-primary transition-colors min-w-[110px]" title="Hook Rate (V3s / Imps).">
+                                            <div className="flex items-center justify-end gap-2">Hook Rate <SortIcon active={sortConfig.key === 'hook_rate_7d'} direction={sortConfig.direction} /></div>
+                                        </th>
+                                        <th onClick={() => handleSort('funnel')} className="p-4 font-black text-[10px] text-text-muted uppercase tracking-[0.2em] text-center cursor-pointer hover:text-text-primary transition-colors min-w-[80px]" title="Etapa del Funnel (TOFU/MOFU/BOFU).">
+                                            <div className="flex items-center justify-center gap-2">Funnel <SortIcon active={sortConfig.key === 'funnel'} direction={sortConfig.direction} /></div>
+                                        </th>
+                                        <th onClick={() => handleSort('fitr_7d')} className="p-4 font-black text-[10px] text-text-muted uppercase tracking-[0.1em] text-right cursor-pointer hover:text-text-primary transition-colors min-w-[110px]" title="Intención de compra (FitR) y Retención (R%).">
+                                            <div className="flex items-center justify-end gap-2">Intención <SortIcon active={sortConfig.key === 'fitr_7d'} direction={sortConfig.direction} /></div>
+                                        </th>
+                                        <th onClick={() => handleSort('cpa_7d')} className="p-4 font-black text-[10px] text-text-muted uppercase tracking-[0.2em] text-right cursor-pointer hover:text-text-primary transition-colors min-w-[110px]" title="Costo por Adquisición (7d).">
+                                            <div className="flex items-center justify-end gap-2">CPA <SortIcon active={sortConfig.key === 'cpa_7d'} direction={sortConfig.direction} /></div>
+                                        </th>
+                                        <th onClick={() => handleSort('roas_7d')} className="p-4 font-black text-[10px] text-text-muted uppercase tracking-[0.2em] text-right cursor-pointer hover:text-text-primary transition-colors min-w-[100px]" title="ROAS (7d).">
+                                            <div className="flex items-center justify-end gap-2">ROAS <SortIcon active={sortConfig.key === 'roas_7d'} direction={sortConfig.direction} /></div>
+                                        </th>
+                                        <th onClick={() => handleSort('learningState')} className="p-4 font-black text-[10px] text-text-muted uppercase tracking-[0.2em] text-center cursor-pointer hover:text-text-primary transition-colors min-w-[110px]" title="Fase de aprendizaje de Meta.">
+                                            <div className="flex items-center justify-center gap-2">Fase <SortIcon active={sortConfig.key === 'learningState'} direction={sortConfig.direction} /></div>
+                                        </th>
+                                        <th onClick={() => handleSort('fatigueState')} className="p-4 font-black text-[10px] text-text-muted uppercase tracking-[0.2em] text-center cursor-pointer hover:text-text-primary transition-colors min-w-[100px]" title="Nivel de fatiga creativa.">
+                                            <div className="flex items-center justify-center gap-2">Fatiga <SortIcon active={sortConfig.key === 'fatigueState'} direction={sortConfig.direction} /></div>
+                                        </th>
+                                        <th onClick={() => handleSort('finalDecision')} className="p-4 font-black text-[10px] text-text-muted uppercase tracking-[0.2em] cursor-pointer hover:text-text-primary transition-colors min-w-[140px]" title="Recomendación oficial del motor.">
+                                            <div className="flex items-center gap-2">Decisión GEM <SortIcon active={sortConfig.key === 'finalDecision'} direction={sortConfig.direction} /></div>
+                                        </th>
+                                        <th onClick={() => handleSort('impactScore')} className="p-4 font-black text-[10px] text-text-muted uppercase tracking-[0.2em] text-center cursor-pointer hover:text-text-primary transition-colors min-w-[100px]" title="Puntuación de impacto (0-100).">
+                                            <div className="flex items-center justify-center gap-2">Impacto <SortIcon active={sortConfig.key === 'impactScore'} direction={sortConfig.direction} /></div>
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -263,59 +338,76 @@ export default function AdsManager() {
                                                 onClick={() => handleRowClick(m.entityId)}
                                                 className="group/row border-b border-argent/10 hover:bg-classic/[0.05] cursor-pointer transition-all duration-200"
                                             >
-                                                <td className="p-6 sticky left-0 bg-second/90 group-hover/row:bg-second z-20 transition-colors shadow-[4px_0_15px_rgba(0,0,0,0.2)] border-r border-argent/20">
-                                                    <div className="flex flex-col min-w-[180px]">
+                                                <td className="p-6 sticky left-0 bg-second/90 group-hover/row:bg-second z-20 transition-colors shadow-[4px_0_15px_rgba(0,0,0,0.2)] border-r border-argent/20 min-w-[220px]">
+                                                    <div className="flex flex-col min-w-[220px]">
                                                         <div className="flex items-center gap-2">
-                                                            <span className="text-small font-black text-text-primary truncate transition-all group-hover/row:text-classic">{m.entityId}</span>
+                                                            <span className="text-small font-black text-text-primary truncate transition-all group-hover/row:text-classic" title={m.name || m.entityId}>
+                                                                {m.name || m.entityId}
+                                                            </span>
                                                             {entityAlertCount > 0 && (
                                                                 <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
                                                             )}
                                                         </div>
                                                         <div className="flex items-center gap-2 mt-1">
                                                             <span className="text-[8px] font-black bg-argent/30 text-text-secondary px-1.5 py-0.5 rounded leading-none uppercase">{level}</span>
+                                                            <span className="text-[8px] font-medium text-text-muted select-all hover:text-text-secondary transition-colors cursor-help" title="Click para copiar ID">{m.entityId}</span>
                                                             {cl?.conceptId && <span className="text-[8px] font-black text-classic uppercase truncate max-w-[100px]">{cl.conceptId}</span>}
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="p-4 text-right tabular-nums">
+                                                <td className="p-4 text-right tabular-nums min-w-[100px]">
                                                     <span className="text-small font-bold text-text-primary">${m.rolling.spend_7d?.toLocaleString(undefined, { minimumFractionDigits: 2 }) || "0.00"}</span>
                                                 </td>
-                                                <td className="p-4 text-right tabular-nums text-text-secondary text-[11px] font-medium">
+                                                <td className="p-4 text-right tabular-nums text-text-secondary text-[11px] font-medium min-w-[100px]">
                                                     {m.rolling.impressions_7d?.toLocaleString() || "-"}
                                                 </td>
-                                                <td className="p-4 text-right tabular-nums text-small font-bold text-text-secondary">
+                                                <td className="p-4 text-right tabular-nums text-small font-bold text-text-secondary min-w-[80px]">
                                                     {m.rolling.ctr_7d ? `${m.rolling.ctr_7d.toFixed(2)}%` : "-"}
                                                 </td>
-                                                <td className="p-4 text-right tabular-nums">
+                                                <td className="p-4 text-right tabular-nums min-w-[100px]">
                                                     <div className="flex flex-col items-end leading-none">
                                                         <span className="text-small font-black text-text-primary">{m.rolling.hook_rate_7d ? `${m.rolling.hook_rate_7d.toFixed(1)}%` : "-"}</span>
                                                         <DeltaTag val={m.rolling.hook_rate_delta_pct} />
                                                     </div>
                                                 </td>
-                                                <td className="p-4 text-right tabular-nums">
+                                                <td className="p-4 text-center min-w-[80px]">
+                                                    <IntentBadge stage={cl?.intentStage} />
+                                                </td>
+                                                <td className="p-2 text-right tabular-nums w-[110px] min-w-[110px]">
                                                     <div className="flex flex-col items-end leading-none gap-1">
                                                         <span className="text-small font-bold text-text-primary">{m.rolling.fitr_7d ? `${m.rolling.fitr_7d.toFixed(2)}%` : "-"}</span>
-                                                        <IntentBadge stage={cl?.intentStage} />
+                                                        {m.rolling.retention_rate_7d !== undefined && m.rolling.retention_rate_7d > 0 && (
+                                                            <span className="text-[8px] font-black text-classic bg-classic/10 px-1 rounded border border-classic/20 leading-none py-0.5" title="Retention (V50/VPlay)">R{m.rolling.retention_rate_7d.toFixed(0)}%</span>
+                                                        )}
                                                     </div>
                                                 </td>
-                                                <td className="p-4 text-right tabular-nums">
-                                                    <span className="text-small font-black text-text-primary">${m.rolling.cpa_7d?.toFixed(2) || "0.00"}</span>
+                                                <td className="p-4 text-right tabular-nums min-w-[100px]">
+                                                    <span className="text-small font-black text-text-primary">
+                                                        {m.rolling.cpa_7d ? `$${m.rolling.cpa_7d.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "-"}
+                                                    </span>
                                                 </td>
-                                                <td className="p-4 text-right tabular-nums">
+                                                <td className="p-4 text-right tabular-nums min-w-[100px]">
                                                     <span className={`text-small font-black ${(m.rolling.roas_7d || 0) > 2 ? 'text-synced' : 'text-text-primary'}`}>
                                                         {m.rolling.roas_7d ? `${m.rolling.roas_7d.toFixed(2)}x` : "-"}
                                                     </span>
                                                 </td>
-                                                <td className="p-4 text-center">
+                                                <td className="p-4 text-center min-w-[100px]">
                                                     <PhaseTag state={cl?.learningState} />
                                                 </td>
-                                                <td className="p-4 text-center">
+                                                <td className="p-4 text-center min-w-[100px]">
                                                     <FatigueTag state={cl?.fatigueState} />
                                                 </td>
-                                                <td className="p-4">
-                                                    <DecisionTag decision={cl?.finalDecision} confidence={cl?.confidenceScore} />
+                                                <td className="p-4 min-w-[120px]">
+                                                    <div className="flex items-center gap-2">
+                                                        <DecisionTag decision={cl?.finalDecision} confidence={cl?.confidenceScore} />
+                                                        <div className="flex items-center gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity duration-200">
+                                                            {alerts.filter(a => a.entityId === m.entityId).slice(0, 2).map(a => (
+                                                                <span key={a.id} className={`w-1.5 h-1.5 rounded-full ${a.severity === 'CRITICAL' ? 'bg-red-500' : 'bg-yellow-500'}`} title={a.title} />
+                                                            ))}
+                                                        </div>
+                                                    </div>
                                                 </td>
-                                                <td className="p-4">
+                                                <td className="p-4 min-w-[100px]">
                                                     <div className="flex flex-col items-center">
                                                         <span className="text-small font-black text-white drop-shadow-[0_0_10px_rgba(var(--special-rgb),0.5)]">{cl?.impactScore || 0}</span>
                                                         <div className="w-8 h-1 bg-argent/20 rounded-full mt-1 overflow-hidden">
@@ -334,173 +426,184 @@ export default function AdsManager() {
             </div>
 
             {/* Premium Drawer */}
-            {isDrawerOpen && (
-                <div className="fixed inset-0 z-[100] flex justify-end">
-                    <div className="absolute inset-0 bg-stellar/80 backdrop-blur-md transition-opacity duration-300" onClick={() => setIsDrawerOpen(false)} />
-                    <div className="relative w-full max-w-2xl bg-second h-full shadow-[-30px_0_80px_rgba(0,0,0,0.5)] border-l border-argent/30 animate-in slide-in-from-right duration-500 ease-out flex flex-col">
-                        <header className="p-10 border-b border-argent/20 bg-special/40 flex justify-between items-start">
-                            <div className="space-y-4">
-                                <div className="flex items-center gap-3">
-                                    <span className="px-3 py-1 bg-classic text-white text-[9px] font-black rounded-full uppercase tracking-[0.2em] shadow-lg">{level}</span>
-                                    <span className="text-[10px] font-black text-text-muted uppercase tracking-widest">Diagnóstico Operativo</span>
+            {
+                isDrawerOpen && (
+                    <div className="fixed inset-0 z-[100] flex justify-end">
+                        <div className="absolute inset-0 bg-stellar/80 backdrop-blur-md transition-opacity duration-300" onClick={() => setIsDrawerOpen(false)} />
+                        <div className="relative w-full max-w-2xl bg-second h-full shadow-[-30px_0_80px_rgba(0,0,0,0.5)] border-l border-argent/30 animate-in slide-in-from-right duration-500 ease-out flex flex-col">
+                            <header className="p-10 border-b border-argent/20 bg-special/40 flex justify-between items-start">
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-3">
+                                        <span className="px-3 py-1 bg-classic text-white text-[9px] font-black rounded-full uppercase tracking-[0.2em] shadow-lg">{level}</span>
+                                        <span className="text-[10px] font-black text-text-muted uppercase tracking-widest">Diagnóstico Operativo</span>
+                                    </div>
+                                    <div>
+                                        <h2 className="text-2xl md:text-3xl font-black text-text-primary uppercase tracking-tighter leading-tight">{selectedMetrics?.name || selectedEntityId}</h2>
+                                        <p className="text-[9px] font-mono text-text-muted mt-1 select-all">{selectedEntityId}</p>
+                                        {selectedClass?.conceptId && (
+                                            <p className="text-[12px] font-black text-classic uppercase mt-2 border-l-2 border-classic/30 pl-3">Concepto: {selectedClass.conceptId}</p>
+                                        )}
+                                    </div>
                                 </div>
-                                <div>
-                                    <h2 className="text-4xl font-black text-text-primary uppercase tracking-tighter leading-tight break-all">{selectedEntityId}</h2>
-                                    {selectedClass?.conceptId && (
-                                        <p className="text-[12px] font-black text-classic uppercase mt-2 border-l-2 border-classic/30 pl-3">Concepto: {selectedClass.conceptId}</p>
-                                    )}
-                                </div>
-                            </div>
-                            <button onClick={() => setIsDrawerOpen(false)} className="w-12 h-12 flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-argent/20 rounded-full transition-all text-3xl font-light">×</button>
-                        </header>
+                                <button onClick={() => setIsDrawerOpen(false)} className="w-12 h-12 flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-argent/20 rounded-full transition-all text-3xl font-light">×</button>
+                            </header>
 
-                        <div className="flex-1 overflow-y-auto p-10 space-y-12 pb-24 scrollbar-thin scrollbar-thumb-argent/50">
-                            {/* Performance Grid */}
-                            <section className="grid grid-cols-2 gap-6">
-                                <MetricDetailBox
-                                    label="Eficiencia de Adquisición"
-                                    sub="CPA Promedio"
-                                    curr={selectedMetrics?.rolling.cpa_7d}
-                                    prev={selectedMetrics?.rolling.cpa_14d}
-                                    prefix="$"
-                                    reverse
-                                />
-                                <MetricDetailBox
-                                    label="Ritmo de Escalabilidad"
-                                    sub="Inversión Rolling"
-                                    curr={selectedMetrics?.rolling.spend_7d}
-                                    prev={selectedMetrics?.rolling.spend_14d}
-                                    prefix="$"
-                                />
-                            </section>
+                            <div className="flex-1 overflow-y-auto p-10 space-y-12 pb-24 scrollbar-thin scrollbar-thumb-argent/50">
+                                {/* Performance Grid */}
+                                <section className="grid grid-cols-2 gap-6">
+                                    <MetricDetailBox
+                                        label="Eficiencia de Adquisición"
+                                        sub="CPA Promedio"
+                                        curr={selectedMetrics?.rolling.cpa_7d}
+                                        prev={selectedMetrics?.rolling.cpa_14d}
+                                        prefix="$"
+                                        reverse
+                                    />
+                                    <MetricDetailBox
+                                        label="Ritmo de Escalabilidad"
+                                        sub="Inversión Rolling"
+                                        curr={selectedMetrics?.rolling.spend_7d}
+                                        prev={selectedMetrics?.rolling.spend_14d}
+                                        prefix="$"
+                                    />
+                                </section>
 
-                            {/* NEW: Signal Indicators Section */}
-                            <section className="space-y-4">
-                                <header className="flex items-center gap-3 border-b border-argent/20 pb-4">
-                                    <h3 className="text-[11px] font-black text-text-muted uppercase tracking-[0.2em]">Señales Operativas</h3>
-                                </header>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                    <SignalCard
-                                        label="Velocidad Conv"
-                                        value={selectedMetrics?.rolling.conversion_velocity_7d?.toFixed(2)}
-                                        suffix="/día"
-                                        prev={selectedMetrics?.rolling.conversion_velocity_14d}
-                                    />
-                                    <SignalCard
-                                        label="Frecuencia 7d"
-                                        value={selectedMetrics?.rolling.frequency_7d?.toFixed(1)}
-                                        warn={(selectedMetrics?.rolling.frequency_7d || 0) > 4}
-                                    />
-                                    <SignalCard
-                                        label="Δ Budget 3d"
-                                        value={selectedMetrics?.rolling.budget_change_3d_pct ? `${selectedMetrics.rolling.budget_change_3d_pct.toFixed(0)}%` : undefined}
-                                        warn={Math.abs(selectedMetrics?.rolling.budget_change_3d_pct || 0) > 30}
-                                    />
-                                    <SignalCard
-                                        label="Concentración"
-                                        value={selectedMetrics?.rolling.spend_top1_ad_pct ? `${(selectedMetrics.rolling.spend_top1_ad_pct * 100).toFixed(0)}%` : undefined}
-                                        warn={(selectedMetrics?.rolling.spend_top1_ad_pct || 0) > 0.6}
-                                    />
-                                </div>
-                            </section>
-
-                            {/* Entity Alerts */}
-                            {entityAlerts.length > 0 && (
+                                {/* NEW: Signal Indicators Section */}
                                 <section className="space-y-4">
-                                    <header className="flex items-center justify-between border-b border-argent/20 pb-4">
-                                        <h3 className="text-[11px] font-black text-text-muted uppercase tracking-[0.2em]">Alertas de esta Entidad</h3>
-                                        <span className="text-[9px] font-black text-text-muted">{entityAlerts.length} alerta{entityAlerts.length !== 1 ? 's' : ''}</span>
+                                    <header className="flex items-center gap-3 border-b border-argent/20 pb-4">
+                                        <h3 className="text-[11px] font-black text-text-muted uppercase tracking-[0.2em]">Señales Operativas</h3>
                                     </header>
-                                    <div className="space-y-3">
-                                        {entityAlerts.map((alert) => (
-                                            <div key={alert.id} className={`p-4 rounded-2xl border ${alert.severity === 'CRITICAL' ? 'bg-red-500/5 border-red-500/20' :
-                                                alert.severity === 'WARNING' ? 'bg-yellow-500/5 border-yellow-500/20' :
-                                                    'bg-synced/5 border-synced/20'
-                                                }`}>
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase ${alert.severity === 'CRITICAL' ? 'bg-red-500 text-white' :
-                                                        alert.severity === 'WARNING' ? 'bg-yellow-500 text-black' :
-                                                            'bg-synced/20 text-synced'
-                                                        }`}>{alert.severity}</span>
-                                                    <span className="text-[9px] font-bold text-text-primary">{alert.title}</span>
-                                                </div>
-                                                <p className="text-[10px] text-text-muted leading-relaxed">{alert.description}</p>
-                                            </div>
-                                        ))}
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                        <SignalCard
+                                            label="Velocidad Conv"
+                                            value={selectedMetrics?.rolling.conversion_velocity_7d?.toFixed(2)}
+                                            suffix="/día"
+                                            prev={selectedMetrics?.rolling.conversion_velocity_14d}
+                                        />
+                                        <SignalCard
+                                            label="Frecuencia 7d"
+                                            value={selectedMetrics?.rolling.frequency_7d?.toFixed(1)}
+                                            warn={(selectedMetrics?.rolling.frequency_7d || 0) > 4}
+                                        />
+                                        <SignalCard
+                                            label="Δ Budget 3d"
+                                            value={selectedMetrics?.rolling.budget_change_3d_pct != null ? `${selectedMetrics.rolling.budget_change_3d_pct.toFixed(0)}%` : undefined}
+                                            warn={Math.abs(selectedMetrics?.rolling.budget_change_3d_pct || 0) > 30}
+                                        />
+                                        <SignalCard
+                                            label="Concentración"
+                                            value={selectedMetrics?.rolling.spend_top1_ad_pct != null ? `${(selectedMetrics.rolling.spend_top1_ad_pct * 100).toFixed(0)}%` : undefined}
+                                            warn={(selectedMetrics?.rolling.spend_top1_ad_pct || 0) > 0.6}
+                                        />
                                     </div>
                                 </section>
-                            )}
 
-                            {/* Intent & Evidence Section */}
-                            <section className="space-y-6">
-                                <header className="flex justify-between items-end border-b border-argent/20 pb-4">
-                                    <h3 className="text-[11px] font-black text-text-muted uppercase tracking-[0.2em]">Racional de Inteligencia</h3>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-[10px] font-black text-text-secondary">Confianza:</span>
-                                        <span className="text-[10px] font-black text-synced bg-synced/10 px-2 py-0.5 rounded-lg border border-synced/20">{Math.round((selectedClass?.confidenceScore || 0) * 100)}%</span>
-                                    </div>
-                                </header>
-
-                                <div className="space-y-4">
-                                    {selectedClass?.evidence?.map((fact, i) => (
-                                        <div key={i} className="flex gap-4 p-5 bg-special/20 border border-argent/20 rounded-2xl hover:border-classic/30 transition-all duration-300">
-                                            <div className="mt-1 w-5 h-5 bg-classic/10 rounded-full flex items-center justify-center flex-shrink-0">
-                                                <div className="w-1.5 h-1.5 bg-classic rounded-full shadow-[0_0_8px_rgba(var(--classic-rgb),1)]" />
-                                            </div>
-                                            <p className="text-small font-bold text-text-primary leading-relaxed">{fact}</p>
-                                        </div>
-                                    ))}
-                                    {!selectedClass?.evidence?.length && (
-                                        <div className="p-10 text-center border-2 border-dashed border-argent/20 rounded-3xl">
-                                            <p className="text-small text-text-muted font-bold italic">Esperando procesamiento de señales de bajo nivel...</p>
-                                        </div>
-                                    )}
-                                </div>
-                            </section>
-
-                            {/* Action Section */}
-                            <section className="pt-6 relative">
-                                <div className="absolute -inset-4 bg-gradient-to-r from-special/40 to-classic/20 blur-3xl opacity-30 -z-10" />
-                                <button
-                                    onClick={generateRecommendation}
-                                    disabled={isGenerating}
-                                    className="w-full bg-white text-black hover:bg-classic hover:text-white font-black py-6 rounded-3xl uppercase tracking-[0.3em] transition-all duration-500 ease-in-out flex items-center justify-center gap-6 group shadow-2xl hover:shadow-classic/40 disabled:opacity-50"
-                                >
-                                    {isGenerating ? (
-                                        <div className="w-6 h-6 border-2 border-black border-t-transparent rounded-full animate-spin group-hover:border-white group-hover:border-t-transparent" />
-                                    ) : <span className="text-2xl group-hover:scale-125 group-hover:rotate-12 transition-transform duration-500">✨</span>}
-                                    <span className="text-[12px]">{isGenerating ? "Gemini está optimizando..." : "Generar AI Operational Playbook"}</span>
-                                </button>
-
-                                {recommendation && (
-                                    <div className="mt-10 bg-special border border-argent/30 rounded-[2rem] p-8 space-y-8 animate-in zoom-in-95 duration-700 shadow-2xl">
-                                        <div className="flex items-center gap-4 border-b border-argent/20 pb-6">
-                                            <div className="w-12 h-12 bg-classic/10 border border-classic/20 rounded-2xl flex items-center justify-center text-2xl shadow-inner italic text-classic">P</div>
-                                            <div>
-                                                <h4 className="text-subheader font-black text-text-primary uppercase tracking-tight">Playbook Estratégico</h4>
-                                                <p className="text-[9px] text-text-muted font-black uppercase tracking-widest mt-1">Generado por GEM High-Intelligence</p>
-                                            </div>
-                                        </div>
-                                        <div className="space-y-4">
-                                            {recommendation.actions.map((act, i) => (
-                                                <div key={i} className="flex gap-5 p-5 bg-white/[0.03] rounded-2xl border border-argent/10 group/item hover:border-classic/40 transition-all">
-                                                    <span className="flex-shrink-0 w-8 h-8 rounded-lg bg-argent/20 border border-argent/20 shadow-sm flex items-center justify-center text-[10px] font-black text-text-secondary group-hover/item:bg-classic group-hover/item:text-white transition-colors">0{i + 1}</span>
-                                                    <p className="text-small font-bold text-text-primary leading-relaxed pt-1">{act}</p>
+                                {/* Entity Alerts */}
+                                {entityAlerts.length > 0 && (
+                                    <section className="space-y-4">
+                                        <header className="flex items-center justify-between border-b border-argent/20 pb-4">
+                                            <h3 className="text-[11px] font-black text-text-muted uppercase tracking-[0.2em]">Alertas de esta Entidad</h3>
+                                            <span className="text-[9px] font-black text-text-muted">{entityAlerts.length} alerta{entityAlerts.length !== 1 ? 's' : ''}</span>
+                                        </header>
+                                        <div className="space-y-3">
+                                            {entityAlerts.map((alert) => (
+                                                <div key={alert.id} className={`p-4 rounded-2xl border ${alert.severity === 'CRITICAL' ? 'bg-red-500/5 border-red-500/20' :
+                                                    alert.severity === 'WARNING' ? 'bg-yellow-500/5 border-yellow-500/20' :
+                                                        'bg-synced/5 border-synced/20'
+                                                    }`}>
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase ${alert.severity === 'CRITICAL' ? 'bg-red-500 text-white' :
+                                                            alert.severity === 'WARNING' ? 'bg-yellow-500 text-black' :
+                                                                'bg-synced/20 text-synced'
+                                                            }`}>{alert.severity}</span>
+                                                        <span className="text-[9px] font-bold text-text-primary">{alert.title}</span>
+                                                    </div>
+                                                    <p className="text-[10px] text-text-muted leading-relaxed">{alert.description}</p>
                                                 </div>
                                             ))}
                                         </div>
-                                    </div>
+                                    </section>
                                 )}
-                            </section>
+
+                                {/* Intent & Evidence Section */}
+                                <section className="space-y-6">
+                                    <header className="flex justify-between items-end border-b border-argent/20 pb-4">
+                                        <h3 className="text-[11px] font-black text-text-muted uppercase tracking-[0.2em]">Racional de Inteligencia</h3>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] font-black text-text-secondary">Confianza:</span>
+                                            <span className="text-[10px] font-black text-synced bg-synced/10 px-2 py-0.5 rounded-lg border border-synced/20">{Math.round((selectedClass?.confidenceScore || 0) * 100)}%</span>
+                                        </div>
+                                    </header>
+
+                                    <div className="space-y-4">
+                                        {selectedClass?.evidence?.map((fact, i) => (
+                                            <div key={i} className="flex gap-4 p-5 bg-special/20 border border-argent/20 rounded-2xl hover:border-classic/30 transition-all duration-300">
+                                                <div className="mt-1 w-5 h-5 bg-classic/10 rounded-full flex items-center justify-center flex-shrink-0">
+                                                    <div className="w-1.5 h-1.5 bg-classic rounded-full shadow-[0_0_8px_rgba(var(--classic-rgb),1)]" />
+                                                </div>
+                                                <p className="text-small font-bold text-text-primary leading-relaxed">{fact}</p>
+                                            </div>
+                                        ))}
+                                        {!selectedClass?.evidence?.length && (
+                                            <div className="p-10 text-center border-2 border-dashed border-argent/20 rounded-3xl">
+                                                <p className="text-small text-text-muted font-bold italic">Esperando procesamiento de señales de bajo nivel...</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </section>
+
+                                {/* Action Section */}
+                                <section className="pt-6 relative">
+                                    <div className="absolute -inset-4 bg-gradient-to-r from-special/40 to-classic/20 blur-3xl opacity-30 -z-10" />
+                                    <button
+                                        onClick={generateRecommendation}
+                                        disabled={isGenerating}
+                                        className="w-full bg-white text-black hover:bg-classic hover:text-white font-black py-6 rounded-3xl uppercase tracking-[0.3em] transition-all duration-500 ease-in-out flex items-center justify-center gap-6 group shadow-2xl hover:shadow-classic/40 disabled:opacity-50"
+                                    >
+                                        {isGenerating ? (
+                                            <div className="w-6 h-6 border-2 border-black border-t-transparent rounded-full animate-spin group-hover:border-white group-hover:border-t-transparent" />
+                                        ) : <span className="text-2xl group-hover:scale-125 group-hover:rotate-12 transition-transform duration-500">✨</span>}
+                                        <span className="text-[12px]">{isGenerating ? "Gemini está optimizando..." : "Generar AI Operational Playbook"}</span>
+                                    </button>
+
+                                    {recommendation && (
+                                        <div className="mt-10 bg-special border border-argent/30 rounded-[2rem] p-8 space-y-8 animate-in zoom-in-95 duration-700 shadow-2xl">
+                                            <div className="flex items-center gap-4 border-b border-argent/20 pb-6">
+                                                <div className="w-12 h-12 bg-classic/10 border border-classic/20 rounded-2xl flex items-center justify-center text-2xl shadow-inner italic text-classic">P</div>
+                                                <div>
+                                                    <h4 className="text-subheader font-black text-text-primary uppercase tracking-tight">Playbook Estratégico</h4>
+                                                    <p className="text-[9px] text-text-muted font-black uppercase tracking-widest mt-1">Generado por GEM High-Intelligence</p>
+                                                </div>
+                                            </div>
+                                            <div className="space-y-4">
+                                                {recommendation.actions?.map((act, i) => (
+                                                    <div key={i} className="flex gap-5 p-5 bg-white/[0.03] rounded-2xl border border-argent/10 group/item hover:border-classic/40 transition-all">
+                                                        <span className="flex-shrink-0 w-8 h-8 rounded-lg bg-argent/20 border border-argent/20 shadow-sm flex items-center justify-center text-[10px] font-black text-text-secondary group-hover/item:bg-classic group-hover/item:text-white transition-colors">0{i + 1}</span>
+                                                        <p className="text-small font-bold text-text-primary leading-relaxed pt-1">{act}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </section>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )}
         </AppLayout>
     );
 }
 
 // ─── Subcomponents ───────────────────────────────────────────
+
+function SortIcon({ active, direction }: { active: boolean, direction: 'asc' | 'desc' }) {
+    return (
+        <div className={`flex flex-col -space-y-1 transition-opacity ${active ? 'opacity-100' : 'opacity-20'}`}>
+            <span className={`text-[8px] ${active && direction === 'asc' ? 'text-classic' : ''}`}>▲</span>
+            <span className={`text-[8px] ${active && direction === 'desc' ? 'text-classic' : ''}`}>▼</span>
+        </div>
+    );
+}
 
 function DeltaTag({ val }: { val?: number }) {
     if (val === undefined || Math.abs(val) < 0.1) return null;
@@ -569,7 +672,7 @@ function DecisionTag({ decision, confidence }: { decision?: FinalDecision, confi
     };
     return (
         <div className="flex items-center gap-3">
-            <span className={`px-2.5 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-tighter shadow-lg transition-transform hover:scale-[1.05] ${styles[decision]}`}>
+            <span className={`px-2.5 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-tighter shadow-lg ${styles[decision]}`}>
                 {labels[decision]}
             </span>
             {confidence !== undefined && (
