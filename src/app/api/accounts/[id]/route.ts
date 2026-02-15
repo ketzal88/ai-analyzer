@@ -3,9 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function PATCH(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const { id: accountId } = await params;
         const sessionCookie = request.cookies.get("session")?.value;
         if (!sessionCookie) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -13,7 +14,6 @@ export async function PATCH(
 
         const decodedToken = await auth.verifySessionCookie(sessionCookie);
         const uid = decodedToken.uid;
-        const accountId = params.id;
 
         const body = await request.json();
         const { name, metaAdAccountId, targetCpa, goal } = body;
