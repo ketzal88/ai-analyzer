@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebase-admin";
 import { syncMetaCreatives } from "@/lib/meta-creative-service";
+import { reportError } from "@/lib/error-reporter";
 
 /**
  * AG-41: Cron endpoint for syncing Meta creatives
@@ -54,7 +55,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(metrics, { status: metrics.ok ? 200 : 500 });
 
     } catch (error: any) {
-        console.error("[CRON] Creative sync error:", error);
+        reportError("Cron Creative Sync", error, { metadata: { clientId: new URL(request.url).searchParams.get('clientId') } });
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

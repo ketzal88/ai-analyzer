@@ -1,4 +1,5 @@
 import { db } from "@/lib/firebase-admin";
+import { reportError } from "@/lib/error-reporter";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createHash } from "crypto";
 import { RecommendationDoc, RecommendationResponse } from "@/types/ai-recommendations";
@@ -114,7 +115,7 @@ export class RecommendationService {
 
             return { status: 'generated', recommendation };
         } catch (e: any) {
-            console.error("Recommendation Generation Error:", e);
+            reportError("LLM Recommendations", e, { clientId, metadata: { entityId, level } });
             return { status: 'error', message: e.message };
         }
     }

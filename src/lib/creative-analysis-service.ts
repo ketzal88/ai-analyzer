@@ -2,6 +2,7 @@ import { db } from "@/lib/firebase-admin";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createHash } from "crypto";
 import { CreativeAIReport } from "@/types/creative-analysis";
+import { reportError } from "@/lib/error-reporter";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 const MODEL = process.env.GEMINI_MODEL || "gemini-1.5-flash";
@@ -211,7 +212,7 @@ export async function generateCreativeAudit(
 
         return report;
     } catch (genError: any) {
-        console.error("[AI Analysis] Generation Error:", genError);
+        reportError("LLM Creative Audit", genError, { clientId, metadata: { adId: creative.ad?.id } });
         throw genError;
     }
 }
@@ -357,7 +358,7 @@ export async function generateCreativeVariations(
         await db.collection("creative_ai_reports").doc(reportId).set(report);
         return report;
     } catch (error: any) {
-        console.error("[AI Variations] Error:", error);
+        reportError("LLM Creative Variations", error, { clientId, metadata: { adId: creative.ad?.id } });
         return { error: error.message || "Failed to generate variations", status: "error" };
     }
 }

@@ -1,6 +1,7 @@
 import { auth, db } from "@/lib/firebase-admin";
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
+import { reportError } from "@/lib/error-reporter";
 import {
     DashboardSnapshot,
     FindingsRun,
@@ -170,7 +171,7 @@ export async function POST(request: NextRequest) {
                         await syncClientInsights(clientId, clientData.metaAdAccountId, syncRange);
                     }
                 } catch (e) {
-                    console.error("Auto-sync failed:", e);
+                    reportError("Analyze Auto-sync", e, { clientId, metadata: { syncRange } });
                 }
             }
 
@@ -328,7 +329,7 @@ export async function POST(request: NextRequest) {
                 if (e.code === 9 || e.message?.includes("index")) {
                     console.warn("Index missing for llm_reports. Proceeding to generate fresh report.");
                 } else {
-                    console.error("LLM Cache Read Error:", e);
+                    reportError("Analyze LLM Cache Read", e, { clientId });
                 }
             }
 
@@ -353,7 +354,7 @@ export async function POST(request: NextRequest) {
                     );
                     report = generatedRecord.report;
                 } catch (genError: any) {
-                    console.error("LLM Generation Failed:", genError);
+                    reportError("Analyze LLM Generation", genError, { clientId });
                     // Throw to frontend so they see the error instead of empty state
                     return NextResponse.json({ error: `AI Gen Error: ${genError.message || genError}` }, { status: 500 });
                 }
@@ -374,7 +375,7 @@ export async function POST(request: NextRequest) {
         });
 
     } catch (error: any) {
-        console.error("Analyze Error:", error);
+        reportError("API Analyze (Fatal)", error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

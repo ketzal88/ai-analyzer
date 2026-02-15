@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebase-admin";
 import { SlackService } from "@/lib/slack-service";
-import { AlertEngine } from "@/lib/alert-engine";
+import { AlertEngine, Alert } from "@/lib/alert-engine";
 import { EntityRollingMetrics } from "@/types/performance-snapshots";
 import { Client } from "@/types";
+import { reportError } from "@/lib/error-reporter";
 
 /**
  * Daily Digest Cron
@@ -93,7 +94,7 @@ export async function GET(request: NextRequest) {
 
                         if (!dailySnaps.empty) {
                             const enriched = SlackService.buildSnapshotFromDailyAggregation(
-                                dailySnaps.docs.map(d => d.data()),
+                                dailySnaps.docs.map(d => d.data() as any),
                                 kpis.spend
                             );
                             // Merge enriched data (ATC, Checkout, Leads, WhatsApp)
@@ -129,12 +130,11 @@ export async function GET(request: NextRequest) {
                 let criticalAlertsSent = 0;
 
                 try {
-                    const alertResult = await AlertEngine.run(clientId);
-                    const alerts = alertResult.alerts || [];
+                    const alerts = await AlertEngine.run(clientId);
 
                     if (alerts.length > 0) {
                         // Send individual critical alerts
-                        const criticalAlerts = alerts.filter(a => a.severity === "CRITICAL");
+                        const criticalAlerts = alerts.filter((a: Alert) => a.severity === "CRITICAL");
                         for (const alert of criticalAlerts) {
                             await SlackService.sendCriticalAlert(clientId, client.name, alert);
                             criticalAlertsSent++;
@@ -157,7 +157,7 @@ export async function GET(request: NextRequest) {
                 });
 
             } catch (clientError: any) {
-                console.error(`[Daily Digest] Error processing ${clientId}:`, clientError);
+                reportError("Cron Daily Digest", clientError, { clientId, clientName: client.name });
                 results.push({
                     clientId,
                     clientName: client.name,
@@ -176,7 +176,7 @@ export async function GET(request: NextRequest) {
         });
 
     } catch (error: any) {
-        console.error("[Daily Digest] Fatal Error:", error);
+        reportError("Cron Daily Digest (Fatal)", error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

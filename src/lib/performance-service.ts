@@ -1,4 +1,5 @@
 import { db } from "@/lib/firebase-admin";
+import { reportError } from "@/lib/error-reporter";
 import {
     DailyEntitySnapshot,
     EntityLevel,
@@ -23,6 +24,10 @@ export class PerformanceService {
 
                 const errorData = await response.json();
                 console.error(`Meta API Error (Attempt ${i + 1}):`, errorData);
+
+                if (i === retries - 1) {
+                    reportError("Meta API", new Error(JSON.stringify(errorData)), { metadata: { url, attempt: i + 1 } });
+                }
 
                 if (response.status === 429) {
                     await new Promise(resolve => setTimeout(resolve, backoff * 2 * (i + 1)));
