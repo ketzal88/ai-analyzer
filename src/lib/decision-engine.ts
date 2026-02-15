@@ -32,10 +32,10 @@ export class DecisionEngine {
         // Layer 1: Learning State
         // Use entity-specific conversions, not account-wide
         const entityConversions7d = (rolling.rolling.conversion_velocity_7d || 0) * 7;
-        const learningState = this.classifyLearningState(snap, entityConversions7d);
+        const learningState = this.classifyLearningState(snap, entityConversions7d, config);
 
         // Layer 2: Intent Engine
-        const { score: intentScore, stage: intentStage } = this.computeIntent(snap, percentiles);
+        const { score: intentScore, stage: intentStage } = this.computeIntent(snap, percentiles, config);
 
         // Layer 3: Fatigue Engine (now with concentration check)
         const fatigueState = this.classifyFatigue(rolling, config, conceptMetrics);
@@ -76,19 +76,20 @@ export class DecisionEngine {
         };
     }
 
-    private static classifyLearningState(snap: DailyEntitySnapshot, conversions7d: number): LearningState {
+    private static classifyLearningState(snap: DailyEntitySnapshot, conversions7d: number, config: EngineConfig): LearningState {
         const { daysActive, daysSinceLastEdit } = snap.stability;
+        const l = config.learning;
 
-        if (daysSinceLastEdit < 3) return "UNSTABLE";
+        if (daysSinceLastEdit < l.unstableDays) return "UNSTABLE";
         // Nuance: Volume-based exit from learning
-        if (conversions7d >= 50) return "EXPLOITATION";
+        if (conversions7d >= l.exploitationMinConversions) return "EXPLOITATION";
 
-        if (daysActive <= 4) return "EXPLORATION";
+        if (daysActive <= l.explorationDays) return "EXPLORATION";
         if (daysActive <= 14) return "STABILIZING";
         return "EXPLOITATION";
     }
 
-    private static computeIntent(snap: DailyEntitySnapshot, p: ClientPercentiles): { score: number, stage: IntentStage } {
+    private static computeIntent(snap: DailyEntitySnapshot, p: ClientPercentiles, config: EngineConfig): { score: number, stage: IntentStage } {
         const fitr = (snap.performance.purchases || 0) / (snap.performance.clicks || 1);
         const convRate = (snap.performance.purchases || 0) / (snap.performance.impressions || 1);
         const cpaInv = snap.performance.purchases ? (snap.performance.purchases / snap.performance.spend) : 0;
@@ -104,16 +105,17 @@ export class DecisionEngine {
         const cpaInvNorm = norm(cpaInv, p.cpaInv.p10, p.cpaInv.p90);
         const ctrNorm = norm(ctr, p.ctr.p10, p.ctr.p90);
 
+        const i = config.intent;
         let score = (0.30 * fitrNorm) + (0.25 * convRateNorm) + (0.25 * cpaInvNorm) + (0.20 * ctrNorm);
 
         // Volatility Penalty for low data
-        if (snap.performance.impressions < 2000) {
-            score *= 0.6; // 40% penalty for low reliability
+        if (snap.performance.impressions < i.minImpressionsForPenalty) {
+            score *= i.volatilityPenalty;
         }
 
         let stage: IntentStage = "TOFU";
-        if (score >= 0.65) stage = "BOFU";
-        else if (score >= 0.35) stage = "MOFU";
+        if (score >= i.bofuScoreThreshold) stage = "BOFU";
+        else if (score >= i.mofuScoreThreshold) stage = "MOFU";
 
         return { score: Number(score.toFixed(4)), stage };
     }
@@ -220,7 +222,7 @@ export class DecisionEngine {
                 facts.push("Cero conversiones con gasto significativo en fase de exploración.");
                 return { decision: "KILL_RETRY", confidence: 0.8, facts };
             }
-            facts.push("Activo en fase temprana de aprendizaje (0-4 días).");
+            facts.push(`Activo en fase temprana de aprendizaje (0-${config.learning.explorationDays} días).`);
             return { decision: "HOLD", confidence: 0.9, facts };
         }
 
@@ -228,7 +230,7 @@ export class DecisionEngine {
             if (budgetChange > config.alerts.learningResetBudgetChangePct) {
                 facts.push(`Edición reciente con cambio de budget > ${config.alerts.learningResetBudgetChangePct}%. Riesgo de reinicio de aprendizaje.`);
             }
-            facts.push("Entidad editada recientemente (< 3 días). En período de re-estabilización.");
+            facts.push(`Entidad editada recientemente (< ${config.learning.unstableDays} días). En período de re-estabilización.`);
             return { decision: "HOLD", confidence: 0.85, facts };
         }
 

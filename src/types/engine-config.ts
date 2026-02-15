@@ -25,11 +25,26 @@ export interface EngineConfig {
 
     // Findings Engine (findings-engine.ts / migrated to alert-engine)
     findings: {
-        cpaSpikeThreshold: number;          // default 0.25 (25%)
-        roasDropThreshold: number;          // default -0.15 (-15%)
-        cvrDropThreshold: number;           // default -0.15 (-15%)
-        volatilityThreshold: number;        // default 0.5 (50% coefficient of variation)
-        concentrationPct: number;           // default 0.8 (80%)
+        cpaSpikeThreshold: number;
+        roasDropThreshold: number;
+        cvrDropThreshold: number;
+        volatilityThreshold: number;
+        concentrationPct: number;
+    };
+
+    // Learning Phase Logic (New)
+    learning: {
+        unstableDays: number;       // default 3 (days since last edit)
+        explorationDays: number;    // default 4 (initial days)
+        exploitationMinConversions: number; // default 50
+    };
+
+    // Intent Engine Logic (New)
+    intent: {
+        bofuScoreThreshold: number; // default 0.65
+        mofuScoreThreshold: number; // default 0.35
+        volatilityPenalty: number;  // default 0.4 (40% penalty)
+        minImpressionsForPenalty: number; // default 2000
     };
 }
 
@@ -58,6 +73,17 @@ export function getDefaultEngineConfig(clientId: string): EngineConfig {
             cvrDropThreshold: -0.15,
             volatilityThreshold: 0.5,
             concentrationPct: 0.8
+        },
+        learning: {
+            unstableDays: 3,
+            explorationDays: 4,
+            exploitationMinConversions: 50
+        },
+        intent: {
+            bofuScoreThreshold: 0.65,
+            mofuScoreThreshold: 0.35,
+            volatilityPenalty: 0.6, // Multiplier (so 1 - 0.4 = 0.6)
+            minImpressionsForPenalty: 2000
         }
     };
 }

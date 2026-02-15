@@ -20,6 +20,8 @@ export class EngineConfigService {
             structure: { ...defaults.structure, ...data.structure },
             alerts: { ...defaults.alerts, ...data.alerts },
             findings: { ...defaults.findings, ...data.findings },
+            learning: { ...defaults.learning, ...data.learning },
+            intent: { ...defaults.intent, ...data.intent },
             updatedAt: data.updatedAt || defaults.updatedAt
         };
     }
