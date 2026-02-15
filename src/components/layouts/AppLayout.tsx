@@ -35,7 +35,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     }
 
     const isAdminRoute = pathname.startsWith("/admin");
-    const needsClient = pathname === "/dashboard" || pathname === "/findings" || pathname === "/report";
+    const needsClient = pathname === "/dashboard" || pathname === "/findings" || pathname === "/report" || pathname === "/ads-manager" || pathname === "/decision-board";
     const hasNoClient = needsClient && !selectedClientId && !clientLoading;
 
     return (

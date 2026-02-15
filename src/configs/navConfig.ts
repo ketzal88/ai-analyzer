@@ -8,10 +8,22 @@ export interface NavItem {
 
 export const navConfig: NavItem[] = [
     {
+        title: "Ads Manager",
+        subtitle: "Gestión operativa por niveles",
+        href: "/ads-manager",
+        icon: "M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
+    },
+    {
         title: "Panel de Control",
         subtitle: "Estado actual y comparación",
         href: "/dashboard",
         icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6",
+    },
+    {
+        title: "Decision Board",
+        subtitle: "Matriz de decisiones históricas",
+        href: "/decision-board",
+        icon: "M9 17v-2a4 4 0 00-4-4H3m18 0h-2a4 4 0 00-4 4v2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z",
     },
     {
         title: "Hallazgos",
@@ -30,6 +42,12 @@ export const navConfig: NavItem[] = [
         subtitle: "Análisis y librería de activos",
         href: "/creative",
         icon: "M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z",
+    },
+    {
+        title: "Conceptos",
+        subtitle: "Librería de conceptos y briefs",
+        href: "/concepts",
+        icon: "M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.675.337a4 4 0 00-1.547 5.47l.337.675a6 6 0 005.47 1.547l.675-.337a4 4 0 001.547-5.47l-.337-.675z",
     },
     {
         title: "Prompts IA",

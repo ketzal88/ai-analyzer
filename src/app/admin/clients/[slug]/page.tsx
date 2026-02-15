@@ -8,8 +8,8 @@ import { Client } from "@/types";
 /**
  * Mission 10: Edit Existing Client
  */
-export default function EditClientPage({ params }: { params: { slug: string } }) {
-    const { slug } = params;
+export default function EditClientPage({ params }: { params: Promise<{ slug: string }> }) {
+    const { slug } = React.use(params);
     const [client, setClient] = useState<Client | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);

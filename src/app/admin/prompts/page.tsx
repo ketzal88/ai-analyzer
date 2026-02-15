@@ -166,6 +166,12 @@ export default function AdminPrompts() {
                         >
                             Variaciones Copy
                         </button>
+                        <button
+                            onClick={() => setSelectedKey("concept_briefs_v1")}
+                            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${selectedKey === "concept_briefs_v1" ? "bg-classic text-white shadow-lg shadow-classic/20" : "text-text-muted hover:text-text-primary"}`}
+                        >
+                            Concept Briefs
+                        </button>
                     </div>
                 </header>
 
