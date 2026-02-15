@@ -5,7 +5,7 @@ export function runDiagnosticRules(
     currentStats: any,
     previousStats: any,
     campaignStats: any[], // { id, name, spend, purchases, purchaseValue, clicks, impressions }
-    allInsights: InsightDaily[],
+    allInsights: any[],
     currentDates: string[]
 ): DiagnosticFinding[] {
     const findings: DiagnosticFinding[] = [];
@@ -152,9 +152,17 @@ export function runDiagnosticRules(
     }
 
     // 8. VOLATILITY
+    // Adapt to support both InsightDaily (flat) and DailyEntitySnapshot (nested performance)
     const dailyCPAs = allInsights
-        .filter(i => currentDates.includes(i.date) && i.purchases > 0) // Only days with conversions
-        .map(i => i.spend / i.purchases);
+        .filter(i => {
+            const p = i.performance || i;
+            const purchases = p.purchases || 0;
+            return currentDates.includes(i.date) && purchases > 0;
+        })
+        .map(i => {
+            const p = i.performance || i;
+            return (p.spend || 0) / (p.purchases || 1);
+        });
 
     if (dailyCPAs.length > 3) {
         const mean = dailyCPAs.reduce((a, b) => a + b, 0) / dailyCPAs.length;

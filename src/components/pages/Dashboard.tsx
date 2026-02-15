@@ -134,6 +134,78 @@ export default function Dashboard({
                             <CockpitKPICard key={kpi.id} kpi={kpi} />
                         ))}
                     </div>
+
+                    {/* GEM Status Widget */}
+                    <div className="md:col-span-12">
+                        <div className="card p-6 bg-stellar/50">
+                            <h3 className="text-small font-black text-text-muted uppercase tracking-widest mb-4 flex items-center gap-2">
+                                <span className="text-synced">🧠</span> Estrategia IA (GEM Engine)
+                            </h3>
+                            {report.gemSummary ? (
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                    {/* Learning State */}
+                                    <div className="space-y-3 border-r border-argent/30 pr-0 md:pr-8 last:border-0">
+                                        <p className="text-[10px] font-bold text-text-secondary uppercase">Fase de Aprendizaje</p>
+                                        <div className="flex justify-between items-center text-small">
+                                            <span className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>Exploración</span>
+                                            <span className="font-mono font-bold text-text-primary">{report.gemSummary.learning.exploration}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-small">
+                                            <span className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-green-400"></span>Explotación</span>
+                                            <span className="font-mono font-bold text-text-primary">{report.gemSummary.learning.exploitation}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-small">
+                                            <span className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-yellow-400"></span>Inestable</span>
+                                            <span className="font-mono font-bold text-text-primary">{report.gemSummary.learning.unstable}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Intent Stage */}
+                                    <div className="space-y-3 border-r border-argent/30 pr-0 md:pr-8 last:border-0">
+                                        <p className="text-[10px] font-bold text-text-secondary uppercase">Distribución de Intención</p>
+                                        <div className="flex gap-1 h-3 rounded-full overflow-hidden bg-argent/20 mt-2 mb-3">
+                                            <div className="bg-purple-300 h-full" style={{ width: `${(report.gemSummary.intent.tofu / (report.gemSummary.intent.tofu + report.gemSummary.intent.mofu + report.gemSummary.intent.bofu || 1)) * 100}%` }}></div>
+                                            <div className="bg-purple-500 h-full" style={{ width: `${(report.gemSummary.intent.mofu / (report.gemSummary.intent.tofu + report.gemSummary.intent.mofu + report.gemSummary.intent.bofu || 1)) * 100}%` }}></div>
+                                            <div className="bg-purple-700 h-full" style={{ width: `${(report.gemSummary.intent.bofu / (report.gemSummary.intent.tofu + report.gemSummary.intent.mofu + report.gemSummary.intent.bofu || 1)) * 100}%` }}></div>
+                                        </div>
+                                        <div className="flex justify-between text-[10px] font-mono text-text-muted">
+                                            <span>TOFU ({report.gemSummary.intent.tofu})</span>
+                                            <span>MOFU ({report.gemSummary.intent.mofu})</span>
+                                            <span>BOFU ({report.gemSummary.intent.bofu})</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Decisions */}
+                                    <div className="space-y-3">
+                                        <p className="text-[10px] font-bold text-text-secondary uppercase">Acciones Recomendadas</p>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <div className="p-2 bg-synced/10 rounded flex flex-col hover:bg-synced/20 transition-colors">
+                                                <span className="text-[9px] font-black text-synced uppercase">Escalar</span>
+                                                <span className="text-lg font-black text-text-primary">{report.gemSummary.decisions.scale}</span>
+                                            </div>
+                                            <div className="p-2 bg-red-500/10 rounded flex flex-col hover:bg-red-500/20 transition-colors">
+                                                <span className="text-[9px] font-black text-red-500 uppercase">Apagar</span>
+                                                <span className="text-lg font-black text-text-primary">{report.gemSummary.decisions.kill}</span>
+                                            </div>
+                                            <div className="p-2 bg-yellow-500/10 rounded flex flex-col hover:bg-yellow-500/20 transition-colors">
+                                                <span className="text-[9px] font-black text-yellow-500 uppercase">Rotar</span>
+                                                <span className="text-lg font-black text-text-primary">{report.gemSummary.decisions.rotate}</span>
+                                            </div>
+                                            <div className="p-2 bg-blue-500/10 rounded flex flex-col hover:bg-blue-500/20 transition-colors">
+                                                <span className="text-[9px] font-black text-blue-500 uppercase">Mantener</span>
+                                                <span className="text-lg font-black text-text-primary">{report.gemSummary.decisions.hold}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="text-center py-6 text-text-muted text-small border border-dashed border-argent/50 rounded-xl">
+                                    <p>Recopilando inteligencia del motor...</p>
+                                    <p className="text-[10px] mt-1 opacity-60">Los datos aparecerán en el próximo análisis.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 </div>
 
                 {/* Priority Actions & Alerts */}
@@ -229,29 +301,28 @@ export default function Dashboard({
 }
 
 function CockpitKPICard({ kpi }: { kpi: AdvancedKPISummary }) {
-    const isUp = kpi.trend === "up";
-    const isNeutral = kpi.trend === "neutral";
-    // For cost metrics (CPA), Up is bad usually, but let's keep simple trend logic: Green if "good" direction?
-    // The previous implementation had simple Up/Down. Let's stick to consistent colors.
-    // Usually user defines "good". For now, CPA down is Green, ROAS up is Green.
+    const isPositive = kpi.delta >= 0;
+    const isGood = (kpi.id === "cpa" || kpi.id === "costPerLead") ? !isPositive : isPositive;
 
-    // Simplification: Color based on logic
-    let color = "text-text-muted";
-    if (kpi.id === "cpa" || kpi.id === "costPerLead") {
-        color = kpi.delta <= 0 ? "text-synced" : "text-red-400";
-    } else {
-        color = kpi.delta >= 0 ? "text-synced" : "text-red-400"; // Spend, ROAS, Revenue
-    }
+    // Color logic: "Good" = Synced (Green), "Bad" = Red, "Neutral" = Muted
+    const color = isGood ? "text-synced" : "text-red-400";
+    const bg = isGood ? "bg-synced/5" : "bg-red-500/5";
 
     return (
-        <div className="card p-5 hover:border-classic/30 transition-all">
-            <p className="text-[10px] font-black text-text-muted uppercase tracking-widest truncate">{kpi.label}</p>
-            <div className="flex items-end justify-between mt-2">
+        <div className={`card p-5 hover:border-classic/30 transition-all group ${bg}`}>
+            <div className="flex justify-between items-start mb-2">
+                <p className="text-[10px] font-black text-text-muted uppercase tracking-widest truncate">{kpi.label}</p>
+                <div className={`px-1.5 py-0.5 rounded text-[9px] font-black ${isGood ? "bg-synced/10 text-synced" : "bg-red-500/10 text-red-500"}`}>
+                    {isPositive ? "+" : ""}{kpi.delta.toFixed(1)}%
+                </div>
+            </div>
+
+            <div className="flex items-baseline gap-2">
                 <span className="text-2xl font-black text-text-primary">
                     {kpi.prefix}{typeof kpi.current === 'number' ? kpi.current.toLocaleString() : kpi.current}{kpi.suffix}
                 </span>
-                <span className={`text-[11px] font-black ${color} flex items-center`}>
-                    {kpi.delta > 0 ? "↑" : "↓"} {Math.abs(kpi.delta).toFixed(1)}%
+                <span className="text-[10px] text-text-muted font-medium">
+                    vs {kpi.prefix}{typeof kpi.previous === 'number' ? kpi.previous.toLocaleString() : kpi.previous}{kpi.suffix}
                 </span>
             </div>
         </div>

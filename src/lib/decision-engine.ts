@@ -104,7 +104,12 @@ export class DecisionEngine {
         const cpaInvNorm = norm(cpaInv, p.cpaInv.p10, p.cpaInv.p90);
         const ctrNorm = norm(ctr, p.ctr.p10, p.ctr.p90);
 
-        const score = (0.30 * fitrNorm) + (0.25 * convRateNorm) + (0.25 * cpaInvNorm) + (0.20 * ctrNorm);
+        let score = (0.30 * fitrNorm) + (0.25 * convRateNorm) + (0.25 * cpaInvNorm) + (0.20 * ctrNorm);
+
+        // Volatility Penalty for low data
+        if (snap.performance.impressions < 2000) {
+            score *= 0.6; // 40% penalty for low reliability
+        }
 
         let stage: IntentStage = "TOFU";
         if (score >= 0.65) stage = "BOFU";
@@ -118,16 +123,19 @@ export class DecisionEngine {
         config: EngineConfig,
         concept?: ConceptRollingMetrics
     ): FatigueState {
-        const { frequency_7d, cpa_7d, cpa_14d, hook_rate_delta_pct, spend_top1_ad_pct } = rolling.rolling;
+        const { frequency_7d, cpa_7d, cpa_14d, hook_rate_delta_pct, spend_7d } = rolling.rolling;
         const f = config.fatigue;
+
+        // Validation for significance
+        if ((spend_7d || 0) < 50) return "NONE";
 
         // Entity Level
         if (frequency_7d && frequency_7d > f.frequencyThreshold) {
             const cpaWorse = cpa_14d && cpa_14d > 0 ? (cpa_7d! > cpa_14d * f.cpaMultiplierThreshold) : false;
-            const hookDrop = (hook_rate_delta_pct || 0) < (f.hookRateDeltaThreshold * 100);
-            const highConcentration = (spend_top1_ad_pct || 0) > f.concentrationThreshold;
+            const threshold = -(Math.abs(f.hookRateDeltaThreshold) * 100);
+            const hookDrop = (hook_rate_delta_pct || 0) < threshold;
 
-            if (cpaWorse && hookDrop && highConcentration) return "REAL";
+            if (cpaWorse && hookDrop) return "REAL";
 
             // Nuance: Audience Saturation (High Freq + CPA Rising but Hook Rate Stable)
             if (frequency_7d > 3.0 && cpaWorse && !hookDrop) return "AUDIENCE_SATURATION";

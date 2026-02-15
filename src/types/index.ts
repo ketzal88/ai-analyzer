@@ -235,6 +235,12 @@ export interface AdvancedKPISummary {
     prefix?: string;
 }
 
+export interface GemSummary {
+    learning: { exploration: number; stabilizing: number; exploitation: number; unstable: number };
+    intent: { tofu: number; mofu: number; bofu: number };
+    decisions: { scale: number; hold: number; rotate: number; kill: number; consolidate: number };
+}
+
 export interface DashboardReport {
     id: string;
     clientId: string;
@@ -245,6 +251,7 @@ export interface DashboardReport {
     kpis: AdvancedKPISummary[];
     findings: DiagnosticFinding[];
     alerts: Alert[];
+    gemSummary?: GemSummary;
 }
 
 /**

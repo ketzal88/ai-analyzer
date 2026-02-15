@@ -84,13 +84,23 @@ export class PerformanceService {
                 "video_p100_watched_actions"
             ].join(",");
 
-            let nextUrl = `https://graph.facebook.com/${META_API_VERSION}/${cleanAdAccountId}/insights?level=${level}&time_increment=1&date_preset=${range}&fields=${fields}&limit=500&access_token=${META_ACCESS_TOKEN}`;
+            // 1. Filter: Spend > 0 to reduce payload and processing
+            const filtering = encodeURIComponent(JSON.stringify([
+                { field: "spend", operator: "GREATER_THAN", value: 0 }
+            ]));
+
+            let nextUrl = `https://graph.facebook.com/${META_API_VERSION}/${cleanAdAccountId}/insights?level=${level}&time_increment=1&date_preset=${range}&fields=${fields}&filtering=${filtering}&limit=500&access_token=${META_ACCESS_TOKEN}`;
             let pageCount = 0;
+            let totalLevelCount = 0;
+
+            console.log(`[Sync] Fetching ${level} data for ${clientId} (Spend > 0)...`);
 
             while (nextUrl && pageCount < 20) {
                 pageCount++;
                 const data = await this.fetchWithRetry(nextUrl);
                 const rawInsights = data.data || [];
+
+                if (rawInsights.length === 0) break;
 
                 const batch = db.batch();
                 let batchCount = 0;
@@ -99,9 +109,14 @@ export class PerformanceService {
                     const date = item.date_start;
                     const entityId = this.getEntityId(level, item);
                     const sanitizedEntityId = entityId.replace(/\//g, '_');
+                    // Optimization: Shorter doc ID
                     const docId = `${clientId}__${date}__${level}__${sanitizedEntityId}`;
 
                     const performance = this.mapPerformanceMetrics(item);
+
+                    // Safety check: Skip if somehow spend is 0 (though API filter should catch it)
+                    if (performance.spend === 0 && performance.impressions === 0) continue;
+
                     const meta = this.extractMetaInfo(level, item);
                     const name = item.ad_name || item.adset_name || item.campaign_name || item.account_name || "";
 
@@ -140,6 +155,7 @@ export class PerformanceService {
                     const docRef = db.collection("daily_entity_snapshots").doc(docId);
                     batch.set(docRef, snapshot, { merge: true });
                     results[level]++;
+                    totalLevelCount++;
                     batchCount++;
                 }
 
@@ -149,6 +165,7 @@ export class PerformanceService {
 
                 nextUrl = data.paging?.next || null;
             }
+            console.log(`[Sync] ${level} complete. Saved ${totalLevelCount} docs.`);
         }
 
         return results;

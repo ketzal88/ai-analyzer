@@ -172,18 +172,19 @@ export async function POST(request: NextRequest) {
             const qStart = ranges.compare.start;
             const qEnd = ranges.current.end;
 
-            const insightsSnapshot = await db.collection("insights_daily")
+            const insightsSnapshot = await db.collection("daily_entity_snapshots")
                 .where("clientId", "==", clientId)
+                .where("level", "==", "campaign")
                 .where("date", ">=", qStart)
                 .where("date", "<=", qEnd)
                 .orderBy("date", "asc")
                 .limit(5000)
                 .get();
 
-            const allInsights = insightsSnapshot.docs.map(doc => doc.data() as InsightDaily);
+            const allInsights = insightsSnapshot.docs.map(doc => doc.data() as any);
 
-            const curInsights = allInsights.filter(i => i.date >= ranges.current.start && i.date <= ranges.current.end);
-            const prevInsights = allInsights.filter(i => i.date >= ranges.compare.start && i.date <= ranges.compare.end);
+            const curInsights = allInsights.filter((i: any) => i.date >= ranges.current.start && i.date <= ranges.current.end);
+            const prevInsights = allInsights.filter((i: any) => i.date >= ranges.compare.start && i.date <= ranges.compare.end);
 
             const config: KPIConfig = clientData.kpiConfig || {
                 primaryConversionType: clientData.isEcommerce ? "purchase" : "lead",
@@ -192,14 +193,25 @@ export async function POST(request: NextRequest) {
                 timezone: clientData.timezone || "UTC"
             };
 
-            const aggregate = (data: InsightDaily[]) => {
+            const aggregate = (data: any[]) => {
                 return data.reduce((acc, curr: any) => {
-                    const getVal = (arr: any[], type: string) => Number(arr?.find((a: any) => a.action_type === type)?.value || 0);
-                    acc.spend += curr.spend || 0;
-                    acc.impressions += curr.impressions || 0;
-                    acc.clicks += curr.clicks || 0;
-                    acc.purchases += getVal(curr.rawActions, config.primaryConversionType);
-                    acc.purchaseValue += getVal(curr.rawActionValues, config.valueType);
+                    const p = curr.performance || {};
+                    acc.spend += p.spend || 0;
+                    acc.impressions += p.impressions || 0;
+                    acc.clicks += p.clicks || 0;
+
+                    // Dynamic mapping based on config
+                    if (config.primaryConversionType === 'purchase') {
+                        acc.purchases += (p.purchases || 0);
+                    } else if (config.primaryConversionType === 'lead') {
+                        acc.purchases += (p.leads || 0);
+                    } else if (config.primaryConversionType?.includes('messaging')) {
+                        acc.purchases += (p.whatsapp || 0);
+                    } else {
+                        acc.purchases += (p.purchases || 0);
+                    }
+
+                    acc.purchaseValue += (p.revenue || 0);
                     return acc;
                 }, { spend: 0, impressions: 0, clicks: 0, purchases: 0, purchaseValue: 0, whatsapp: 0 });
             };

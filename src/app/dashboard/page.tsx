@@ -48,7 +48,8 @@ export default function DashboardPage() {
                 kpis: snapshot.kpis,
                 config: snapshot.config,
                 findings: findingsRun?.findings || [],
-                alerts: alerts || []
+                alerts: alerts || [],
+                gemSummary: data.gemSummary
             };
             setReportInState(finalReport);
         } catch (err: any) {
