@@ -61,10 +61,17 @@ CRON_SECRET=...
 - **Intelligent Scoring**: Weighted formula (Spend, Impressions, Fatigue, Opportunity, Newness).
 - **Clustering**: Groups similar creatives by fingerprint to reduce AI analysis tokens by ~70-80%.
 
-### ✨ AI Insights (Audits & Variations)
-- **Audits**: Standardized JSON reports with `diagnosis`, `risks`, `actions`, and `score`.
-- **Variations**: Generates copy/concept variations based on performance goals.
-- **Robustness**: Integrated mappers handle inconsistent AI outputs and force JSON structure.
+### 🧠 Engine Configuration & Tuning (Feb 2026)
+- **Service**: `EngineConfigService` manages per-client analysis thresholds.
+- **Configurability**: Fatigue thresholds (Frequency, CPA Multiplier), Structure rules, Scaling speed, and Intent scoring parameters.
+- **Persistence**: Stored in `engine_configs` collection, linked by `clientId`.
+- **UI**: Integrated in Client Management for real-time algorithm tuning.
+
+### 🔔 Alert Engine & Slack Service
+- **AlertEngine**: Evaluates 10+ signals (Scaling, Bleeding, Fatigue, etc.) every hour.
+- **SlackService**: Routes notifications to specific public/internal channels per client.
+- **Templates**: Fully customizable title and message bodies per alert type, supporting dynamic variables like `{entityName}` and `{targetCpa}`.
+- **Daily Digest**: A formatted "Month-to-Date" (Acumulado Mes) report sent every morning via Slack.
 
 ---
 
@@ -72,21 +79,22 @@ CRON_SECRET=...
 - **Tokens**: Centralized in `src/lib/design-tokens.ts`.
 - **Colors**: `stellar` (bg), `special` (card), `classic` (blue accent), `synced` (green status).
 - **Typography**: Inter (UI), JetBrains Mono (Data).
+- **AI Handbook**: In-app academy (`/academy/alerts`) explaining alert logic with visual Slack mockups.
 
 ---
 
 ## 📜 5. Historical Milestones (Condensed)
-The project evolved through a series of "Misiones":
-- **Misión 4-10**: Core UI implementation, account selector, and Firebase integration.
-- **Misión 11-13**: Initial AI report experiments and error handling.
-- **AG-41**: Implementation of the Meta Creative Library Sync.
-- **AG-42**: Development of the KPI Snapshot & Intelligent Scoring engine.
-- **AG-44**: Launch of the Creative Intelligence UI (Grid/Filter/Clustering labels).
-- **Feb 2026 Refinement**: Standardized AI output schemas and robust JSON parsing to handle inconsistent Gemini responses.
+- **AG-41/42/44**: Creative Library, KPI Scoring, and Intelligence UI.
+- **EngineConfig Migration**: Refactored static thresholds into a per-client configurable system to support different business models (E-commerce vs Lead Gen).
+- **Slack V1**: Added individual alert routing and month-to-date daily reporting.
 
 ---
 
 ## 📖 6. Usage & Maintenance
-- **Manual Sync**: `POST /api/cron/sync-creatives?clientId=...` (Requires `CRON_SECRET`).
-- **Cleaning Cache**: Delete documents from `creative_ai_reports` or `creative_kpi_snapshots` to force regeneration.
-- **Testing**: Use `npm run build` to verify types and structure before deployment.
+- **Cron Jobs**:
+  - Creative Sync: `/api/cron/sync-creatives`
+  - Data Sync (Aggregations): `/api/cron/data-sync`
+  - Daily Digest (Alerts + Snapshots): `/api/cron/daily-digest` (Runs daily @ 9 AM)
+- **Manual Sync**: Trigger via `POST` with `clientId` and `Authorization: Bearer <CRON_SECRET>`.
+- **Cleaning Cache**: Delete documents from `entity_rolling_metrics` or `daily_entity_snapshots` to force data refresh.
+- **Testing**: Use `npm run build` or `scripts/simulate-monday-remaining.ts` for local dry-runs.
