@@ -39,18 +39,21 @@ export async function POST(request: NextRequest) {
         await auth.verifySessionCookie(sessionCookie);
 
         const body = await request.json();
-        const { name, slug, isEcommerce, isGoogle } = body;
+        const { name, slug } = body;
 
         if (!name || !slug) {
             return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
         }
 
+        // Check for existing slug
+        const existing = await db.collection("clients").where("slug", "==", slug).limit(1).get();
+        if (!existing.empty) {
+            return NextResponse.json({ error: "A client with this slug already exists." }, { status: 400 });
+        }
+
         const newClient = {
-            name,
-            slug,
-            active: true,
-            isEcommerce: !!isEcommerce,
-            isGoogle: !!isGoogle,
+            ...body,
+            active: body.active ?? true,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
         };

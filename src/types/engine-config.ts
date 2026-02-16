@@ -52,6 +52,9 @@ export interface EngineConfig {
         title: string;
         description: string;
     }>;
+
+    // Daily Digest Template
+    dailySnapshotTitle: string;
 }
 
 export function getDefaultEngineConfig(clientId: string): EngineConfig {
@@ -132,6 +135,7 @@ export function getDefaultEngineConfig(clientId: string): EngineConfig {
                 title: "Refuerzo de Conversión (BOFU): {entityName}",
                 description: "Añade variantes con ofertas directas o escasez para este ganador."
             }
-        }
+        },
+        dailySnapshotTitle: "Reporte Acumulado Mes — {clientName}"
     };
 }

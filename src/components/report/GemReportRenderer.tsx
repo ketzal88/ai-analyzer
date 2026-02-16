@@ -46,7 +46,7 @@ export default function GemReportRenderer({ report }: GemReportRendererProps) {
                         key={section.id}
                         onClick={() => setActiveSectionId(section.id)}
                         className={`px-4 py-2 rounded-lg text-small font-bold transition-all whitespace-nowrap ${activeSectionId === section.id
-                            ? "bg-classic text-white shadow-lg shadow-classic/20"
+                            ? "bg-classic text-special"
                             : "bg-argent/10 text-text-muted hover:bg-argent/20"
                             }`}
                     >

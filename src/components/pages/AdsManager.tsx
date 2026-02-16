@@ -199,7 +199,7 @@ export default function AdsManager() {
                                 <button
                                     key={l}
                                     onClick={() => setLevel(l)}
-                                    className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${level === l ? 'bg-classic text-white shadow-[0_8px_20px_-5px_rgba(var(--classic-rgb),0.4)] scale-[1.05]' : 'text-text-muted hover:text-text-primary hover:bg-argent/10'}`}
+                                    className={`px-6 py-2.5 text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${level === l ? 'bg-classic text-special scale-[1.05]' : 'text-text-muted hover:text-text-primary hover:bg-argent/10'}`}
                                 >
                                     {l === 'ad' ? 'Anuncios' : l === 'adset' ? 'Conjuntos' : l === 'campaign' ? 'Campañas' : 'Cuenta'}
                                 </button>
@@ -434,7 +434,7 @@ export default function AdsManager() {
                             <header className="p-10 border-b border-argent/20 bg-special/40 flex justify-between items-start">
                                 <div className="space-y-4">
                                     <div className="flex items-center gap-3">
-                                        <span className="px-3 py-1 bg-classic text-white text-[9px] font-black rounded-full uppercase tracking-[0.2em] shadow-lg">{level}</span>
+                                        <span className="px-3 py-1 bg-classic text-special text-[9px] font-black uppercase tracking-[0.2em]">{level}</span>
                                         <span className="text-[10px] font-black text-text-muted uppercase tracking-widest">Diagnóstico Operativo</span>
                                     </div>
                                     <div>
@@ -558,7 +558,7 @@ export default function AdsManager() {
                                     <button
                                         onClick={generateRecommendation}
                                         disabled={isGenerating}
-                                        className="w-full bg-white text-black hover:bg-classic hover:text-white font-black py-6 rounded-3xl uppercase tracking-[0.3em] transition-all duration-500 ease-in-out flex items-center justify-center gap-6 group shadow-2xl hover:shadow-classic/40 disabled:opacity-50"
+                                        className="w-full bg-second text-text-primary hover:bg-classic hover:text-special font-black py-6 uppercase tracking-[0.3em] transition-all duration-500 ease-in-out flex items-center justify-center gap-6 group hover:shadow-classic/40 disabled:opacity-50"
                                     >
                                         {isGenerating ? (
                                             <div className="w-6 h-6 border-2 border-black border-t-transparent rounded-full animate-spin group-hover:border-white group-hover:border-t-transparent" />
@@ -578,7 +578,7 @@ export default function AdsManager() {
                                             <div className="space-y-4">
                                                 {recommendation.actions?.map((act, i) => (
                                                     <div key={i} className="flex gap-5 p-5 bg-white/[0.03] rounded-2xl border border-argent/10 group/item hover:border-classic/40 transition-all">
-                                                        <span className="flex-shrink-0 w-8 h-8 rounded-lg bg-argent/20 border border-argent/20 shadow-sm flex items-center justify-center text-[10px] font-black text-text-secondary group-hover/item:bg-classic group-hover/item:text-white transition-colors">0{i + 1}</span>
+                                                        <span className="flex-shrink-0 w-8 h-8 bg-argent/20 border border-argent/20 flex items-center justify-center text-[10px] font-black text-text-secondary group-hover/item:bg-classic group-hover/item:text-special transition-colors">0{i + 1}</span>
                                                         <p className="text-small font-bold text-text-primary leading-relaxed pt-1">{act}</p>
                                                     </div>
                                                 ))}
@@ -664,10 +664,10 @@ function DecisionTag({ decision, confidence }: { decision?: FinalDecision, confi
         HOLD: "MANTENER"
     };
     const styles = {
-        SCALE: "bg-synced shadow-synced/30 text-white",
+        SCALE: "bg-synced shadow-synced/30 text-stellar",
         ROTATE_CONCEPT: "bg-red-500 shadow-red-500/30 text-white",
         CONSOLIDATE: "bg-yellow-500 shadow-yellow-500/30 text-black",
-        INTRODUCE_BOFU_VARIANTS: "bg-classic shadow-classic/30 text-white",
+        INTRODUCE_BOFU_VARIANTS: "bg-classic shadow-classic/30 text-special",
         KILL_RETRY: "bg-red-900 shadow-red-900/40 text-white",
         HOLD: "bg-argent/20 text-text-muted"
     };

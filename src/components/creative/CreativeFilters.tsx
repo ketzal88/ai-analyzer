@@ -109,7 +109,7 @@ export default function CreativeFilters({
                             <button
                                 key={r}
                                 onClick={() => onRangeChange(r)}
-                                className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${range === r ? "bg-classic text-white shadow-md shadow-classic/20" : "text-text-muted hover:text-text-secondary"
+                                className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${range === r ? "bg-classic text-special" : "text-text-muted hover:text-text-secondary"
                                     }`}
                             >
                                 {r.replace("last_", "").toUpperCase()}

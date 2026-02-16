@@ -197,32 +197,32 @@ export default function AdminPrompts() {
                     <div className="grid grid-cols-2 sm:flex bg-special border border-argent p-1 rounded-xl">
                         <button
                             onClick={() => setSelectedKey("report")}
-                            className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${selectedKey === "report" ? "bg-classic text-white shadow-lg shadow-classic/20" : "text-text-muted hover:text-text-primary"}`}
+                            className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${selectedKey === "report" ? "bg-classic text-special" : "text-text-muted hover:text-text-primary"}`}
                         >
                             Reporte
                         </button>
                         <button
                             onClick={() => setSelectedKey("creative-audit")}
-                            className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${selectedKey === "creative-audit" ? "bg-classic text-white shadow-lg shadow-classic/20" : "text-text-muted hover:text-text-primary"}`}
+                            className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${selectedKey === "creative-audit" ? "bg-classic text-special" : "text-text-muted hover:text-text-primary"}`}
                         >
                             Auditoría
                         </button>
                         <button
                             onClick={() => setSelectedKey("creative-variations")}
-                            className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${selectedKey === "creative-variations" ? "bg-classic text-white shadow-lg shadow-classic/20" : "text-text-muted hover:text-text-primary"}`}
+                            className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${selectedKey === "creative-variations" ? "bg-classic text-special" : "text-text-muted hover:text-text-primary"}`}
                         >
                             Ads Copy
                         </button>
                         <button
                             onClick={() => setSelectedKey("concept_briefs_v1")}
-                            className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${selectedKey === "concept_briefs_v1" ? "bg-classic text-white shadow-lg shadow-classic/20" : "text-text-muted hover:text-text-primary"}`}
+                            className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${selectedKey === "concept_briefs_v1" ? "bg-classic text-special" : "text-text-muted hover:text-text-primary"}`}
                         >
                             Briefs
                         </button>
                         <div className="w-px bg-argent mx-1 hidden sm:block" />
                         <button
                             onClick={() => setSelectedKey("logic")}
-                            className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${selectedKey === "logic" ? "bg-synced/80 text-white shadow-lg shadow-synced/20" : "text-text-muted hover:text-text-primary"}`}
+                            className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${selectedKey === "logic" ? "bg-synced/80 text-stellar" : "text-text-muted hover:text-text-primary"}`}
                         >
                             ⚡ Lógica GEM
                         </button>
@@ -345,7 +345,7 @@ export default function AdminPrompts() {
                                             <button
                                                 onClick={() => handleActivate(selectedPrompt.id)}
                                                 disabled={isActionLoading}
-                                                className="px-4 py-2 bg-synced text-white rounded-lg text-[10px] font-black uppercase shadow-md shadow-synced/20"
+                                                className="px-4 py-2 bg-synced text-stellar text-[10px] font-black uppercase"
                                             >
                                                 Promover a Activo
                                             </button>

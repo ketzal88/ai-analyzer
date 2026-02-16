@@ -112,7 +112,7 @@ export class SlackService {
         metadata?: Record<string, any>;
     }) {
         const botToken = process.env.SLACK_BOT_TOKEN;
-        const errorChannel = process.env.SLACK_ERROR_CHANNEL;
+        const errorChannel = process.env.SLACK_ERROR_CHANNEL_ID || process.env.SLACK_ERROR_CHANNEL;
 
         if (!botToken || !errorChannel) {
             console.error(`[SlackError] ${opts.source}: ${opts.message}`);
@@ -199,7 +199,8 @@ export class SlackService {
         clientId: string,
         clientName: string,
         dateRange: SnapshotDateRange,
-        kpis: DailySnapshotKPIs
+        kpis: DailySnapshotKPIs,
+        titleTemplate?: string
     ) {
         const { client, channel, botToken, webhook } = await this.resolveChannel(clientId);
 
@@ -213,8 +214,13 @@ export class SlackService {
         const hasWhatsapp = kpis.whatsapp > 0;
 
         // ── Build mrkdwn text (simpler, like the user's example) ──
+        let title = titleTemplate || `📊 *Reporte Acumulado Mes — {clientName}* (del {startDate} al {endDate})`;
+        title = title
+            .replace(/{clientName}/g, clientName)
+            .replace(/{startDate}/g, dateRange.start)
+            .replace(/{endDate}/g, dateRange.end);
 
-        let text = `📊 *Reporte de ${clientName} de Meta del ${dateRange.start} al ${dateRange.end}*\n\n`;
+        let text = `${title}\n\n`;
 
         // Gastos y Tráfico
         text += `💰 *Gastos y Tráfico*\n`;
