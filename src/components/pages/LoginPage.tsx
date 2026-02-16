@@ -54,7 +54,7 @@ export default function LoginPage() {
 
                     {/* Error Message */}
                     {error && (
-                        <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+                        <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20" style={{ borderRadius: 0 }}>
                             <p className="text-body text-red-400">{error}</p>
                         </div>
                     )}
@@ -63,7 +63,8 @@ export default function LoginPage() {
                     <button
                         onClick={handleGoogleSignIn}
                         disabled={loading}
-                        className="w-full bg-white text-gray-900 px-6 py-3 rounded-lg font-medium hover:bg-gray-100 transition-all duration-200 flex items-center justify-center gap-3 mb-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full bg-argent/20 text-text-primary px-6 py-3 border border-argent hover:border-classic transition-all duration-200 flex items-center justify-center gap-3 mb-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                        style={{ borderRadius: 0, letterSpacing: '1px' }}
                     >
                         <svg className="w-5 h-5" viewBox="0 0 24 24">
                             <path

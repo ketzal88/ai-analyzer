@@ -10,10 +10,19 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
             {/* Header */}
             <header className="px-6 py-4">
                 <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 bg-classic rounded flex items-center justify-center">
-                        <span className="text-white text-sm font-bold">M</span>
+                    {/* Square logo mark — yellow fill, dark letter */}
+                    <div
+                        className="w-7 h-7 flex items-center justify-center flex-shrink-0"
+                        style={{ backgroundColor: '#FACC15' }}
+                    >
+                        <span className="text-sm font-bold" style={{ color: '#0F0F10' }}>M</span>
                     </div>
-                    <span className="text-text-primary font-semibold">Diagnostic Tool</span>
+                    <span
+                        className="text-text-primary font-bold text-[12px] uppercase"
+                        style={{ letterSpacing: '2px' }}
+                    >
+                        DIAGNOSTIC TOOL
+                    </span>
                 </div>
             </header>
 
@@ -23,12 +32,13 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
             </main>
 
             {/* Footer */}
-            <footer className="px-6 py-4 flex items-center justify-between text-small text-text-muted">
+            <footer className="px-6 py-4 flex items-center justify-between text-[10px] text-text-muted font-bold uppercase" style={{ letterSpacing: '1px' }}>
                 <span>V3.0.0-250411</span>
                 <div className="flex items-center gap-2">
-                    <span>Diagnostic Status: US-EAST-1</span>
-                    <div className="w-2 h-2 bg-synced rounded-full"></div>
-                    <span className="text-synced">Operational</span>
+                    <span>DIAGNOSTIC STATUS: US-EAST-1</span>
+                    {/* Square status indicator — no rounded-full */}
+                    <div className="w-2 h-2 bg-synced" style={{ borderRadius: 0 }} />
+                    <span className="text-synced">OPERATIONAL</span>
                 </div>
             </footer>
         </div>

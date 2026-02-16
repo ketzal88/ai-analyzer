@@ -141,7 +141,7 @@ export default function CreativeDetailPage() {
                                 disabled={isAnalyzing}
                                 className={`px-6 py-3 rounded-xl font-black text-[12px] uppercase tracking-widest transition-all ${isAnalyzing
                                     ? "bg-stellar text-text-muted cursor-not-allowed"
-                                    : "bg-classic text-white hover:shadow-lg hover:shadow-classic/20 active:scale-95 flex items-center gap-2"
+                                    : "bg-classic text-special hover:brightness-110 active:scale-95 flex items-center gap-2"
                                     }`}
                             >
                                 {isAnalyzing ? (
@@ -229,7 +229,7 @@ export default function CreativeDetailPage() {
                                 </p>
                                 <button
                                     onClick={runAnalysis}
-                                    className="px-6 py-2 bg-text-primary text-black font-black text-[10px] uppercase tracking-widest rounded-lg hover:bg-classic hover:text-white transition-all"
+                                    className="px-6 py-2 bg-text-primary text-black font-black text-[10px] uppercase tracking-widest hover:bg-classic hover:text-special transition-all"
                                 >
                                     Analizar ahora
                                 </button>

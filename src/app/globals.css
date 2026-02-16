@@ -3,45 +3,98 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --font-sans: var(--font-space-grotesk), system-ui, sans-serif;
+    --font-mono: var(--font-jetbrains-mono), monospace;
+  }
+
   * {
     @apply border-argent;
   }
-  
+
   body {
     @apply bg-stellar text-text-primary antialiased;
+    font-family: var(--font-mono);
   }
 
-  input {
-    @apply bg-second border border-argent rounded-lg px-4 py-3 text-body text-text-primary placeholder:text-text-muted focus:outline-none focus:border-classic transition-colors;
+  /* Space Grotesk for display headings */
+  h1, h2, h3 {
+    font-family: var(--font-sans);
+    @apply font-bold;
+  }
+
+  /* Loading spinners stay circular — functional exception to zero-radius rule */
+  .animate-spin {
+    border-radius: 9999px !important;
+  }
+
+  input, select, textarea {
+    @apply bg-second border border-argent px-4 py-3 text-body text-text-primary
+           placeholder:text-text-muted focus:outline-none focus:border-classic transition-colors;
+    border-radius: 0;
+    font-family: var(--font-mono);
   }
 
   button {
-    @apply rounded-lg font-medium transition-all duration-200;
+    @apply font-bold transition-all duration-200 uppercase;
+    border-radius: 0;
+    font-family: var(--font-mono);
+    letter-spacing: 1px;
   }
 }
 
 @layer components {
+  /* Primary button: vivid yellow fill, dark text */
   .btn-primary {
-    @apply bg-classic text-white px-6 py-3 hover:bg-blue-600 active:scale-95;
+    @apply px-6 py-3 font-bold active:scale-95;
+    background-color: #FACC15;
+    color: #0F0F10;
+    border-radius: 0;
   }
 
+  .btn-primary:hover {
+    filter: brightness(1.1);
+  }
+
+  /* Secondary button: outlined, no fill */
   .btn-secondary {
-    @apply bg-second text-text-primary px-6 py-3 border border-argent hover:bg-argent active:scale-95;
+    @apply bg-transparent text-text-secondary px-6 py-3 border border-argent
+           hover:border-classic hover:text-text-primary active:scale-95;
+    border-radius: 0;
   }
 
+  /* Card: deep near-black bg, 1px sharp border */
   .card {
-    @apply bg-second border border-argent rounded-xl p-6;
+    @apply bg-special border border-argent p-6;
+    border-radius: 0;
   }
 
+  /* Status badge: text-only, no background, uppercase with tracking */
   .status-badge {
-    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-small font-medium;
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 text-small font-bold uppercase;
+    letter-spacing: 1px;
+    border-radius: 0;
   }
 
+  /* OK status: green text only */
   .status-synced {
-    @apply bg-synced/10 text-synced;
+    @apply text-synced;
   }
 
+  /* WAIT status: yellow text only */
   .status-sync-required {
-    @apply bg-sync-required/10 text-sync-required;
+    @apply text-sync-required;
+  }
+
+  /* Left accent bar utility for active states */
+  .accent-left {
+    border-left: 1px solid #FACC15;
+  }
+
+  /* Monospace label utility: uppercase + tracking */
+  .label-mono {
+    @apply text-small font-bold uppercase;
+    font-family: var(--font-mono);
+    letter-spacing: 1px;
   }
 }

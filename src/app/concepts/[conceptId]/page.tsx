@@ -127,7 +127,7 @@ export default function ConceptDetail() {
                                 </div>
                                 <button
                                     onClick={generateBrief}
-                                    className="bg-classic text-white font-black px-10 py-5 rounded-2xl uppercase tracking-widest hover:scale-105 transition-all text-small shadow-lg"
+                                    className="bg-classic text-special font-black px-10 py-5 uppercase tracking-widest hover:scale-105 transition-all text-small"
                                 >
                                     Generar Ahora
                                 </button>

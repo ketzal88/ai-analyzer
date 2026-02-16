@@ -37,7 +37,7 @@ export default function CreativeCard({ creative, range }: CreativeCardProps) {
 
                 {/* Cluster Badge */}
                 {cluster && cluster.size > 1 && (
-                    <div className="absolute top-3 right-3 px-2 py-1 bg-classic rounded text-[10px] font-bold text-white shadow-lg border border-white/20">
+                    <div className="absolute top-3 right-3 px-2 py-1 bg-classic text-[10px] font-bold text-special border border-argent/20">
                         {cluster.size} COPIAS
                     </div>
                 )}
@@ -123,7 +123,7 @@ export default function CreativeCard({ creative, range }: CreativeCardProps) {
                 {/* Action Button */}
                 <Link
                     href={`/creative/${creative.adId}?range=${range}`}
-                    className="w-full mt-4 py-2 border border-argent rounded-lg text-[11px] font-bold uppercase tracking-widest text-text-secondary hover:bg-classic hover:text-white hover:border-classic transition-all duration-200 text-center block"
+                    className="w-full mt-4 py-2 border border-argent text-[11px] font-bold uppercase tracking-widest text-text-secondary hover:bg-classic hover:text-special hover:border-classic transition-all duration-200 text-center block"
                 >
                     Ver Detalle
                 </Link>

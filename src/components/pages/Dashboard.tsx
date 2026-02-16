@@ -257,7 +257,7 @@ export default function Dashboard({
                                         <div className="flex justify-between items-start">
                                             <div>
                                                 <div className="flex items-center gap-2 mb-1">
-                                                    <span className="bg-synced text-white text-[9px] font-black px-1.5 py-0.5 rounded uppercase">Escalar</span>
+                                                    <span className="bg-synced text-stellar text-[9px] font-black px-1.5 py-0.5 uppercase">ESCALAR</span>
                                                     <span className="text-small font-black text-text-primary">{op.title}</span>
                                                 </div>
                                                 <p className="text-[11px] text-text-secondary">{op.description}</p>

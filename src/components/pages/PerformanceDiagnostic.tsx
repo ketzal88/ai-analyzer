@@ -188,7 +188,7 @@ export default function PerformanceDiagnostic() {
                                     {cl && cl.finalDecision !== "HOLD" && (
                                         <button
                                             onClick={() => handleTakeAction(ad.entityId, ad.level, cl.finalDecision)}
-                                            className="mt-6 w-full bg-classic hover:bg-classic-dark text-white text-[11px] font-black py-2.5 rounded-lg uppercase tracking-widest transition-all"
+                                            className="mt-6 w-full bg-classic text-special text-[11px] font-black py-2.5 uppercase tracking-widest transition-all hover:brightness-110"
                                         >
                                             Tomar Acción
                                         </button>
@@ -209,7 +209,7 @@ export default function PerformanceDiagnostic() {
                                             <span className="text-[10px] font-black text-text-muted uppercase tracking-widest">GEM Playbook</span>
                                             <h2 className="text-display font-black text-text-primary uppercase leading-tight">Acción Estratégica</h2>
                                             <div className="mt-2">
-                                                <span className={`text-[12px] font-black px-3 py-1 rounded bg-classic text-white`}>
+                                                <span className={`text-[12px] font-black px-3 py-1 bg-classic text-special`}>
                                                     {selectedEntity?.decision}
                                                 </span>
                                             </div>
@@ -342,10 +342,10 @@ function DecisionBadge({ classification }: { classification?: EntityClassificati
     const decision = classification?.finalDecision || "HOLD";
 
     const styles: Record<FinalDecision, string> = {
-        SCALE: "bg-synced text-white",
+        SCALE: "bg-synced text-stellar",
         ROTATE_CONCEPT: "bg-red-500 text-white",
         CONSOLIDATE: "bg-yellow-500 text-white",
-        INTRODUCE_BOFU_VARIANTS: "bg-classic text-white",
+        INTRODUCE_BOFU_VARIANTS: "bg-classic text-special",
         KILL_RETRY: "bg-red-800 text-white",
         HOLD: "bg-argent text-text-secondary"
     };

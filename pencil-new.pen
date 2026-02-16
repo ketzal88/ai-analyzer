@@ -1,0 +1,16 @@
+{
+  "version": "2.8",
+  "children": [
+    {
+      "type": "text",
+      "id": "oXEAp",
+      "x": 0,
+      "y": 1,
+      "fill": "#000000",
+      "content": "Use style guide with name webapp-1-industrialtechnical",
+      "fontFamily": "Inter",
+      "fontSize": 12,
+      "fontWeight": "normal"
+    }
+  ]
+}

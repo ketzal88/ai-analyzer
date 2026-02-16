@@ -146,7 +146,7 @@ export default function CreativeVariationsDrawer({ isOpen, onClose, clientId, ad
 
                             <button
                                 onClick={handleGenerate}
-                                className="w-full py-4 bg-classic text-white font-black uppercase tracking-widest rounded-xl hover:shadow-lg hover:shadow-classic/20 transition-all active:scale-[0.98]"
+                                className="w-full py-4 bg-classic text-special font-black uppercase tracking-widest transition-all active:scale-[0.98] hover:brightness-110"
                             >
                                 Generar Variaciones con GEM ✨
                             </button>

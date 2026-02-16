@@ -204,7 +204,7 @@ export default function AccountSelector() {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                                 </svg>
                             </button>
-                            <button className="w-8 h-8 bg-classic text-white rounded font-medium">1</button>
+                            <button className="w-8 h-8 bg-classic text-special font-medium" style={{ borderRadius: 0 }}>1</button>
                             <button className="w-8 h-8 bg-second border border-argent rounded hover:bg-argent transition-colors text-text-primary font-medium">
                                 2
                             </button>
