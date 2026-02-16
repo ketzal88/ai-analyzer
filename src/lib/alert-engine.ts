@@ -41,7 +41,7 @@ export class AlertEngine {
                     .where("clientId", "==", clientId)
                     .where("date", "==", latestDate)
                     .get();
-                console.log(`AlertEngine using latest available date: ${latestDate}`);
+                console.log(`[AlertEngine] Today's data not available yet, using latest: ${latestDate}`);
             }
         }
 

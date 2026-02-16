@@ -31,8 +31,8 @@ export async function GET(request: NextRequest) {
 
             try {
                 console.log(`[Cron Data Sync] Syncing ${clientId}...`);
-                // 1. Sync last 7 days of data to capture delayed attribution
-                await PerformanceService.syncAllLevels(clientId, client.metaAdAccountId, "last_7d");
+                // 1. Sync the current month to ensure completeness and capture attributions
+                await PerformanceService.syncAllLevels(clientId, client.metaAdAccountId, "this_month");
 
                 // 2. Update rolling metrics
                 await PerformanceService.updateRollingMetrics(clientId);

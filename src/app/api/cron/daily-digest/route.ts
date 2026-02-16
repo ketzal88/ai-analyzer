@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebase-admin";
 import { SlackService } from "@/lib/slack-service";
 import { AlertEngine } from "@/lib/alert-engine";
+import { EngineConfigService } from "@/lib/engine-config-service";
 import { EntityRollingMetrics } from "@/types/performance-snapshots";
 import { Client, Alert } from "@/types";
 import { reportError } from "@/lib/error-reporter";
@@ -43,6 +44,8 @@ export async function GET(request: NextRequest) {
             const clientId = clientDoc.id;
 
             try {
+                const config = await EngineConfigService.getEngineConfig(clientId);
+
                 // ── 1. DAILY SNAPSHOT ─────────────────────────
 
                 let snapshotSent = false;
@@ -79,10 +82,9 @@ export async function GET(request: NextRequest) {
                     // Try to enrich with daily snapshot aggregation for ATC/Checkout/Leads
                     try {
                         const today = new Date();
-                        const sevenDaysAgo = new Date(today);
-                        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+                        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
-                        const startDate = sevenDaysAgo.toISOString().split("T")[0];
+                        const startDate = startOfMonth.toISOString().split("T")[0];
                         const endDate = today.toISOString().split("T")[0];
 
                         const dailySnaps = await db.collection("daily_entity_snapshots")
@@ -93,34 +95,30 @@ export async function GET(request: NextRequest) {
                             .get();
 
                         if (!dailySnaps.empty) {
+                            // Calculate total spend for the month to pass to enrichment
+                            const totalMonthSpend = dailySnaps.docs.reduce((sum, d) => sum + (d.data().performance?.spend || 0), 0);
+
                             const enriched = SlackService.buildSnapshotFromDailyAggregation(
                                 dailySnaps.docs.map(d => d.data() as any),
-                                kpis.spend
+                                totalMonthSpend
                             );
-                            // Merge enriched data (ATC, Checkout, Leads, WhatsApp)
-                            kpis.addToCart = enriched.addToCart;
-                            kpis.addToCartValue = enriched.addToCartValue;
-                            kpis.costPerAddToCart = enriched.costPerAddToCart;
-                            kpis.checkout = enriched.checkout;
-                            kpis.checkoutValue = enriched.checkoutValue;
-                            kpis.costPerCheckout = enriched.costPerCheckout;
-                            kpis.leads = enriched.leads;
-                            kpis.costPerLead = enriched.costPerLead;
-                            kpis.whatsapp = enriched.whatsapp;
-                            kpis.costPerWhatsapp = enriched.costPerWhatsapp;
+
+                            // Replace kpis with monthly aggregation
+                            Object.assign(kpis, enriched);
                         }
                     } catch (enrichError) {
                         console.warn(`[Daily Digest] Could not enrich KPIs for ${clientId}:`, enrichError);
                     }
 
+                    const todayStr = new Date().toISOString().split("T")[0];
+                    const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0];
+
                     const dateRange = {
-                        start: rolling.lastUpdate
-                            ? new Date(new Date(rolling.lastUpdate).getTime() - 6 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
-                            : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-                        end: rolling.lastUpdate || new Date().toISOString().split("T")[0]
+                        start: startOfMonth,
+                        end: todayStr
                     };
 
-                    await SlackService.sendDailySnapshot(clientId, client.name, dateRange, kpis);
+                    await SlackService.sendDailySnapshot(clientId, client.name, dateRange, kpis, config.dailySnapshotTitle); // Passed dailySnapshotTitle
                     snapshotSent = true;
                 }
 

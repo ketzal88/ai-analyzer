@@ -1,3 +1,4 @@
+export { };
 
 const CRON_SECRET = "your_random_secret_string_here";
 const BASE_URL = "http://localhost:3000";

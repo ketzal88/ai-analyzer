@@ -113,22 +113,30 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
 
             // Save Engine Config
             if (configData && clientId) {
-                await fetch(`/api/clients/${clientId}/engine-config`, {
+                const configRes = await fetch(`/api/clients/${clientId}/engine-config`, {
                     method: "PATCH",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(configData)
                 });
+
+                if (!configRes.ok) {
+                    const configError = await configRes.json();
+                    throw new Error(`Client saved, but Engine Config failed: ${configError.error || 'Server error'}`);
+                }
             }
 
             setSuccess(true);
             setTimeout(() => {
                 router.push("/admin/clients");
                 router.refresh();
-            }, 1500);
+            }, 1000);
         } catch (err: any) {
+            console.error("Submission error:", err);
             setError(err.message);
+            setLoading(false); // Ensure loading stops
         } finally {
-            setLoading(false);
+            // Loading is set to false in catch or after successful redirect/success state
+            // But we'll keep the button disabled until redirect
         }
     };
 
@@ -548,6 +556,87 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
                                     className="w-full bg-stellar border border-argent p-1 text-small rounded outline-none focus:border-classic"
                                 />
                             </div>
+                        </div>
+                    </div>
+
+                    {/* Slack Alert Templates Editor */}
+                    <div className="space-y-6 pt-6 border-t border-argent">
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-subheader text-text-primary">Slack Alert Templates</h2>
+                            <div className="flex gap-2">
+                                <span className="text-[10px] text-text-muted font-bold bg-special border border-argent px-2 py-1 rounded">VARS: {"{entityName}, {spend_7d}, {cpa_7d}, {targetCpa}, {frequency_7d}, {budget_change_3d_pct}, {cpa_delta_pct}"}</span>
+                            </div>
+                        </div>
+
+                        {/* Daily Digest Title */}
+                        <div className="p-4 bg-special/40 border border-argent rounded-lg mb-6">
+                            <label className="block text-small font-bold text-text-primary uppercase mb-2">Título Reporte Diario (Snapshot)</label>
+                            <input
+                                type="text"
+                                value={configData.dailySnapshotTitle}
+                                onChange={(e) => setConfigData({ ...configData, dailySnapshotTitle: e.target.value })}
+                                placeholder="Reporte Acumulado Mes — {clientName}"
+                                className="w-full bg-stellar border border-argent p-2 text-small rounded outline-none focus:border-classic font-bold"
+                            />
+                            <p className="mt-1 text-tiny text-text-muted">Variables disponibles: {"{clientName}, {startDate}, {endDate}"}</p>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4">
+                            {Object.entries(configData.alertTemplates).map(([type, template]) => (
+                                <div key={type} className="p-4 bg-stellar/50 border border-argent/50 rounded-lg group hover:border-classic/30 transition-colors">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <span className="text-tiny font-black text-text-muted uppercase tracking-widest">{type.replace(/_/g, ' ')}</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const defaults = getDefaultEngineConfig(initialData?.id || "default");
+                                                setConfigData({
+                                                    ...configData,
+                                                    alertTemplates: {
+                                                        ...configData.alertTemplates,
+                                                        [type]: defaults.alertTemplates[type]
+                                                    }
+                                                });
+                                            }}
+                                            className="text-[9px] font-bold text-classic hover:underline opacity-0 group-hover:opacity-100 transition-opacity"
+                                        >
+                                            REESTABLECER DEFAULT
+                                        </button>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-text-muted uppercase mb-1">Título</label>
+                                            <input
+                                                type="text"
+                                                value={template.title}
+                                                onChange={(e) => setConfigData({
+                                                    ...configData,
+                                                    alertTemplates: {
+                                                        ...configData.alertTemplates,
+                                                        [type]: { ...template, title: e.target.value }
+                                                    }
+                                                })}
+                                                className="w-full bg-stellar border border-argent p-2 text-small rounded outline-none focus:border-classic font-medium"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-text-muted uppercase mb-1">Descripción</label>
+                                            <input
+                                                type="text"
+                                                value={template.description}
+                                                onChange={(e) => setConfigData({
+                                                    ...configData,
+                                                    alertTemplates: {
+                                                        ...configData.alertTemplates,
+                                                        [type]: { ...template, description: e.target.value }
+                                                    }
+                                                })}
+                                                className="w-full bg-stellar border border-argent p-2 text-small rounded outline-none focus:border-classic"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>
