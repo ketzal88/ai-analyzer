@@ -39,7 +39,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     const hasNoClient = needsClient && !selectedClientId && !clientLoading;
 
     return (
-        <div className="min-h-screen bg-stellar flex overflow-hidden">
+        <div className="min-h-screen bg-stellar flex relative">
             {/* Desktop Sidebar */}
             <SidebarNav isAdmin={isAdmin} />
 
@@ -51,11 +51,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
             />
 
             {/* Work Area */}
-            <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+            <div className="flex-1 flex flex-col min-w-0 lg:pl-64 relative">
                 <Header onOpenMobileMenu={() => setIsMobileMenuOpen(true)} />
 
-                <main className="flex-1 overflow-y-auto p-6 lg:p-10 scrollbar-thin scrollbar-thumb-argent">
-                    <div className="max-w-[1400px] mx-auto">
+                <main className="p-6 lg:p-10">
+                    <div className="max-w-[1400px] mx-auto min-h-screen">
                         {hasNoClient ? (
                             <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-12 animate-in fade-in zoom-in duration-500">
                                 <div className="w-24 h-24 bg-classic/10 flex items-center justify-center mb-6" style={{ borderRadius: 0 }}>

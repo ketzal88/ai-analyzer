@@ -337,6 +337,10 @@ export class AlertEngine {
             }
         }
 
+        // 5. Final Filter: Only keep enabled alerts
+        const activeAlertIds = config.enabledAlerts || Object.keys(config.alertTemplates);
+        const filteredAlerts = alerts.filter(a => activeAlertIds.includes(a.type));
+
         // Save alerts to Firestore (clear old + write new)
         const oldAlerts = await db.collection("alerts")
             .where("clientId", "==", clientId)
@@ -346,12 +350,12 @@ export class AlertEngine {
         for (const doc of oldAlerts.docs) {
             batch.delete(doc.ref);
         }
-        for (const alert of alerts) {
+        for (const alert of filteredAlerts) {
             const docRef = db.collection("alerts").doc(alert.id);
             batch.set(docRef, alert);
         }
         await batch.commit();
 
-        return alerts;
+        return filteredAlerts;
     }
 }

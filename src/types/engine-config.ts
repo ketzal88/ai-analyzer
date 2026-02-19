@@ -55,6 +55,9 @@ export interface EngineConfig {
 
     // Daily Digest Template
     dailySnapshotTitle: string;
+
+    // Active Alerts Switch (New)
+    enabledAlerts: string[];
 }
 
 export function getDefaultEngineConfig(clientId: string): EngineConfig {
@@ -136,6 +139,18 @@ export function getDefaultEngineConfig(clientId: string): EngineConfig {
                 description: "Añade variantes con ofertas directas o escasez para este ganador."
             }
         },
-        dailySnapshotTitle: "Reporte Acumulado Mes — {clientName}"
+        dailySnapshotTitle: "Reporte Acumulado Mes — {clientName}",
+        enabledAlerts: [
+            "SCALING_OPPORTUNITY",
+            "LEARNING_RESET_RISK",
+            "CPA_SPIKE",
+            "BUDGET_BLEED",
+            "UNDERFUNDED_WINNER",
+            "CPA_VOLATILITY",
+            "ROTATE_CONCEPT",
+            "CONSOLIDATE",
+            "KILL_RETRY",
+            "INTRODUCE_BOFU_VARIANTS"
+        ]
     };
 }

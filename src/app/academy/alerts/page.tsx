@@ -62,7 +62,49 @@ export default function AlertsAcademyPage() {
                     </p>
                 </div>
 
-                <div className="grid grid-cols-1 gap-20">
+                {/* Glosario / Table of Contents */}
+                <div className="mb-20 p-8 bg-special border border-argent/50 rounded-3xl shadow-sm">
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="w-8 h-8 rounded-lg bg-classic/10 flex items-center justify-center text-classic">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                            </svg>
+                        </div>
+                        <h2 className="text-small font-black text-text-primary uppercase tracking-widest">Estructura del Manual</h2>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <a href="#alerts-catalog" className="flex items-start gap-4 p-4 rounded-xl hover:bg-stellar/50 transition-colors group">
+                            <span className="text-small font-black text-text-muted group-hover:text-classic transition-colors">01</span>
+                            <div>
+                                <p className="text-small font-bold text-text-primary mb-1">Catálogo de Alertas</p>
+                                <p className="text-tiny text-text-muted">Tipos de notificaciones y acciones sugeridas.</p>
+                            </div>
+                        </a>
+                        <a href="#intent-logic" className="flex items-start gap-4 p-4 rounded-xl hover:bg-stellar/50 transition-colors group">
+                            <span className="text-small font-black text-text-muted group-hover:text-classic transition-colors">02</span>
+                            <div>
+                                <p className="text-small font-bold text-text-primary mb-1">Lógica de Intención</p>
+                                <p className="text-tiny text-text-muted">Clasificación TOFU / MOFU / BOFU.</p>
+                            </div>
+                        </a>
+                        <a href="#control-panel" className="flex items-start gap-4 p-4 rounded-xl hover:bg-stellar/50 transition-colors group">
+                            <span className="text-small font-black text-text-muted group-hover:text-classic transition-colors">03</span>
+                            <div>
+                                <p className="text-small font-bold text-text-primary mb-1">Mesa de Control</p>
+                                <p className="text-tiny text-text-muted">Prompts de IA y lógica de negocio configurables.</p>
+                            </div>
+                        </a>
+                        <a href="#brain-sync" className="flex items-start gap-4 p-4 rounded-xl hover:bg-stellar/50 transition-colors group">
+                            <span className="text-small font-black text-text-muted group-hover:text-classic transition-colors">04</span>
+                            <div>
+                                <p className="text-small font-bold text-text-primary mb-1">Sincronización</p>
+                                <p className="text-tiny text-text-muted">Cronograma de operaciones del cerebro.</p>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+
+                <div id="alerts-catalog" className="grid grid-cols-1 gap-20 scroll-mt-24">
                     {ALERT_TYPES.map((alert) => (
                         <section key={alert.id} className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start scroll-mt-20 group" id={alert.id}>
                             {/* Logic & Description */}
@@ -134,7 +176,7 @@ export default function AlertsAcademyPage() {
                 </div>
 
                 {/* Intent Engine Guide */}
-                <div className="mt-24 space-y-8">
+                <div id="intent-logic" className="mt-32 space-y-8 scroll-mt-24">
                     <div className="text-center">
                         <h2 className="text-subheader text-text-primary mb-2">Lógica de Intención (TOFU/MOFU/BOFU)</h2>
                         <p className="text-body text-text-secondary max-w-xl mx-auto">
@@ -199,16 +241,141 @@ export default function AlertsAcademyPage() {
                     </div>
                 </div>
 
+                {/* Control Panel Section */}
+                <div id="control-panel" className="mt-32 space-y-12 scroll-mt-24">
+                    <div className="text-center">
+                        <h2 className="text-subheader text-text-primary mb-2">Mesa de Control: Personalización del Cerebro</h2>
+                        <p className="text-body text-text-secondary max-w-2xl mx-auto">
+                            El sistema no es una "caja negra". Como administrador, puedes ajustar cómo piensa la IA y qué reglas de negocio aplica para cada cliente.
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        {[
+                            {
+                                title: "Reporte (Consolidado)",
+                                logic: "Instrucciones de Redacción",
+                                desc: "Define el tono de voz y la estructura de los mensajes de Slack. Es la interfaz humana de la IA.",
+                                details: "Métricas prioritarias, formato de saludo, nivel de detalle técnico.",
+                                icon: "📝"
+                            },
+                            {
+                                title: "Auditoría Creativa",
+                                logic: "Criterios de Evaluación",
+                                desc: "Instruye a la IA sobre qué observar en un anuncio (Visual Hook, Cuerpo, Copy, Ángulo).",
+                                details: "Calificación de ganchos visuales y relevancia del mensaje.",
+                                icon: "👁️"
+                            },
+                            {
+                                title: "Ads Copy (Variantes)",
+                                logic: "Frameworks Creativos",
+                                desc: "Reglas de escritura para generar nuevos anuncios basados en el histórico de performance.",
+                                details: "Uso de AIDA, PAS, tono de marca y restricciones de longitud.",
+                                icon: "✍️"
+                            },
+                            {
+                                title: "Briefs de Diseño",
+                                logic: "Estructuración Técnica",
+                                desc: "Transforma hallazgos de performance en requerimientos claros para el equipo creativo.",
+                                details: "Formatos requeridos, paletas de colores y elementos visuales clave.",
+                                icon: "🎨"
+                            },
+                            {
+                                title: "Lógica GEM (Core)",
+                                logic: "Umbrales de Negocio",
+                                desc: "El motor matemático que dispara las alertas. Son las reglas 'Si esto, entonces aquello'.",
+                                details: "Target CPA, ROAS mínimo, Frecuencia límite y velocidad de gasto.",
+                                icon: "⚙️"
+                            }
+                        ].map((m) => (
+                            <div key={m.title} className="p-8 bg-stellar/50 border border-argent/50 rounded-3xl hover:border-classic/40 transition-all duration-500 group">
+                                <div className="flex items-start gap-6">
+                                    <div className="text-4xl bg-special p-4 rounded-2xl shadow-sm group-hover:scale-110 transition-transform">{m.icon}</div>
+                                    <div className="space-y-3">
+                                        <div>
+                                            <h4 className="text-small font-black text-text-primary uppercase tracking-tighter">{m.title}</h4>
+                                            <p className="text-[10px] text-classic font-black uppercase tracking-widest">{m.logic}</p>
+                                        </div>
+                                        <p className="text-small text-text-secondary leading-relaxed">
+                                            {m.desc}
+                                        </p>
+                                        <div className="pt-4 border-t border-argent/30">
+                                            <p className="text-tiny text-text-muted italic">
+                                                <strong>Configurable:</strong> {m.details}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Brain Operations Section */}
+                <div id="brain-sync" className="mt-32 p-10 bg-special/20 border border-argent/30 rounded-3xl relative overflow-hidden scroll-mt-24">
+                    <div className="absolute top-0 right-0 p-8 opacity-10">
+                        <svg className="w-32 h-32" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" />
+                        </svg>
+                    </div>
+
+                    <h2 className="text-subheader text-text-primary mb-8 flex items-center gap-3">
+                        🧠 Operatividad del Cerebro (Sincronización)
+                    </h2>
+
+                    <div className="space-y-12 relative">
+                        <div className="absolute left-[15px] top-2 bottom-2 w-0.5 bg-argent/30 border-dashed border-l" />
+
+                        {[
+                            {
+                                time: "08:00 AM",
+                                title: "Data Sync (Meta ↔ DB)",
+                                desc: "El sistema descarga toda la data de la API de Meta del día anterior. Se calculan las métricas 'Rolling' (últimos 7 y 14 días) para normalizar la data."
+                            },
+                            {
+                                time: "08:30 AM",
+                                title: "AI Assessment (Gemini)",
+                                desc: "La IA analiza los nuevos creativos y los cambios de tendencia. Identifica fatiga y reclasifica los anuncios en el embudo (TOFU/MOFU/BOFU)."
+                            },
+                            {
+                                time: "09:00 AM",
+                                title: "Daily Digest & Alertas",
+                                desc: "Se dispara el reporte consolidado a Slack. Las alertas de optimización (Escala, Rotación) se organizan según su importancia."
+                            },
+                            {
+                                time: "En Tiempo Real",
+                                title: "Auditoría de Creativos",
+                                desc: "Cada vez que subes un nuevo anuncio a Meta, el sistema lo detecta, crea su huella digital y le pide a la IA un reporte creativo inicial."
+                            }
+                        ].map((step, i) => (
+                            <div key={i} className="relative pl-12">
+                                <div className="absolute left-0 top-1.5 w-8 h-8 rounded-full bg-stellar border-2 border-classic flex items-center justify-center font-bold text-classic text-[10px] z-10 shadow-[0_0_10px_rgba(59,130,246,0.2)]">
+                                    {i + 1}
+                                </div>
+                                <div className="flex flex-col md:flex-row md:items-center gap-2 mb-1">
+                                    <span className="text-tiny font-black text-classic bg-classic/10 px-2 py-0.5 rounded uppercase tracking-tighter">
+                                        {step.time}
+                                    </span>
+                                    <h4 className="text-small font-bold text-text-primary">{step.title}</h4>
+                                </div>
+                                <p className="text-small text-text-secondary leading-relaxed max-w-2xl">
+                                    {step.desc}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
                 {/* Technical Specs Footer */}
                 <div className="mt-20 p-8 bg-stellar border border-argent rounded-xl border-dashed">
                     <h3 className="text-small font-bold text-text-primary uppercase mb-4">Notas Técnicas para Media Buyers</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-small text-text-secondary">
                         <ul className="space-y-2 list-disc pl-4">
-                            <li>Las alertas se procesan cada 1 hora pero solo se notifican una vez al día para evitar spam, a menos que sean <strong>CRÍTICAS</strong>.</li>
-                            <li>El sistema utiliza una ventana de 7 días (Rolling 7d) para calcular costos y normalizar fluctuaciones diarias.</li>
+                            <li>El sistema procesa la data completa una vez al día para respetar la ventana de atribución de Meta.</li>
+                            <li>Utilizamos una ventana de 7 días (Rolling 7d) para que un día 'malo' o 'excepcional' no sesgue la IA.</li>
                         </ul>
                         <ul className="space-y-2 list-disc pl-4">
-                            <li>Si el cliente tiene configurado un <strong>Target CPA</strong>, todas las alertas de eficiencia se calculan en base a ese número.</li>
+                            <li>Los <strong>Prompts de IA</strong> que definen el criterio de análisis se pueden auditar y editar en la sección de Administración.</li>
                             <li>La fatiga creativa se detecta cruzando el incremento de frecuencia con la degradación del CTR en las últimas 72hs.</li>
                         </ul>
                     </div>

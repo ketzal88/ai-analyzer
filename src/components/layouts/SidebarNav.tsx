@@ -23,7 +23,7 @@ export default function SidebarNav({ isAdmin }: SidebarNavProps) {
 
     return (
         <aside
-            className="w-64 bg-special flex flex-col hidden lg:flex h-screen sticky top-0 border-r border-argent"
+            className="w-64 bg-special flex flex-col hidden lg:flex h-screen fixed left-0 top-0 border-r border-argent z-40"
             style={{ borderLeft: '1px solid #FACC15' }}
         >
             {/* Logo Section */}
