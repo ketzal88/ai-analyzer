@@ -6,6 +6,7 @@ import { RecommendationDoc, RecommendationResponse } from "@/types/ai-recommenda
 import { EntityClassification } from "@/types/classifications";
 import { EntityRollingMetrics, DailyEntitySnapshot, ConceptRollingMetrics } from "@/types/performance-snapshots";
 import { Client } from "@/types";
+import { ClientSnapshot, ClientSnapshotAds } from "@/types/client-snapshot";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 const MODEL = process.env.GEMINI_MODEL || "gemini-1.5-flash";
@@ -63,7 +64,7 @@ export class RecommendationService {
     - IDIOMA: TODO EL CONTENIDO DEL JSON (exceptuando las keys) DEBE ESTAR EN ESPAÑOL.
     - No uses markdown ni explicaciones fuera del JSON.
     - Si los datos son insuficientes, devuelve status: "insufficient_evidence".
-    
+
     ESQUEMA JSON REQUERIDO:
     {
       "decision": "SCALE" | "ROTATE_CONCEPT" | "CONSOLIDATE" | "INTRODUCE_BOFU_VARIANTS" | "KILL_RETRY" | "HOLD",
@@ -126,35 +127,56 @@ export class RecommendationService {
         level: string,
         entityId: string
     ) {
-        // Range is typically a single day in classifications, but context packs might want a window
-        // For now, we fetch the LATEST classification for this entity
-        const [classSnap, rollingSnap, clientSnap, conceptSnap] = await Promise.all([
-            db.collection("entity_classifications")
-                .where("clientId", "==", clientId)
-                .where("entityId", "==", entityId)
-                .where("level", "==", level)
-                .limit(1)
-                .get(),
-            db.collection("entity_rolling_metrics")
-                .where("clientId", "==", clientId)
-                .where("entityId", "==", entityId)
-                .where("level", "==", level)
-                .limit(1)
-                .get(),
-            db.collection("clients").doc(clientId).get(),
-            level === 'ad' ? this.fetchRelatedConceptMetrics(clientId, entityId) : Promise.resolve(null)
+        // Read from pre-computed snapshot + client doc (2 reads instead of 4+ queries)
+        const [snapshotDoc, adsDoc, clientSnap] = await Promise.all([
+            db.collection("client_snapshots").doc(clientId).get(),
+            db.collection("client_snapshots_ads").doc(clientId).get(),
+            db.collection("clients").doc(clientId).get()
         ]);
 
-        if (classSnap.empty) return null;
+        if (!snapshotDoc.exists) return null;
 
-        const classification = classSnap.docs[0].data() as EntityClassification;
-        const rolling = rollingSnap.empty ? null : rollingSnap.docs[0].data() as EntityRollingMetrics;
+        const snapshot = snapshotDoc.data() as ClientSnapshot;
+        const adsSnapshot = adsDoc.exists ? adsDoc.data() as ClientSnapshotAds : null;
         const client = clientSnap.exists ? clientSnap.data() as Client : null;
 
+        // Find classification for this entity
+        const allClassifications = [
+            ...snapshot.classifications,
+            ...(adsSnapshot?.classifications || [])
+        ];
+        const classification = allClassifications.find(c => c.entityId === entityId && c.level === level);
+
+        if (!classification) return null;
+
+        // Find rolling metrics for this entity
+        const allEntities = [
+            ...snapshot.entities.account,
+            ...snapshot.entities.campaign,
+            ...snapshot.entities.adset,
+            ...(adsSnapshot?.ads || [])
+        ];
+        const entity = allEntities.find(e => e.entityId === entityId && e.level === level);
+
+        // Find concept metrics if ad level
+        let conceptMetrics = null;
+        if (level === 'ad' && entity?.conceptId) {
+            const concept = snapshot.concepts.find(c => c.conceptId === entity.conceptId);
+            if (concept) {
+                conceptMetrics = { conceptId: concept.conceptId, rolling: concept.rolling };
+            }
+        }
+
         return {
-            classification,
-            rolling: rolling?.rolling,
-            concept: conceptSnap,
+            classification: {
+                clientId,
+                level,
+                entityId,
+                ...classification,
+                updatedAt: snapshot.computedDate
+            },
+            rolling: entity?.rolling,
+            concept: conceptMetrics,
             clientTarget: {
                 cpa: client?.targetCpa,
                 roas: client?.targetRoas,
@@ -162,27 +184,5 @@ export class RecommendationService {
                 bizModel: client?.businessModel
             }
         };
-    }
-
-    private static async fetchRelatedConceptMetrics(clientId: string, adId: string) {
-        // We need conceptId from a recent snapshot
-        const snapSnap = await db.collection("daily_entity_snapshots")
-            .where("clientId", "==", clientId)
-            .where("entityId", "==", adId)
-            .limit(1)
-            .get();
-
-        if (snapSnap.empty) return null;
-        const snap = snapSnap.docs[0].data() as DailyEntitySnapshot;
-        const conceptId = snap.meta.conceptId;
-        if (!conceptId) return null;
-
-        const conceptMetricSnap = await db.collection("concept_rolling_metrics")
-            .where("clientId", "==", clientId)
-            .where("conceptId", "==", conceptId)
-            .limit(1)
-            .get();
-
-        return conceptMetricSnap.empty ? null : conceptMetricSnap.docs[0].data() as ConceptRollingMetrics;
     }
 }

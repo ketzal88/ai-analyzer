@@ -464,7 +464,7 @@ export class PerformanceService {
         }
     }
 
-    private static sumPerformance(snapshots: DailyEntitySnapshot[]) {
+    static sumPerformance(snapshots: DailyEntitySnapshot[]) {
         return snapshots.reduce((acc, s) => {
             acc.spend += s.performance.spend;
             acc.purchases += (s.performance.purchases || 0);
@@ -486,14 +486,144 @@ export class PerformanceService {
         });
     }
 
-    private static calcDelta(curr: number, prev: number) {
+    static calcDelta(curr: number, prev: number) {
         if (prev === 0) return 0;
         return ((curr / prev) - 1) * 100;
     }
 
-    private static isWithinDays(dateStr: string, days: number, refDate: Date = new Date()) {
+    static isWithinDays(dateStr: string, days: number, refDate: Date = new Date()) {
         const d = new Date(dateStr);
         const diff = (refDate.getTime() - d.getTime()) / (1000 * 60 * 60 * 24);
         return diff >= 0 && diff < days;
+    }
+
+    /**
+     * Pure computation: compute rolling metrics for a single entity group.
+     * No DB access — returns the rolling sub-object.
+     */
+    static computeRollingForEntity(
+        group: DailyEntitySnapshot[],
+        entityId: string,
+        level: EntityLevel,
+        refDate: Date,
+        adEntitySpends7d: Record<string, number>,
+        totalAdSpend7d: number,
+        globalSpendTop1Pct: number,
+        globalSpendTop3Pct: number
+    ): EntityRollingMetrics["rolling"] {
+        const r3d = this.sumPerformance(group.filter(s => this.isWithinDays(s.date, 3, refDate)));
+        const r7d = this.sumPerformance(group.filter(s => this.isWithinDays(s.date, 7, refDate)));
+        const r14d = this.sumPerformance(group.filter(s => this.isWithinDays(s.date, 14, refDate)));
+        const r30d = this.sumPerformance(group.filter(s => this.isWithinDays(s.date, 30, refDate)));
+        const prev7d = this.sumPerformance(group.filter(s => this.isWithinDays(s.date, 14, refDate) && !this.isWithinDays(s.date, 7, refDate)));
+
+        const cpa7d = r7d.purchases > 0 ? r7d.spend / r7d.purchases : 0;
+        const cpa14d = r14d.purchases > 0 ? r14d.spend / r14d.purchases : 0;
+        const cpaDeltaPct = this.calcDelta(cpa7d, cpa14d);
+
+        const convPerImp7d = r7d.impressions > 0 ? r7d.purchases / r7d.impressions : 0;
+        const convPerImpPrev = prev7d.impressions > 0 ? prev7d.purchases / prev7d.impressions : 0;
+        const convPerImpDelta = this.calcDelta(convPerImp7d, convPerImpPrev);
+
+        const prev3d = this.sumPerformance(group.filter(s => this.isWithinDays(s.date, 6, refDate) && !this.isWithinDays(s.date, 3, refDate)));
+        const budgetChange3dPct = this.calcDelta(r3d.spend, prev3d.spend);
+
+        let spendTop1Pct = globalSpendTop1Pct;
+        const spendTop3Pct = globalSpendTop3Pct;
+        if (level === 'ad') {
+            spendTop1Pct = totalAdSpend7d > 0 ? (adEntitySpends7d[entityId] || 0) / totalAdSpend7d : 0;
+        }
+
+        return {
+            spend_3d: r3d.spend,
+            spend_7d: r7d.spend,
+            spend_14d: r14d.spend,
+            spend_30d: r30d.spend,
+            impressions_7d: r7d.impressions,
+            clicks_7d: r7d.clicks,
+            purchases_7d: r7d.purchases,
+            leads_7d: r7d.leads,
+            whatsapp_7d: r7d.whatsapp,
+            ctr_7d: r7d.impressions > 0 ? (r7d.clicks / r7d.impressions) * 100 : 0,
+            cpa_3d: r3d.purchases > 0 ? r3d.spend / r3d.purchases : undefined,
+            cpa_7d: r7d.purchases > 0 ? r7d.spend / r7d.purchases : undefined,
+            cpa_14d: r14d.purchases > 0 ? r14d.spend / r14d.purchases : undefined,
+            cpa_delta_pct: cpaDeltaPct,
+            roas_7d: r7d.spend > 0 ? r7d.revenue / r7d.spend : undefined,
+            roas_delta_pct: this.calcDelta(
+                r7d.spend > 0 ? r7d.revenue / r7d.spend : 0,
+                prev7d.spend > 0 ? prev7d.revenue / prev7d.spend : 0
+            ),
+            conversion_velocity_3d: r3d.purchases / 3,
+            conversion_velocity_7d: r7d.purchases / 7,
+            conversion_velocity_14d: r14d.purchases / 14,
+            frequency_7d: r7d.impressions > 0 ? r7d.impressions / (r7d.reach || 1) : undefined,
+            ctr_delta_pct: this.calcDelta(
+                r7d.impressions > 0 ? (r7d.clicks / r7d.impressions) * 100 : 0,
+                prev7d.impressions > 0 ? (prev7d.clicks / prev7d.impressions) * 100 : 0
+            ),
+            hook_rate_7d: r7d.impressions > 0 ? (r7d.hookViews / r7d.impressions) * 100 : 0,
+            hook_rate_delta_pct: this.calcDelta(
+                r7d.impressions > 0 ? (r7d.hookViews / r7d.impressions) * 100 : 0,
+                prev7d.impressions > 0 ? (prev7d.hookViews / prev7d.impressions) * 100 : 0
+            ),
+            fitr_7d: r7d.clicks > 0 ? (r7d.purchases / r7d.clicks) * 100 : 0,
+            retention_rate_7d: r7d.videoPlayCount > 0 ? (r7d.videoP50Count / r7d.videoPlayCount) * 100 : 0,
+            conversion_per_impression_delta: convPerImpDelta,
+            spend_top1_ad_pct: spendTop1Pct,
+            spend_top3_ads_pct: spendTop3Pct,
+            budget_change_3d_pct: budgetChange3dPct
+        };
+    }
+
+    /**
+     * Pure computation: compute concept-level rolling metrics from ad snapshots.
+     * No DB access.
+     */
+    static computeConceptRollingMetrics(
+        adSnapshots: DailyEntitySnapshot[],
+        refDate: Date
+    ): Array<{ conceptId: string; rolling: ConceptRollingMetrics["rolling"] }> {
+        const filtered = adSnapshots.filter(s => s.level === "ad" && s.meta.conceptId);
+
+        const conceptGroups: Record<string, DailyEntitySnapshot[]> = {};
+        for (const s of filtered) {
+            const cid = s.meta.conceptId!;
+            if (!conceptGroups[cid]) conceptGroups[cid] = [];
+            conceptGroups[cid].push(s);
+        }
+
+        const results: Array<{ conceptId: string; rolling: ConceptRollingMetrics["rolling"] }> = [];
+
+        for (const [conceptId, group] of Object.entries(conceptGroups)) {
+            const r7d = this.sumPerformance(group.filter(s => this.isWithinDays(s.date, 7, refDate)));
+            const r14d = this.sumPerformance(group.filter(s => this.isWithinDays(s.date, 14, refDate)));
+
+            const adsInConcept = group.filter(s => this.isWithinDays(s.date, 7, refDate));
+            const adSpends = adsInConcept.reduce((acc, s) => {
+                acc[s.entityId] = (acc[s.entityId] || 0) + s.performance.spend;
+                return acc;
+            }, {} as Record<string, number>);
+            const sortedAdSpends = Object.values(adSpends).sort((a, b) => b - a);
+            const top1Spend = sortedAdSpends[0] || 0;
+            const concentration = r7d.spend > 0 ? top1Spend / r7d.spend : 0;
+
+            results.push({
+                conceptId,
+                rolling: {
+                    avg_cpa_7d: r7d.purchases > 0 ? r7d.spend / r7d.purchases : 0,
+                    avg_cpa_14d: r14d.purchases > 0 ? r14d.spend / r14d.purchases : 0,
+                    hook_rate_delta: this.calcDelta(
+                        r7d.impressions > 0 ? (r7d.clicks / r7d.impressions) * 100 : 0,
+                        r14d.impressions > 0 ? (r14d.clicks / r14d.impressions) * 100 : 0
+                    ),
+                    spend_concentration_top1: concentration,
+                    frequency_7d: r7d.impressions > 0 ? r7d.impressions / (r7d.reach || 1) : 0,
+                    fatigue_flag: concentration > 0.8 && r7d.spend > 50
+                }
+            });
+        }
+
+        return results;
     }
 }

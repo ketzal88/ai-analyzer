@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebase-admin";
 import { PerformanceService } from "@/lib/performance-service";
+import { ClientSnapshotService } from "@/lib/client-snapshot-service";
 import { reportError } from "@/lib/error-reporter";
 import { Client } from "@/types";
 
@@ -31,11 +32,14 @@ export async function GET(request: NextRequest) {
 
             try {
                 console.log(`[Cron Data Sync] Syncing ${clientId}...`);
-                // 1. Sync the current month to ensure completeness and capture attributions
+                // 1. Sync raw daily snapshots from Meta API
                 await PerformanceService.syncAllLevels(clientId, client.metaAdAccountId, "this_month");
 
-                // 2. Update rolling metrics
-                await PerformanceService.updateRollingMetrics(clientId);
+                // 2. Compute pre-computed snapshot (rolling, classifications, alerts, concepts)
+                await ClientSnapshotService.computeAndStore(clientId);
+
+                // 3. Cleanup old raw snapshots (> 35 days)
+                await ClientSnapshotService.cleanupOldSnapshots(clientId);
 
                 results.push({ clientId: clientId, status: "success" });
             } catch (e: any) {

@@ -2,41 +2,28 @@ import { db } from "@/lib/firebase-admin";
 import { ConceptRollup, ConceptHealth } from "@/types/concepts";
 import { ConceptRollingMetrics, DailyEntitySnapshot, EntityRollingMetrics } from "@/types/performance-snapshots";
 import { EntityClassification } from "@/types/classifications";
+import { ClientSnapshot, ClientSnapshotAds } from "@/types/client-snapshot";
 
 export class ConceptService {
 
     static async listConcepts(clientId: string, range?: { start: string; end: string }): Promise<ConceptRollup[]> {
-        // 1. Fetch Concept Rolling Metrics (primary source)
-        const rollingSnap = await db.collection("concept_rolling_metrics")
-            .where("clientId", "==", clientId)
-            .get();
+        // Read from pre-computed snapshot (1 read instead of 3 collection scans)
+        const snapshotDoc = await db.collection("client_snapshots").doc(clientId).get();
 
-        // 2. Fetch Account-level spend for Share calculation
-        const accountRollingSnap = await db.collection("entity_rolling_metrics")
-            .where("clientId", "==", clientId)
-            .where("level", "==", "account")
-            .limit(1)
-            .get();
+        if (!snapshotDoc.exists) return [];
 
-        const accountRolling = accountRollingSnap.empty ? null : accountRollingSnap.docs[0].data() as EntityRollingMetrics;
-        const totalAccountSpend7d = accountRolling?.rolling.spend_7d || 1; // avoid div by zero
+        const snapshot = snapshotDoc.data() as ClientSnapshot;
+        const totalAccountSpend7d = snapshot.accountSummary.rolling.spend_7d || 1;
 
-        // 3. Fetch Classifications to compute Intent Mix
-        const classSnap = await db.collection("entity_classifications")
-            .where("clientId", "==", clientId)
-            .where("level", "==", "ad")
-            .get();
-
-        const classifications = classSnap.docs.map(d => d.data() as EntityClassification);
-
-        // 4. Fetch additional performance (ROAS etc) from daily snapshots for these concepts
-        // (Simplified: we use what we have in Rolling or approximate)
+        // Get ad-level classifications from ads snapshot for intent mix
+        const adsDoc = await db.collection("client_snapshots_ads").doc(clientId).get();
+        const adsSnapshot = adsDoc.exists ? adsDoc.data() as ClientSnapshotAds : null;
+        const adClassifications = adsSnapshot?.classifications || [];
 
         const rollups: ConceptRollup[] = [];
 
-        for (const doc of rollingSnap.docs) {
-            const rm = doc.data() as ConceptRollingMetrics;
-            const conceptAdsClass = classifications.filter(c => c.conceptId === rm.conceptId);
+        for (const concept of snapshot.concepts) {
+            const conceptAdsClass = adClassifications.filter(c => c.conceptId === concept.conceptId);
 
             const totalAds = Math.max(1, conceptAdsClass.length);
             const intentMix = {
@@ -46,28 +33,28 @@ export class ConceptService {
             };
 
             const health = this.computeConceptHealth(
-                rm.rolling.frequency_7d || 0,
-                rm.rolling.avg_cpa_7d,
-                rm.rolling.avg_cpa_14d,
-                rm.rolling.hook_rate_delta,
-                rm.rolling.spend_concentration_top1
+                concept.rolling.frequency_7d || 0,
+                concept.rolling.avg_cpa_7d,
+                concept.rolling.avg_cpa_14d,
+                concept.rolling.hook_rate_delta,
+                concept.rolling.spend_concentration_top1
             );
 
             rollups.push({
-                clientId: rm.clientId,
-                conceptId: rm.conceptId,
+                clientId,
+                conceptId: concept.conceptId,
                 health,
                 spend_7d: 0,
-                spendShare: rm.rolling.spend_concentration_top1,
-                cpa_7d: rm.rolling.avg_cpa_7d,
-                cpa_14d: rm.rolling.avg_cpa_14d,
+                spendShare: concept.rolling.spend_concentration_top1,
+                cpa_7d: concept.rolling.avg_cpa_7d,
+                cpa_14d: concept.rolling.avg_cpa_14d,
                 roas_7d: 0,
-                frequency_7d: rm.rolling.frequency_7d || 0,
-                hookRateDelta: rm.rolling.hook_rate_delta,
-                cpaDelta: rm.rolling.avg_cpa_14d > 0 ? (rm.rolling.avg_cpa_7d / rm.rolling.avg_cpa_14d) - 1 : 0,
+                frequency_7d: concept.rolling.frequency_7d || 0,
+                hookRateDelta: concept.rolling.hook_rate_delta,
+                cpaDelta: concept.rolling.avg_cpa_14d > 0 ? (concept.rolling.avg_cpa_7d / concept.rolling.avg_cpa_14d) - 1 : 0,
                 intentMix,
                 dominantFormat: "VIDEO",
-                lastUpdate: rm.lastUpdate
+                lastUpdate: snapshot.computedDate
             });
         }
 
@@ -91,7 +78,7 @@ export class ConceptService {
     }
 
     static async getConceptDetail(clientId: string, conceptId: string, range: { start: string; end: string }) {
-        // Fetch all ads belonging to this concept
+        // This method still needs raw daily_entity_snapshots for time-range queries
         const adSnaps = await db.collection("daily_entity_snapshots")
             .where("clientId", "==", clientId)
             .where("level", "==", "ad")
@@ -102,33 +89,32 @@ export class ConceptService {
 
         const ads = adSnaps.docs.map(d => d.data() as DailyEntitySnapshot);
 
-        // Aggregate local performance
         const spend = ads.reduce((sum, a) => sum + a.performance.spend, 0);
         const purchases = ads.reduce((sum, a) => sum + (a.performance.purchases || 0), 0);
         const revenue = ads.reduce((sum, a) => sum + (a.performance.revenue || 0), 0);
 
-        // Intent Mix calculation
-        // We need to fetch classifications for these ads
+        // Get intent mix from snapshot instead of classification collection
         const adIds = [...new Set(ads.map(a => a.entityId))];
         let intentMix = { TOFU: 0, MOFU: 0, BOFU: 0 };
 
         if (adIds.length > 0) {
-            const classSnaps = await db.collection("entity_classifications")
-                .where("clientId", "==", clientId)
-                .where("entityId", "in", adIds.slice(0, 10)) // limit for demo/safety
-                .get();
+            const adsDoc = await db.collection("client_snapshots_ads").doc(clientId).get();
+            if (adsDoc.exists) {
+                const adsSnapshot = adsDoc.data() as ClientSnapshotAds;
+                const relevantClassifications = adsSnapshot.classifications.filter(c => adIds.includes(c.entityId));
 
-            const counts = { TOFU: 0, MOFU: 0, BOFU: 0 };
-            classSnaps.forEach(d => {
-                const c = d.data() as EntityClassification;
-                counts[c.intentStage]++;
-            });
-            const total = Math.max(1, classSnaps.size);
-            intentMix = {
-                TOFU: counts.TOFU / total,
-                MOFU: counts.MOFU / total,
-                BOFU: counts.BOFU / total
-            };
+                const counts = { TOFU: 0, MOFU: 0, BOFU: 0 };
+                relevantClassifications.forEach(c => {
+                    const stage = c.intentStage as keyof typeof counts;
+                    if (stage in counts) counts[stage]++;
+                });
+                const total = Math.max(1, relevantClassifications.length);
+                intentMix = {
+                    TOFU: counts.TOFU / total,
+                    MOFU: counts.MOFU / total,
+                    BOFU: counts.BOFU / total
+                };
+            }
         }
 
         return {

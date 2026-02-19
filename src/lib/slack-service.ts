@@ -1,6 +1,7 @@
 import { db } from "@/lib/firebase-admin";
 import { Alert, Client } from "@/types";
 import { EntityRollingMetrics } from "@/types/performance-snapshots";
+import { MTDAggregation } from "@/types/client-snapshot";
 
 interface DailySnapshotKPIs {
     // Gastos y Tráfico
@@ -599,6 +600,71 @@ export class SlackService {
             costPerLead: totalLeads > 0 ? spend / totalLeads : 0,
             whatsapp: totalWhatsapp,
             costPerWhatsapp: totalWhatsapp > 0 ? spend / totalWhatsapp : 0,
+        };
+    }
+
+    /**
+     * Build snapshot KPIs from pre-computed client snapshot's accountSummary.
+     * Uses MTD data when available, falls back to rolling 7d metrics.
+     */
+    static buildSnapshotFromClientSnapshot(accountSummary: {
+        rolling: EntityRollingMetrics["rolling"];
+        mtd: MTDAggregation | null;
+    }): DailySnapshotKPIs {
+        const r = accountSummary.rolling;
+        const mtd = accountSummary.mtd;
+
+        // Prefer MTD aggregation when available (more detailed)
+        if (mtd && mtd.spend > 0) {
+            const spend = mtd.spend;
+            return {
+                spend,
+                clicks: mtd.clicks,
+                cpc: mtd.clicks > 0 ? spend / mtd.clicks : 0,
+                ctr: mtd.impressions > 0 ? (mtd.clicks / mtd.impressions) * 100 : 0,
+                impressions: mtd.impressions,
+                purchases: mtd.purchases,
+                purchaseValue: mtd.revenue,
+                costPerPurchase: mtd.purchases > 0 ? spend / mtd.purchases : 0,
+                roas: spend > 0 ? mtd.revenue / spend : 0,
+                addToCart: mtd.addToCart,
+                addToCartValue: 0,
+                costPerAddToCart: mtd.addToCart > 0 ? spend / mtd.addToCart : 0,
+                checkout: mtd.checkout,
+                checkoutValue: 0,
+                costPerCheckout: mtd.checkout > 0 ? spend / mtd.checkout : 0,
+                leads: mtd.leads,
+                costPerLead: mtd.leads > 0 ? spend / mtd.leads : 0,
+                whatsapp: mtd.whatsapp,
+                costPerWhatsapp: mtd.whatsapp > 0 ? spend / mtd.whatsapp : 0
+            };
+        }
+
+        // Fallback to rolling 7d
+        const spend = r.spend_7d || 0;
+        const clicks = r.clicks_7d || 0;
+        const purchases = r.purchases_7d || 0;
+
+        return {
+            spend,
+            clicks,
+            cpc: clicks > 0 ? spend / clicks : 0,
+            ctr: r.ctr_7d || 0,
+            impressions: r.impressions_7d || 0,
+            purchases,
+            purchaseValue: (r.roas_7d || 0) * spend,
+            costPerPurchase: r.cpa_7d || 0,
+            roas: r.roas_7d || 0,
+            addToCart: 0,
+            addToCartValue: 0,
+            costPerAddToCart: 0,
+            checkout: 0,
+            checkoutValue: 0,
+            costPerCheckout: 0,
+            leads: 0,
+            costPerLead: 0,
+            whatsapp: 0,
+            costPerWhatsapp: 0
         };
     }
 }

@@ -1,5 +1,6 @@
 import { db } from "@/lib/firebase-admin";
 import { NextRequest, NextResponse } from "next/server";
+import { ClientSnapshot, ClientSnapshotAds } from "@/types/client-snapshot";
 
 export async function GET(request: NextRequest) {
     try {
@@ -8,36 +9,56 @@ export async function GET(request: NextRequest) {
 
         if (!clientId) return NextResponse.json({ error: "Missing clientId" }, { status: 400 });
 
-        // Fetch Rolling Metrics
-        const rollingSnap = await db.collection("entity_rolling_metrics")
-            .where("clientId", "==", clientId)
-            .get();
-        const rolling = rollingSnap.docs.map(d => d.data());
+        // 2 parallel doc reads instead of 4 collection scans (~700 docs → 2 docs)
+        const [snapshotDoc, adsDoc] = await Promise.all([
+            db.collection("client_snapshots").doc(clientId).get(),
+            db.collection("client_snapshots_ads").doc(clientId).get()
+        ]);
 
-        // Fetch Concept Metrics
-        const conceptSnap = await db.collection("concept_rolling_metrics")
-            .where("clientId", "==", clientId)
-            .get();
-        const concepts = conceptSnap.docs.map(d => d.data());
+        if (!snapshotDoc.exists) {
+            return NextResponse.json({ error: "No snapshot found. Run data-sync first." }, { status: 404 });
+        }
 
-        // Fetch Recent Alerts
-        const alertsSnap = await db.collection("alerts")
-            .where("clientId", "==", clientId)
-            .limit(50)
-            .get();
-        const alerts = alertsSnap.docs.map(d => d.data())
-            .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        const snapshot = snapshotDoc.data() as ClientSnapshot;
+        const adsSnapshot = adsDoc.exists ? adsDoc.data() as ClientSnapshotAds : { ads: [], classifications: [] };
 
-        // Fetch Classifications
-        const classSnap = await db.collection("entity_classifications")
-            .where("clientId", "==", clientId)
-            .get();
-        const classifications = classSnap.docs.map(d => d.data());
+        // Transform to the existing frontend contract
+        const allEntities = [
+            ...snapshot.entities.account,
+            ...snapshot.entities.campaign,
+            ...snapshot.entities.adset,
+            ...adsSnapshot.ads
+        ];
+
+        const rolling = allEntities.map(e => ({
+            clientId,
+            entityId: e.entityId,
+            level: e.level,
+            name: e.name,
+            rolling: e.rolling,
+            lastUpdate: snapshot.computedDate
+        }));
+
+        const concepts = snapshot.concepts.map(c => ({
+            clientId,
+            conceptId: c.conceptId,
+            rolling: c.rolling,
+            lastUpdate: snapshot.computedDate
+        }));
+
+        const classifications = [
+            ...snapshot.classifications,
+            ...adsSnapshot.classifications
+        ].map(c => ({
+            clientId,
+            ...c,
+            updatedAt: snapshot.computedDate
+        }));
 
         return NextResponse.json({
             rolling,
             concepts,
-            alerts,
+            alerts: snapshot.alerts,
             classifications
         });
 
