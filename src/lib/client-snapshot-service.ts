@@ -415,7 +415,7 @@ export class ClientSnapshotService {
                 cpa_delta_pct: (r.cpa_delta_pct || 0).toFixed(0)
             };
 
-            const defaultConfig = getDefaultEngineConfig(clientId);
+            const defaultConfig = getDefaultEngineConfig(clientId, businessType);
 
             // SCALING OPPORTUNITY
             const cpaMeetsTarget = targetCpa ? (primaryCpa || Infinity) <= targetCpa : false;

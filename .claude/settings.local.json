@@ -4,7 +4,8 @@
       "Bash(git -C /c/Users/gabri/Documents/Worker/Webs/ai-analyzer log --oneline -5)",
       "Bash(git checkout:*)",
       "Bash(npx tsc:*)",
-      "Bash(npm run build)"
+      "Bash(npm run build)",
+      "Bash(git status:*)"
     ]
   }
 }
