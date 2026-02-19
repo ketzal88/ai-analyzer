@@ -210,9 +210,11 @@ export class SlackService {
             return;
         }
 
-        const isEcommerce = client?.isEcommerce ?? (kpis.purchases > 0 || kpis.purchaseValue > 0);
-        const isLeadGen = client?.businessModel === "Lead Gen" || kpis.leads > 0;
-        const hasWhatsapp = kpis.whatsapp > 0;
+        const businessType = client?.businessType || "ecommerce";
+        const isEcommerce = businessType === "ecommerce";
+        const isLeadGen = businessType === "leads";
+        const isWhatsApp = businessType === "whatsapp";
+        const isApps = businessType === "apps";
 
         // ── Build mrkdwn text (simpler, like the user's example) ──
         let title = titleTemplate || `📊 *Reporte Acumulado Mes — {clientName}* (del {startDate} al {endDate})`;
@@ -248,10 +250,17 @@ export class SlackService {
         }
 
         // WhatsApp
-        if (hasWhatsapp) {
+        if (isWhatsApp || kpis.whatsapp > 0) {
             text += `💬 *WhatsApp*\n`;
             text += `• Conversaciones: ${kpis.whatsapp}\n`;
             text += `• Coste por conversación: ${this.fmtCurrency(kpis.costPerWhatsapp)}\n\n`;
+        }
+
+        // App Installs
+        if (isApps || (kpis as any).installs > 0) {
+            text += `📱 *App Installs*\n`;
+            text += `• Installs: ${(kpis as any).installs || 0}\n`;
+            text += `• Coste por Install: ${this.fmtCurrency((kpis as any).costPerInstall || 0)}\n\n`;
         }
 
         // Eventos de intención
@@ -479,7 +488,8 @@ export class SlackService {
         spend: number, spendDelta: number,
         cpa: number, cpaDelta: number,
         roas: number, roasDelta: number,
-        purchases: number, purchasesDelta: number
+        purchases: number, purchasesDelta: number,
+        metricName?: string
     }) {
         const { channel, botToken, webhook } = await this.resolveChannel(clientId);
 
@@ -507,7 +517,7 @@ export class SlackService {
                     { type: "mrkdwn", text: `*Gasto 7d:*\n${this.fmtCurrency(kpis.spend)} (${this.fmtDelta(kpis.spendDelta)})` },
                     { type: "mrkdwn", text: `*CPA 7d:*\n${this.fmtCurrency(kpis.cpa)} (${this.fmtDelta(kpis.cpaDelta * -1)})` },
                     { type: "mrkdwn", text: `*ROAS 7d:*\n${kpis.roas ? kpis.roas.toFixed(2) : '0'}x (${this.fmtDelta(kpis.roasDelta)})` },
-                    { type: "mrkdwn", text: `*Compras:*\n${kpis.purchases} (${this.fmtDelta(kpis.purchasesDelta)})` }
+                    { type: "mrkdwn", text: `*${kpis.metricName || 'Compras'}:*\n${kpis.purchases} (${this.fmtDelta(kpis.purchasesDelta)})` }
                 ]
             },
             { type: "divider" },
@@ -566,7 +576,7 @@ export class SlackService {
         let totalClicks = 0, totalImpressions = 0;
         let totalPurchases = 0, totalRevenue = 0;
         let totalATC = 0, totalCheckout = 0;
-        let totalLeads = 0, totalWhatsapp = 0;
+        let totalLeads = 0, totalWhatsapp = 0, totalApps = 0;
 
         for (const snap of snapshots) {
             const p = snap.performance;
@@ -578,6 +588,7 @@ export class SlackService {
             totalCheckout += p.checkout || 0;
             totalLeads += p.leads || 0;
             totalWhatsapp += p.whatsapp || 0;
+            totalApps += (p as any).installs || 0;
         }
 
         return {
@@ -600,7 +611,9 @@ export class SlackService {
             costPerLead: totalLeads > 0 ? spend / totalLeads : 0,
             whatsapp: totalWhatsapp,
             costPerWhatsapp: totalWhatsapp > 0 ? spend / totalWhatsapp : 0,
-        };
+            installs: totalApps,
+            costPerInstall: totalApps > 0 ? spend / totalApps : 0,
+        } as any;
     }
 
     /**

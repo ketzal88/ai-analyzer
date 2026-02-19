@@ -251,7 +251,7 @@ export class ClientSnapshotService {
         const conversions7d = accountRolling?.rolling.conversion_velocity_7d ? accountRolling.rolling.conversion_velocity_7d * 7 : 0;
 
         const activeEntities = rollingMetrics.filter(r => (r.rolling.spend_7d || 0) > 0);
-        const percentiles = this.calculatePercentiles(rollingMetrics);
+        const percentiles = this.calculatePercentiles(rollingMetrics, config);
 
         const classifications: ClassificationEntry[] = [];
 
@@ -304,7 +304,7 @@ export class ClientSnapshotService {
         return classifications;
     }
 
-    private static calculatePercentiles(rolling: EntityRollingMetrics[]): ClientPercentiles {
+    private static calculatePercentiles(rolling: EntityRollingMetrics[], config: any): ClientPercentiles {
         const getPercentile = (values: number[], p: number) => {
             if (values.length === 0) return 0;
             const sorted = [...values].sort((a, b) => a - b);
@@ -314,8 +314,19 @@ export class ClientSnapshotService {
             return sorted[base + 1] !== undefined ? sorted[base] + rest * (sorted[base + 1] - sorted[base]) : sorted[base];
         };
 
+        const businessType = config.businessType || 'ecommerce';
+
         const cpaInverses = rolling
-            .map(r => r.rolling.cpa_7d ? 1 / r.rolling.cpa_7d : 0)
+            .map(r => {
+                let m = 0;
+                if (businessType === 'ecommerce') m = r.rolling.purchases_7d || 0;
+                else if (businessType === 'leads') m = r.rolling.leads_7d || 0;
+                else if (businessType === 'whatsapp') m = r.rolling.whatsapp_7d || 0;
+                else if (businessType === 'apps') m = r.rolling.installs_7d || 0;
+
+                const cpa = m > 0 ? (r.rolling.spend_7d || 0) / m : 0;
+                return cpa > 0 ? 1 / cpa : 0;
+            })
             .filter(v => v > 0);
 
         return {
@@ -371,8 +382,26 @@ export class ClientSnapshotService {
                     : entityName;
 
             const spend_7d = r.spend_7d || 0;
-            const primaryMetric = isEcommerce ? (r.purchases_7d || 0) : ((r.leads_7d || 0) + (r.whatsapp_7d || 0));
-            const primaryCpa = isEcommerce ? r.cpa_7d : (primaryMetric > 0 ? (spend_7d / primaryMetric) : undefined);
+            const businessType = config.businessType || 'ecommerce';
+            let primaryMetric = 0;
+            let metricName = "Conv.";
+
+            if (businessType === 'ecommerce') {
+                primaryMetric = r.purchases_7d || 0;
+                metricName = "Ventas";
+            } else if (businessType === 'leads') {
+                primaryMetric = r.leads_7d || 0;
+                metricName = "Leads";
+            } else if (businessType === 'whatsapp') {
+                primaryMetric = r.whatsapp_7d || 0;
+                metricName = "Conversaciones";
+            } else if (businessType === 'apps') {
+                primaryMetric = r.installs_7d || 0;
+                metricName = "App Installs";
+            }
+
+            const isEcommerce = businessType === 'ecommerce';
+            const primaryCpa = primaryMetric > 0 ? (spend_7d / primaryMetric) : undefined;
             const targetCpa = clientData?.targetCpa;
             const targetRoas = clientData?.targetRoas || 2.0;
 
@@ -407,8 +436,8 @@ export class ClientSnapshotService {
                     description: formatMessage(template.description, commonVars),
                     impactScore: classif?.impactScore || 50,
                     evidence: [
-                        `${isEcommerce ? 'CPA' : 'Coste/Lead'} 7d: ${commonVars.cpa_7d}`,
-                        isEcommerce ? `ROAS 7d: ${(r.roas_7d || 0).toFixed(2)}x` : `Conversiones: ${primaryMetric}`,
+                        `${isEcommerce ? 'CPA' : `Coste/${metricName}`} 7d: ${commonVars.cpa_7d}`,
+                        isEcommerce ? `ROAS 7d: ${(r.roas_7d || 0).toFixed(2)}x` : `Volumen 7d: ${primaryMetric}`,
                         `Frecuencia: ${commonVars.frequency_7d}`
                     ],
                     createdAt: new Date().toISOString()
@@ -593,8 +622,16 @@ export class ClientSnapshotService {
 
     private static async writeSnapshots(clientId: string, main: ClientSnapshot, ads: ClientSnapshotAds) {
         const batch = db.batch();
+        const today = main.computedDate; // YYYY-MM-DD
+
+        // Latest snapshots
         batch.set(db.collection("client_snapshots").doc(clientId), main);
         batch.set(db.collection("client_snapshots_ads").doc(clientId), ads);
+
+        // Historical snapshots (dated)
+        batch.set(db.collection("client_snapshots").doc(`${clientId}_${today}`), main);
+        batch.set(db.collection("client_snapshots_ads").doc(`${clientId}_${today}`), ads);
+
         await batch.commit();
     }
 

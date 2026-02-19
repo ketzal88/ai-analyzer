@@ -4,7 +4,7 @@ import AppLayout from "@/components/layouts/AppLayout";
 import { useClient } from "@/contexts/ClientContext";
 import { EntityRollingMetrics, ConceptRollingMetrics } from "@/types/performance-snapshots";
 import { EntityClassification, FinalDecision } from "@/types/classifications";
-import { Alert } from "@/lib/alert-engine";
+import { Alert } from "@/types";
 
 import { RecommendationDoc } from "@/types/ai-recommendations";
 
@@ -97,6 +97,16 @@ export default function PerformanceDiagnostic() {
         return cl?.finalDecision === filter;
     });
 
+    const lastUpdateDate = rollingMetrics[0]?.lastUpdate;
+    const dateRangeLabel = React.useMemo(() => {
+        if (!lastUpdateDate) return "";
+        const end = new Date(lastUpdateDate + "T12:00:00Z");
+        const start = new Date(end);
+        start.setDate(end.getDate() - 6);
+        const formatDate = (d: Date) => d.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+        return `${formatDate(start)} - ${formatDate(end)}`;
+    }, [lastUpdateDate]);
+
     if (isLoading) return <AppLayout><div className="p-12 text-center text-text-muted">Cargando Diagnóstico Pro...</div></AppLayout>;
 
     return (
@@ -105,7 +115,9 @@ export default function PerformanceDiagnostic() {
                 <header className="flex flex-col md:flex-row justify-between items-start md:items-center bg-stellar/50 p-6 rounded-xl border border-argent/50 gap-4 flex-shrink-0">
                     <div>
                         <h1 className="text-display font-black text-text-primary uppercase tracking-tighter">Matriz de Decisión GEM</h1>
-                        <p className="text-small text-text-muted font-bold uppercase tracking-widest mt-1">Nivel: Motor de Optimización Probabilística</p>
+                        <p className="text-small text-text-muted font-bold uppercase tracking-widest mt-1">
+                            Nivel: Motor de Optimización Probabilística • {dateRangeLabel && <span className="text-classic">{dateRangeLabel}</span>}
+                        </p>
                     </div>
                     <div className="flex items-center gap-2">
                         <span className="text-[10px] font-black text-text-muted uppercase">Filtrar por Decisión:</span>

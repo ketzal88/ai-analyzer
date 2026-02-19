@@ -1,5 +1,8 @@
+import { BusinessType } from "@/types";
+
 export interface EngineConfig {
     clientId: string;
+    businessType: BusinessType;
     updatedAt: string;
 
     // Fatigue Engine (decision-engine.ts)
@@ -60,9 +63,10 @@ export interface EngineConfig {
     enabledAlerts: string[];
 }
 
-export function getDefaultEngineConfig(clientId: string): EngineConfig {
+export function getDefaultEngineConfig(clientId: string, businessType: BusinessType = 'ecommerce'): EngineConfig {
     return {
         clientId,
+        businessType,
         updatedAt: new Date().toISOString(),
         fatigue: {
             frequencyThreshold: 4,

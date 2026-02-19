@@ -20,8 +20,11 @@ export default function ConceptDetail() {
         if (!clientId || !conceptId) return;
         setIsLoading(true);
         try {
-            const today = new Date().toISOString().split("T")[0];
-            const res = await fetch(`/api/concepts/${conceptId}?clientId=${clientId}&rangeStart=${today}&rangeEnd=${today}`);
+            const today = new Date();
+            const rangeEnd = today.toISOString().split("T")[0];
+            const rangeStart = new Date(today.setDate(today.getDate() - 14)).toISOString().split("T")[0];
+
+            const res = await fetch(`/api/concepts/${conceptId}?clientId=${clientId}&rangeStart=${rangeStart}&rangeEnd=${rangeEnd}`);
             const data = await res.json();
             setDetail(data);
 
@@ -29,7 +32,7 @@ export default function ConceptDetail() {
             const briefRes = await fetch(`/api/concepts/${conceptId}/brief`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ clientId, range: { start: today, end: today }, dryRun: true })
+                body: JSON.stringify({ clientId, range: { start: rangeStart, end: rangeEnd }, dryRun: true })
             });
             const briefData = await briefRes.json();
             if (briefData.status === 'cached') setBrief(briefData.brief);
@@ -47,11 +50,13 @@ export default function ConceptDetail() {
     const generateBrief = async () => {
         setIsGenerating(true);
         try {
-            const today = new Date().toISOString().split("T")[0];
+            const today = new Date();
+            const rangeEnd = today.toISOString().split("T")[0];
+            const rangeStart = new Date(today.setDate(today.getDate() - 14)).toISOString().split("T")[0];
             const res = await fetch(`/api/concepts/${conceptId}/brief`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ clientId, range: { start: today, end: today } })
+                body: JSON.stringify({ clientId, range: { start: rangeStart, end: rangeEnd } })
             });
             const data = await res.json();
             if (data.status === 'generated' || data.status === 'cached') {
@@ -89,30 +94,42 @@ export default function ConceptDetail() {
                     <div className="space-y-6">
                         <section className="bg-stellar border border-argent rounded-2xl p-6">
                             <h3 className="text-[11px] font-black text-text-muted uppercase tracking-widest mb-6 border-b border-argent/50 pb-2">Evidencia Real</h3>
-                            <ul className="space-y-4">
-                                {detail.evidenceFacts.map((fact: string, i: number) => (
-                                    <li key={i} className="flex gap-3 text-small text-text-primary font-bold">
-                                        <span className="text-synced">▶</span> {fact}
-                                    </li>
-                                ))}
-                            </ul>
+                            {detail?.error ? (
+                                <div className="text-small text-red-400 font-bold p-4 bg-red-500/5 border border-red-500/20 rounded-xl">
+                                    Error: {detail.error}
+                                </div>
+                            ) : !detail?.evidenceFacts ? (
+                                <div className="text-small text-text-muted italic">No hay evidencia disponible.</div>
+                            ) : (
+                                <ul className="space-y-4">
+                                    {detail.evidenceFacts.map((fact: string, i: number) => (
+                                        <li key={i} className="flex gap-3 text-small text-text-primary font-bold">
+                                            <span className="text-synced">▶</span> {fact}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
                         </section>
 
                         <section className="bg-stellar border border-argent rounded-2xl p-6">
                             <h3 className="text-[11px] font-black text-text-muted uppercase tracking-widest mb-6 border-b border-argent/50 pb-2">Distribución de Intención</h3>
-                            <div className="space-y-4">
-                                {Object.entries(detail.intentMix).map(([stage, pct]: any) => (
-                                    <div key={stage} className="space-y-1">
-                                        <div className="flex justify-between text-[10px] font-black">
-                                            <span className="text-text-muted uppercase">{stage}</span>
-                                            <span className="text-text-primary">{Math.round(pct * 100)}%</span>
+                            {!detail?.intentMix ? (
+                                <div className="text-small text-text-muted italic">No hay datos de intención.</div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {Object.entries(detail.intentMix).map(([stage, pct]: any) => (
+                                        <div key={stage} className="space-y-1">
+                                            <div className="flex justify-between text-[10px] font-black">
+                                                <span className="text-text-muted uppercase">{stage}</span>
+                                                <span className="text-text-primary">{Math.round(pct * 100)}%</span>
+                                            </div>
+                                            <div className="w-full h-2 bg-argent/20 rounded-full overflow-hidden">
+                                                <div className="h-full bg-classic" style={{ width: `${pct * 100}%` }} />
+                                            </div>
                                         </div>
-                                        <div className="w-full h-2 bg-argent/20 rounded-full overflow-hidden">
-                                            <div className="h-full bg-classic" style={{ width: `${pct * 100}%` }} />
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                                    ))}
+                                </div>
+                            )}
                         </section>
                     </div>
 

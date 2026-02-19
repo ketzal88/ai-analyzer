@@ -59,7 +59,7 @@ export async function generateGeminiReport(
     const summary = {
         account: {
             name: clientData.name,
-            biz: clientData.businessModel || "", // condensed key
+            biz: clientData.businessType || clientData.businessModel || "ecommerce", // support new businessType
             goal: clientData.primaryGoal || "efficiency",
             constr: clientData.constraints || {},
         },
@@ -146,7 +146,8 @@ export async function generateGeminiReport(
         .replace("{{summary_json}}", JSON.stringify(summary)) // Removed null, 2 spacing to save tokens
         .replace("{{client_name}}", clientData.name)
         .replace("{{meta_id}}", clientData.metaAdAccountId || "N/A")
-        .replace("{{ecommerce_mode}}", clientData.isEcommerce ? "ON" : "OFF");
+        .replace("{{ecommerce_mode}}", clientData.businessType === 'ecommerce' ? "ON" : "OFF")
+        .replace("{{business_type}}", clientData.businessType || "ecommerce");
 
     // 5. Generate
     let result;

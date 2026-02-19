@@ -3,6 +3,7 @@ import { auth, db } from "@/lib/firebase-admin";
 import { calculateCreativeKPISnapshot } from "@/lib/creative-kpi-service";
 import { MetaCreativeDoc } from "@/types/meta-creative";
 import { CreativeKPIMetrics } from "@/types/creative-kpi";
+import { DailyEntitySnapshot } from "@/types/performance-snapshots";
 
 /**
  * AG-45: Get detailed creative data, KPIs, cluster info and AI reports
@@ -29,21 +30,12 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: "Missing required params" }, { status: 400 });
         }
 
-        // 1. Fetch Creative Metadata
-        const creativeDocId = `${clientId}__${adId}`;
-        const creativeSnap = await db.collection("meta_creatives").doc(creativeDocId).get();
-        if (!creativeSnap.exists) {
-            return NextResponse.json({ error: "Creative not found" }, { status: 404 });
-        }
-        const creativeData = creativeSnap.data() as MetaCreativeDoc;
-
-        // 2. Fetch KPIs for the range
-        // Re-use snapshot logic to get standardized KPIs
+        // 1. Fetch KPIs first (we need them anyway)
         const snapshot = await calculateCreativeKPISnapshot(clientId, range);
         const kpis = snapshot.metricsByCreative.find(m => m.adId === adId) || {
             adId,
-            creativeId: creativeData.creative.id,
-            fingerprint: creativeData.fingerprint,
+            creativeId: adId,
+            fingerprint: adId, // Default fingerprint unless enriched
             spend: 0,
             impressions: 0,
             clicks: 0,
@@ -55,10 +47,112 @@ export async function GET(request: NextRequest) {
             cpc: 0
         };
 
+        // 2. Fetch Creative Metadata (Try meta_creatives first)
+        const creativeDocId = `${clientId}__${adId}`;
+        const creativeSnap = await db.collection("meta_creatives").doc(creativeDocId).get();
+
+        let creativeData: MetaCreativeDoc;
+        let fingerprint = kpis.fingerprint;
+
+        if (creativeSnap.exists) {
+            creativeData = creativeSnap.data() as MetaCreativeDoc;
+            fingerprint = creativeData.fingerprint;
+            // Ensure KPI matches Meta ID if available
+            kpis.creativeId = creativeData.creative.id;
+            kpis.fingerprint = fingerprint;
+        } else {
+            console.log(`[Creative Detail] meta_creatives doc not found for ${adId}, using fallback.`);
+            // FALLBACK: Reconstruct from daily_entity_snapshots
+
+            // Get Ad Snapshot - Query WITHOUT orderBy/limit to avoid missing index issues, sort in memory
+            const adSnapQuery = await db.collection("daily_entity_snapshots")
+                .where("clientId", "==", clientId)
+                .where("level", "==", "ad")
+                .where("entityId", "==", adId)
+                .get();
+
+            if (adSnapQuery.empty) {
+                // If no meta_creative AND no snapshot -> 404
+                return NextResponse.json({ error: "Creative not found in system" }, { status: 404 });
+            }
+
+            // Sort in memory to find latest
+            const adSnaps = adSnapQuery.docs
+                .map(d => d.data() as DailyEntitySnapshot)
+                .sort((a, b) => b.date.localeCompare(a.date));
+            const adSnap = adSnaps[0];
+
+            const campaignId = adSnap.meta?.campaignId || "";
+            const adsetId = adSnap.meta?.adsetId || "";
+
+            // Fetch Names (also in-memory sort)
+            let campaignName = campaignId;
+            let adsetName = adsetId;
+
+            if (campaignId) {
+                const cmpSnap = await db.collection("daily_entity_snapshots")
+                    .where("clientId", "==", clientId)
+                    .where("level", "==", "campaign")
+                    .where("entityId", "==", campaignId)
+                    .get();
+                if (!cmpSnap.empty) {
+                    const snaps = cmpSnap.docs.map(d => d.data()).sort((a, b) => b.date.localeCompare(a.date));
+                    campaignName = snaps[0].name || campaignId;
+                }
+            }
+
+            if (adsetId) {
+                const asetSnap = await db.collection("daily_entity_snapshots")
+                    .where("clientId", "==", clientId)
+                    .where("level", "==", "adset")
+                    .where("entityId", "==", adsetId)
+                    .get();
+                if (!asetSnap.empty) {
+                    const snaps = asetSnap.docs.map(d => d.data()).sort((a, b) => b.date.localeCompare(a.date));
+                    adsetName = snaps[0].name || adsetId;
+                }
+            }
+
+            // Construct Fake MetaDoc
+            creativeData = {
+                clientId,
+                metaAccountId: "unknown",
+                status: "ACTIVE",
+                effectiveStatus: "ACTIVE",
+                lastSeenActiveAt: adSnap.date,
+                firstSeenAt: adSnap.date,
+                updatedAt: new Date().toISOString(),
+                campaign: {
+                    id: campaignId,
+                    name: campaignName,
+                    objective: "CONVERSIONS",
+                    buyingType: "AUCTION"
+                },
+                adset: {
+                    id: adsetId,
+                    name: adsetName,
+                    optimizationGoal: "OFFSITE_CONVERSIONS",
+                    billingEvent: "IMPRESSIONS"
+                },
+                ad: {
+                    id: adId,
+                    name: adSnap.name || adId
+                },
+                creative: {
+                    id: adId, // fallback
+                    format: "IMAGE", // unknown, default to simplified view
+                    isDynamicProductAd: false,
+                    hasCatalog: false,
+                    assets: {}
+                },
+                fingerprint: adId // fallback fingerprint
+            };
+        }
+
         // 3. Fetch Cluster Information (Ads with same fingerprint)
         const clusterSnap = await db.collection("meta_creatives")
             .where("clientId", "==", clientId)
-            .where("fingerprint", "==", creativeData.fingerprint)
+            .where("fingerprint", "==", fingerprint)
             .get();
 
         const clusterMembers = clusterSnap.docs
@@ -70,7 +164,7 @@ export async function GET(request: NextRequest) {
                 campaignName: doc.campaign.name
             }));
 
-        // 4. Check for existing AI Report (wrapped in try-catch to handle missing index gracefully)
+        // 4. Check for existing AI Report
         let latestReport = null;
         try {
             const reportSnap = await db.collection("creative_ai_reports")
@@ -79,7 +173,6 @@ export async function GET(request: NextRequest) {
                 .orderBy("metadata.generatedAt", "desc")
                 .get();
 
-            // Filter for audit reports (those without capability=variations_copy)
             latestReport = reportSnap.docs
                 .map(d => d.data())
                 .find(d =>
@@ -87,17 +180,21 @@ export async function GET(request: NextRequest) {
                     d.output?.diagnosis
                 ) || null;
         } catch (reportError: any) {
-            console.warn("[Creative Detail] AI Report fetch failed (likely missing index):", reportError.message);
-            // We don't throw here to allow the main creative data to be returned
+            console.warn("[Creative Detail] AI Report fetch failed (non-fatal):", reportError.message);
         }
 
         return NextResponse.json({
             creative: creativeData,
             kpis,
             cluster: {
-                size: clusterSnap.size,
+                size: clusterSnap.size || 1,
                 totalSpend: snapshot.metricsByCreative
-                    .filter(m => clusterSnap.docs.some(d => (d.data() as MetaCreativeDoc).ad.id === m.adId))
+                    .filter(m => {
+                        if (clusterSnap.size > 0) {
+                            return clusterSnap.docs.some(d => (d.data() as MetaCreativeDoc).ad.id === m.adId);
+                        }
+                        return m.adId === adId;
+                    })
                     .reduce((sum, m) => sum + m.spend, 0),
                 members: clusterMembers
             },
@@ -107,7 +204,6 @@ export async function GET(request: NextRequest) {
     } catch (error: any) {
         console.error("[Creative Detail] Error:", error);
 
-        // Handle missing index error for the overall request if it happens elsewhere
         if (error.code === 9 || error.message?.toLowerCase().includes("index")) {
             return NextResponse.json({
                 error: "Missing Firestore index",

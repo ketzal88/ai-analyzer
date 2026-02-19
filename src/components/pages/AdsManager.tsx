@@ -7,27 +7,22 @@ import { EntityRollingMetrics, EntityLevel } from "@/types/performance-snapshots
 import { EntityClassification, FinalDecision, IntentStage, LearningState, FatigueState } from "@/types/classifications";
 import { RecommendationDoc } from "@/types/ai-recommendations";
 
-interface AlertDoc {
-    id: string;
-    clientId: string;
-    level: string;
-    entityId: string;
-    type: string;
-    severity: "CRITICAL" | "WARNING" | "INFO";
-    title: string;
-    description: string;
-    impactScore: number;
-    evidence: string[];
-    createdAt: string;
-}
-
 export default function AdsManager() {
-    const { selectedClientId: clientId } = useClient();
+    const {
+        selectedClientId: clientId,
+        activeClients,
+        performanceData,
+        isPerformanceLoading: isLoading,
+        refreshPerformance
+    } = useClient();
+
+    const rollingMetrics = performanceData?.rolling || [];
+    const classifications = performanceData?.classifications || [];
+    const alerts = performanceData?.alerts || [];
+
+    const client = useMemo(() => activeClients.find(c => c.id === clientId), [clientId, activeClients]);
+    const businessType = client?.businessType || 'ecommerce';
     const [level, setLevel] = useState<EntityLevel>("ad");
-    const [rollingMetrics, setRollingMetrics] = useState<EntityRollingMetrics[]>([]);
-    const [classifications, setClassifications] = useState<EntityClassification[]>([]);
-    const [alerts, setAlerts] = useState<AlertDoc[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
     const [showAlerts, setShowAlerts] = useState(false);
 
     const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
@@ -40,25 +35,11 @@ export default function AdsManager() {
         direction: 'desc'
     });
 
-    const fetchData = async () => {
-        if (!clientId) return;
-        setIsLoading(true);
-        try {
-            const res = await fetch(`/api/performance?clientId=${clientId}`);
-            const data = await res.json();
-            setRollingMetrics(data.rolling || []);
-            setClassifications(data.classifications || []);
-            setAlerts(data.alerts || []);
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setIsLoading(false);
-        }
+    const handleDateChange = (date: string) => {
+        refreshPerformance(date === 'latest' ? undefined : date);
     };
 
-    useEffect(() => {
-        fetchData();
-    }, [clientId]);
+    // Auto-refresh handled by ClientContext on clientId change
 
     const filteredRolling = useMemo(() => {
         const list = rollingMetrics.filter(m => m.level === level);
@@ -154,6 +135,16 @@ export default function AdsManager() {
     const criticalAlerts = alerts.filter(a => a.severity === "CRITICAL").length;
     const warningAlerts = alerts.filter(a => a.severity === "WARNING").length;
 
+    const lastUpdateDate = rollingMetrics[0]?.lastUpdate;
+    const dateRangeLabel = useMemo(() => {
+        if (!lastUpdateDate) return "";
+        const end = new Date(lastUpdateDate + "T12:00:00Z");
+        const start = new Date(end);
+        start.setDate(end.getDate() - 6);
+        const formatDate = (d: Date) => d.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+        return `${formatDate(start)} - ${formatDate(end)}`;
+    }, [lastUpdateDate]);
+
     if (isLoading && !rollingMetrics.length) {
         return (
             <AppLayout>
@@ -175,7 +166,9 @@ export default function AdsManager() {
                             <div className="w-1.5 h-8 bg-classic rounded-full shadow-[0_0_15px_rgba(var(--classic-rgb),0.5)]" />
                             <h1 className="text-hero font-black text-text-primary uppercase tracking-tighter leading-none">Ads Manager</h1>
                         </div>
-                        <p className="text-[10px] text-text-muted font-black uppercase tracking-[0.25em] pl-5">Nivel de Control Operativo GEM v2.0</p>
+                        <p className="text-[10px] text-text-muted font-black uppercase tracking-[0.25em] pl-5">
+                            Nivel de Control Operativo GEM v2.0 • {dateRangeLabel && <span className="text-classic">{dateRangeLabel}</span>}
+                        </p>
                     </div>
 
                     <div className="flex items-center gap-4">
@@ -233,9 +226,9 @@ export default function AdsManager() {
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                {alerts.sort((a, b) => {
-                                    const sev = { CRITICAL: 0, WARNING: 1, INFO: 2 };
-                                    return (sev[a.severity] - sev[b.severity]) || b.impactScore - a.impactScore;
+                                {[...alerts].sort((a, b) => {
+                                    const sev: Record<string, number> = { CRITICAL: 0, WARNING: 1, INFO: 2 };
+                                    return (sev[a.severity] ?? 3) - (sev[b.severity] ?? 3) || b.impactScore - a.impactScore;
                                 }).slice(0, 6).map((alert) => (
                                     <div
                                         key={alert.id}
@@ -309,11 +302,16 @@ export default function AdsManager() {
                                             <div className="flex items-center justify-end gap-2">Intención <SortIcon active={sortConfig.key === 'fitr_7d'} direction={sortConfig.direction} /></div>
                                         </th>
                                         <th onClick={() => handleSort('cpa_7d')} className="p-4 font-black text-[10px] text-text-muted uppercase tracking-[0.2em] text-right cursor-pointer hover:text-text-primary transition-colors min-w-[110px]" title="Costo por Adquisición (7d).">
-                                            <div className="flex items-center justify-end gap-2">CPA <SortIcon active={sortConfig.key === 'cpa_7d'} direction={sortConfig.direction} /></div>
+                                            <div className="flex items-center justify-end gap-2">
+                                                {businessType === 'ecommerce' ? 'CPA' : businessType === 'leads' ? 'CPL' : businessType === 'apps' ? 'CPI' : 'CPC/WA'}
+                                                <SortIcon active={sortConfig.key === 'cpa_7d'} direction={sortConfig.direction} />
+                                            </div>
                                         </th>
-                                        <th onClick={() => handleSort('roas_7d')} className="p-4 font-black text-[10px] text-text-muted uppercase tracking-[0.2em] text-right cursor-pointer hover:text-text-primary transition-colors min-w-[100px]" title="ROAS (7d).">
-                                            <div className="flex items-center justify-end gap-2">ROAS <SortIcon active={sortConfig.key === 'roas_7d'} direction={sortConfig.direction} /></div>
-                                        </th>
+                                        {businessType === 'ecommerce' && (
+                                            <th onClick={() => handleSort('roas_7d')} className="p-4 font-black text-[10px] text-text-muted uppercase tracking-[0.2em] text-right cursor-pointer hover:text-text-primary transition-colors min-w-[100px]" title="ROAS (7d).">
+                                                <div className="flex items-center justify-end gap-2">ROAS <SortIcon active={sortConfig.key === 'roas_7d'} direction={sortConfig.direction} /></div>
+                                            </th>
+                                        )}
                                         <th onClick={() => handleSort('learningState')} className="p-4 font-black text-[10px] text-text-muted uppercase tracking-[0.2em] text-center cursor-pointer hover:text-text-primary transition-colors min-w-[110px]" title="Fase de aprendizaje de Meta.">
                                             <div className="flex items-center justify-center gap-2">Fase <SortIcon active={sortConfig.key === 'learningState'} direction={sortConfig.direction} /></div>
                                         </th>
@@ -329,95 +327,119 @@ export default function AdsManager() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {filteredRolling.map((m) => {
-                                        const cl = classifications.find(c => c.entityId === m.entityId && c.level === m.level);
-                                        const entityAlertCount = alerts.filter(a => a.entityId === m.entityId).length;
-                                        return (
-                                            <tr
-                                                key={m.entityId}
-                                                onClick={() => handleRowClick(m.entityId)}
-                                                className="group/row border-b border-argent/10 hover:bg-classic/[0.05] cursor-pointer transition-all duration-200"
-                                            >
-                                                <td className="p-6 sticky left-0 bg-second/90 group-hover/row:bg-second z-20 transition-colors shadow-[4px_0_15px_rgba(0,0,0,0.2)] border-r border-argent/20 min-w-[220px]">
-                                                    <div className="flex flex-col min-w-[220px]">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-small font-black text-text-primary truncate transition-all group-hover/row:text-classic" title={m.name || m.entityId}>
-                                                                {m.name || m.entityId}
-                                                            </span>
-                                                            {entityAlertCount > 0 && (
-                                                                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+                                    {filteredRolling.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={businessType === 'ecommerce' ? 13 : 12} className="p-20 text-center">
+                                                <div className="space-y-4">
+                                                    <div className="text-4xl">📡</div>
+                                                    <p className="text-small font-black uppercase tracking-widest text-text-muted italic">
+                                                        No se detectaron entidades activas para este nivel.
+                                                    </p>
+                                                    <p className="text-tiny text-text-muted max-w-xs mx-auto">
+                                                        Asegúrate de haber corrido la sincronización y agregación de datos para este cliente hoy.
+                                                    </p>
+                                                    <button
+                                                        onClick={() => refreshPerformance()}
+                                                        className="px-4 py-2 border border-argent/50 rounded-lg text-tiny font-bold hover:bg-special transition-colors"
+                                                    >
+                                                        REINTENTAR SYNC BBDD
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        filteredRolling.map((m) => {
+                                            const cl = classifications.find(c => c.entityId === m.entityId && c.level === m.level);
+                                            const entityAlertCount = alerts.filter(a => a.entityId === m.entityId).length;
+                                            return (
+                                                <tr
+                                                    key={m.entityId}
+                                                    onClick={() => handleRowClick(m.entityId)}
+                                                    className="group/row border-b border-argent/10 hover:bg-classic/[0.05] cursor-pointer transition-all duration-200"
+                                                >
+                                                    <td className="p-6 sticky left-0 bg-second/90 group-hover/row:bg-second z-20 transition-colors shadow-[4px_0_15px_rgba(0,0,0,0.2)] border-r border-argent/20 min-w-[220px]">
+                                                        <div className="flex flex-col min-w-[220px]">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-small font-black text-text-primary truncate transition-all group-hover/row:text-classic" title={m.name || m.entityId}>
+                                                                    {m.name || m.entityId}
+                                                                </span>
+                                                                {entityAlertCount > 0 && (
+                                                                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+                                                                )}
+                                                            </div>
+                                                            <div className="flex items-center gap-2 mt-1">
+                                                                <span className="text-[8px] font-black bg-argent/30 text-text-secondary px-1.5 py-0.5 rounded leading-none uppercase">{level}</span>
+                                                                <span className="text-[8px] font-medium text-text-muted select-all hover:text-text-secondary transition-colors cursor-help" title="Click para copiar ID">{m.entityId}</span>
+                                                                {cl?.conceptId && <span className="text-[8px] font-black text-classic uppercase truncate max-w-[100px]">{cl.conceptId}</span>}
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-4 text-right tabular-nums min-w-[100px]">
+                                                        <span className="text-small font-bold text-text-primary">${m.rolling.spend_7d?.toLocaleString(undefined, { minimumFractionDigits: 2 }) || "0.00"}</span>
+                                                    </td>
+                                                    <td className="p-4 text-right tabular-nums text-text-secondary text-[11px] font-medium min-w-[100px]">
+                                                        {m.rolling.impressions_7d?.toLocaleString() || "-"}
+                                                    </td>
+                                                    <td className="p-4 text-right tabular-nums text-small font-bold text-text-secondary min-w-[80px]">
+                                                        {m.rolling.ctr_7d ? `${m.rolling.ctr_7d.toFixed(2)}%` : "-"}
+                                                    </td>
+                                                    <td className="p-4 text-right tabular-nums min-w-[100px]">
+                                                        <div className="flex flex-col items-end leading-none">
+                                                            <span className="text-small font-black text-text-primary">{m.rolling.hook_rate_7d ? `${m.rolling.hook_rate_7d.toFixed(1)}%` : "-"}</span>
+                                                            <DeltaTag val={m.rolling.hook_rate_delta_pct} />
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-4 text-center min-w-[80px]">
+                                                        <IntentBadge stage={cl?.intentStage} />
+                                                    </td>
+                                                    <td className="p-2 text-right tabular-nums w-[110px] min-w-[110px]">
+                                                        <div className="flex flex-col items-end leading-none gap-1">
+                                                            <span className="text-small font-bold text-text-primary">{m.rolling.fitr_7d ? `${m.rolling.fitr_7d.toFixed(2)}%` : "-"}</span>
+                                                            {m.rolling.retention_rate_7d !== undefined && m.rolling.retention_rate_7d > 0 && (
+                                                                <span className="text-[8px] font-black text-classic bg-classic/10 px-1 rounded border border-classic/20 leading-none py-0.5" title="Retention (V50/VPlay)">R{m.rolling.retention_rate_7d.toFixed(0)}%</span>
                                                             )}
                                                         </div>
-                                                        <div className="flex items-center gap-2 mt-1">
-                                                            <span className="text-[8px] font-black bg-argent/30 text-text-secondary px-1.5 py-0.5 rounded leading-none uppercase">{level}</span>
-                                                            <span className="text-[8px] font-medium text-text-muted select-all hover:text-text-secondary transition-colors cursor-help" title="Click para copiar ID">{m.entityId}</span>
-                                                            {cl?.conceptId && <span className="text-[8px] font-black text-classic uppercase truncate max-w-[100px]">{cl.conceptId}</span>}
+                                                    </td>
+                                                    <td className="p-4 text-right tabular-nums min-w-[100px]">
+                                                        <span className="text-small font-black text-text-primary">
+                                                            {m.rolling.cpa_7d ? `$${m.rolling.cpa_7d.toLocaleString(undefined, { maximumFractionDigits: 1 })}` : "-"}
+                                                        </span>
+                                                    </td>
+                                                    {businessType === 'ecommerce' && (
+                                                        <td className="p-4 text-right tabular-nums min-w-[100px]">
+                                                            <span className={`text-small font-black ${(m.rolling.roas_7d || 0) > 2 ? 'text-synced' : 'text-text-primary'}`}>
+                                                                {m.rolling.roas_7d ? `${m.rolling.roas_7d.toFixed(2)}x` : "-"}
+                                                            </span>
+                                                        </td>
+                                                    )}
+                                                    <td className="p-4 text-center min-w-[100px]">
+                                                        <PhaseTag state={cl?.learningState} />
+                                                    </td>
+                                                    <td className="p-4 text-center min-w-[100px]">
+                                                        <FatigueTag state={cl?.fatigueState} />
+                                                    </td>
+                                                    <td className="p-4 min-w-[120px]">
+                                                        <div className="flex items-center gap-2">
+                                                            <DecisionTag decision={cl?.finalDecision} confidence={cl?.confidenceScore} />
+                                                            <div className="flex items-center gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity duration-200">
+                                                                {alerts.filter(a => a.entityId === m.entityId).slice(0, 2).map(a => (
+                                                                    <span key={a.id} className={`w-1.5 h-1.5 rounded-full ${a.severity === 'CRITICAL' ? 'bg-red-500' : 'bg-yellow-500'}`} title={a.title} />
+                                                                ))}
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                </td>
-                                                <td className="p-4 text-right tabular-nums min-w-[100px]">
-                                                    <span className="text-small font-bold text-text-primary">${m.rolling.spend_7d?.toLocaleString(undefined, { minimumFractionDigits: 2 }) || "0.00"}</span>
-                                                </td>
-                                                <td className="p-4 text-right tabular-nums text-text-secondary text-[11px] font-medium min-w-[100px]">
-                                                    {m.rolling.impressions_7d?.toLocaleString() || "-"}
-                                                </td>
-                                                <td className="p-4 text-right tabular-nums text-small font-bold text-text-secondary min-w-[80px]">
-                                                    {m.rolling.ctr_7d ? `${m.rolling.ctr_7d.toFixed(2)}%` : "-"}
-                                                </td>
-                                                <td className="p-4 text-right tabular-nums min-w-[100px]">
-                                                    <div className="flex flex-col items-end leading-none">
-                                                        <span className="text-small font-black text-text-primary">{m.rolling.hook_rate_7d ? `${m.rolling.hook_rate_7d.toFixed(1)}%` : "-"}</span>
-                                                        <DeltaTag val={m.rolling.hook_rate_delta_pct} />
-                                                    </div>
-                                                </td>
-                                                <td className="p-4 text-center min-w-[80px]">
-                                                    <IntentBadge stage={cl?.intentStage} />
-                                                </td>
-                                                <td className="p-2 text-right tabular-nums w-[110px] min-w-[110px]">
-                                                    <div className="flex flex-col items-end leading-none gap-1">
-                                                        <span className="text-small font-bold text-text-primary">{m.rolling.fitr_7d ? `${m.rolling.fitr_7d.toFixed(2)}%` : "-"}</span>
-                                                        {m.rolling.retention_rate_7d !== undefined && m.rolling.retention_rate_7d > 0 && (
-                                                            <span className="text-[8px] font-black text-classic bg-classic/10 px-1 rounded border border-classic/20 leading-none py-0.5" title="Retention (V50/VPlay)">R{m.rolling.retention_rate_7d.toFixed(0)}%</span>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                                <td className="p-4 text-right tabular-nums min-w-[100px]">
-                                                    <span className="text-small font-black text-text-primary">
-                                                        {m.rolling.cpa_7d ? `$${m.rolling.cpa_7d.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "-"}
-                                                    </span>
-                                                </td>
-                                                <td className="p-4 text-right tabular-nums min-w-[100px]">
-                                                    <span className={`text-small font-black ${(m.rolling.roas_7d || 0) > 2 ? 'text-synced' : 'text-text-primary'}`}>
-                                                        {m.rolling.roas_7d ? `${m.rolling.roas_7d.toFixed(2)}x` : "-"}
-                                                    </span>
-                                                </td>
-                                                <td className="p-4 text-center min-w-[100px]">
-                                                    <PhaseTag state={cl?.learningState} />
-                                                </td>
-                                                <td className="p-4 text-center min-w-[100px]">
-                                                    <FatigueTag state={cl?.fatigueState} />
-                                                </td>
-                                                <td className="p-4 min-w-[120px]">
-                                                    <div className="flex items-center gap-2">
-                                                        <DecisionTag decision={cl?.finalDecision} confidence={cl?.confidenceScore} />
-                                                        <div className="flex items-center gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity duration-200">
-                                                            {alerts.filter(a => a.entityId === m.entityId).slice(0, 2).map(a => (
-                                                                <span key={a.id} className={`w-1.5 h-1.5 rounded-full ${a.severity === 'CRITICAL' ? 'bg-red-500' : 'bg-yellow-500'}`} title={a.title} />
-                                                            ))}
+                                                    </td>
+                                                    <td className="p-4 min-w-[100px]">
+                                                        <div className="flex flex-col items-center">
+                                                            <span className="text-small font-black text-white drop-shadow-[0_0_10px_rgba(var(--special-rgb),0.5)]">{cl?.impactScore || 0}</span>
+                                                            <div className="w-8 h-1 bg-argent/20 rounded-full mt-1 overflow-hidden">
+                                                                <div className="h-full bg-synced shadow-[0_0_8px_rgba(16,185,129,0.5)]" style={{ width: `${cl?.impactScore || 0}%` }} />
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                </td>
-                                                <td className="p-4 min-w-[100px]">
-                                                    <div className="flex flex-col items-center">
-                                                        <span className="text-small font-black text-white drop-shadow-[0_0_10px_rgba(var(--special-rgb),0.5)]">{cl?.impactScore || 0}</span>
-                                                        <div className="w-8 h-1 bg-argent/20 rounded-full mt-1 overflow-hidden">
-                                                            <div className="h-full bg-synced shadow-[0_0_8px_rgba(16,185,129,0.5)]" style={{ width: `${cl?.impactScore || 0}%` }} />
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
                                 </tbody>
                             </table>
                         </div>

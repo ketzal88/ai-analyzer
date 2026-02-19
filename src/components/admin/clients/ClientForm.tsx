@@ -20,6 +20,7 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
         name: initialData?.name || "",
         slug: initialData?.slug || "",
         active: initialData?.active ?? true,
+        businessType: initialData?.businessType || "ecommerce",
         isEcommerce: initialData?.isEcommerce ?? false,
         isGoogle: initialData?.isGoogle ?? false,
         metaAdAccountId: initialData?.metaAdAccountId || "",
@@ -303,6 +304,26 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
                             />
                         </div>
                         <div>
+                            <label className="block text-small font-bold text-text-muted uppercase mb-2">Primary Objective (Engine)</label>
+                            <select
+                                value={formData.businessType}
+                                onChange={(e) => {
+                                    const val = e.target.value as any;
+                                    setFormData({ ...formData, businessType: val, isEcommerce: val === 'ecommerce' });
+                                    if (configData) {
+                                        setConfigData({ ...configData, businessType: val });
+                                    }
+                                }}
+                                className="w-full bg-stellar border border-argent rounded-lg px-3 py-2 text-text-primary focus:border-classic outline-none"
+                            >
+                                <option value="ecommerce" className="bg-stellar text-text-primary">eCommerce (ROAS/CPA Focused)</option>
+                                <option value="leads" className="bg-stellar text-text-primary">Lead Gen (CPL/Schedule Focused)</option>
+                                <option value="whatsapp" className="bg-stellar text-text-primary">WhatsApp (Cost per Link Click)</option>
+                                <option value="apps" className="bg-stellar text-text-primary">App Installs (CPI Focused)</option>
+                            </select>
+                            <p className="mt-1 text-tiny text-text-muted italic">This selection optimizes how the AI analyzes the funnel.</p>
+                        </div>
+                        <div>
                             <label className="block text-small font-bold text-text-muted uppercase mb-2">Primary Goal</label>
                             <select
                                 value={formData.primaryGoal}
@@ -372,13 +393,16 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
 
                 {/* Conversion Schema Override */}
                 <div className="p-4 bg-special/20 rounded-lg border border-argent space-y-4">
-                    <h3 className="text-body font-bold text-text-primary">Advanced Conversion Mapping</h3>
+                    <div className="flex items-center justify-between">
+                        <h3 className="text-body font-bold text-text-primary">Advanced Conversion Mapping</h3>
+                        <span className="text-[10px] font-bold text-classic bg-classic/10 px-2 py-0.5 rounded uppercase">
+                            Preset: {formData.businessType?.toUpperCase()}
+                        </span>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                             <label className="block text-small font-bold text-text-muted uppercase mb-2">Primary Action (Meta)</label>
-                            <input
-                                type="text"
-                                placeholder="e.g. purchase"
+                            <select
                                 value={formData.conversionSchema?.primary.actionType || ""}
                                 onChange={(e) => setFormData({
                                     ...formData,
@@ -387,14 +411,56 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
                                         primary: { ...formData.conversionSchema!.primary, actionType: e.target.value }
                                     }
                                 })}
-                                className="w-full font-mono text-[12px]"
+                                className="w-full bg-stellar border border-argent rounded-lg px-3 py-2 text-text-primary focus:border-classic outline-none text-small font-mono"
+                            >
+                                {formData.businessType === 'ecommerce' && (
+                                    <>
+                                        <option value="purchase">Purchase (Default)</option>
+                                        <option value="add_to_cart">Add to Cart</option>
+                                        <option value="initiate_checkout">Initiate Checkout</option>
+                                    </>
+                                )}
+                                {formData.businessType === 'leads' && (
+                                    <>
+                                        <option value="lead">Lead (Default)</option>
+                                        <option value="complete_registration">Complete Registration</option>
+                                        <option value="contact">Contact</option>
+                                        <option value="schedule">Schedule</option>
+                                    </>
+                                )}
+                                {formData.businessType === 'whatsapp' && (
+                                    <>
+                                        <option value="contact">Contact (WhatsApp Link)</option>
+                                        <option value="lead">Lead</option>
+                                        <option value="custom.whatsapp_click">Custom: WhatsApp Click</option>
+                                    </>
+                                )}
+                                {formData.businessType === 'apps' && (
+                                    <>
+                                        <option value="app_install">App Install (Default)</option>
+                                        <option value="app_custom_event">Custom App Event</option>
+                                    </>
+                                )}
+                                <option value="other">--- Custom / Manual ---</option>
+                            </select>
+                            {/* Allow manual override if they choose "other" or want to type it */}
+                            <input
+                                type="text"
+                                placeholder="Manual override..."
+                                value={formData.conversionSchema?.primary.actionType || ""}
+                                onChange={(e) => setFormData({
+                                    ...formData,
+                                    conversionSchema: {
+                                        ...formData.conversionSchema!,
+                                        primary: { ...formData.conversionSchema!.primary, actionType: e.target.value }
+                                    }
+                                })}
+                                className="mt-2 w-full font-mono text-[11px] opacity-70"
                             />
                         </div>
                         <div>
                             <label className="block text-small font-bold text-text-muted uppercase mb-2">Value Action (Meta)</label>
-                            <input
-                                type="text"
-                                placeholder="e.g. oms_purchase_value"
+                            <select
                                 value={formData.conversionSchema?.value?.actionType || ""}
                                 onChange={(e) => setFormData({
                                     ...formData,
@@ -403,23 +469,43 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
                                         value: { ...formData.conversionSchema!.value!, actionType: e.target.value }
                                     }
                                 })}
-                                className="w-full font-mono text-[12px]"
-                            />
-                        </div>
-                        <div className="flex items-center gap-2 pt-6">
+                                className="w-full bg-stellar border border-argent rounded-lg px-3 py-2 text-text-primary focus:border-classic outline-none text-small font-mono"
+                            >
+                                <option value="offsite_conversion.fb_pixel_purchase">FB Pixel Purchase Value</option>
+                                <option value="oms_purchase_value">OMS Purchase Value (Server)</option>
+                                <option value="">No Value Tracking</option>
+                            </select>
                             <input
-                                type="checkbox"
-                                checked={formData.conversionSchema?.primary.isRevenueEvent || false}
+                                type="text"
+                                placeholder="Manual override..."
+                                value={formData.conversionSchema?.value?.actionType || ""}
                                 onChange={(e) => setFormData({
                                     ...formData,
                                     conversionSchema: {
                                         ...formData.conversionSchema!,
-                                        primary: { ...formData.conversionSchema!.primary, isRevenueEvent: e.target.checked }
+                                        value: { ...formData.conversionSchema!.value!, actionType: e.target.value }
                                     }
                                 })}
-                                className="w-4 h-4 rounded border-argent text-classic"
+                                className="mt-2 w-full font-mono text-[11px] opacity-70"
                             />
-                            <span className="text-small font-medium text-text-secondary">Is Revenue Event?</span>
+                        </div>
+                        <div className="flex flex-col justify-end gap-2 pb-1">
+                            <label className="flex items-center gap-2 cursor-pointer group">
+                                <input
+                                    type="checkbox"
+                                    checked={formData.conversionSchema?.primary.isRevenueEvent || false}
+                                    onChange={(e) => setFormData({
+                                        ...formData,
+                                        conversionSchema: {
+                                            ...formData.conversionSchema!,
+                                            primary: { ...formData.conversionSchema!.primary, isRevenueEvent: e.target.checked }
+                                        }
+                                    })}
+                                    className="w-4 h-4 rounded border-argent text-classic focus:ring-0"
+                                />
+                                <span className="text-small font-bold text-text-secondary group-hover:text-text-primary transition-colors">IS REVENUE EVENT?</span>
+                            </label>
+                            <p className="text-[10px] text-text-muted italic">Enable to calculate ROAS and total revenue for this action.</p>
                         </div>
                     </div>
                 </div>

@@ -90,9 +90,22 @@ export class DecisionEngine {
     }
 
     private static computeIntent(snap: DailyEntitySnapshot, p: ClientPercentiles, config: EngineConfig): { score: number, stage: IntentStage } {
-        const fitr = (snap.performance.purchases || 0) / (snap.performance.clicks || 1);
-        const convRate = (snap.performance.purchases || 0) / (snap.performance.impressions || 1);
-        const cpaInv = snap.performance.purchases ? (snap.performance.purchases / snap.performance.spend) : 0;
+        const businessType = config.businessType || 'ecommerce';
+        let convVolume = 0;
+
+        if (businessType === 'ecommerce') {
+            convVolume = snap.performance.purchases || 0;
+        } else if (businessType === 'leads') {
+            convVolume = snap.performance.leads || 0;
+        } else if (businessType === 'whatsapp') {
+            convVolume = snap.performance.whatsapp || 0;
+        } else if (businessType === 'apps') {
+            convVolume = snap.performance.installs || 0;
+        }
+
+        const fitr = convVolume / (snap.performance.clicks || 1);
+        const convRate = convVolume / (snap.performance.impressions || 1);
+        const cpaInv = convVolume ? (convVolume / snap.performance.spend) : 0;
         const ctr = snap.performance.ctr;
 
         const norm = (val: number, p10: number, p90: number) => {
@@ -205,12 +218,17 @@ export class DecisionEngine {
         const freq7d = rolling.rolling.frequency_7d || 0;
         const budgetChange = rolling.rolling.budget_change_3d_pct || 0;
 
+        const businessType = config.businessType || 'ecommerce';
+        const metricName = businessType === 'ecommerce' ? 'Ventas' :
+            businessType === 'leads' ? 'Leads' :
+                businessType === 'whatsapp' ? 'WhatsApp' : 'Installs';
+
         if (spend7d > 0) facts.push(`Gasto 7d: $${spend7d.toFixed(2)}`);
         if (cpa7d > 0) facts.push(`CPA 7d: $${cpa7d.toFixed(2)}`);
-        if (roas7d > 0) facts.push(`ROAS 7d: ${roas7d.toFixed(2)}`);
-        if (velocity7d > 0) facts.push(`Convs/día: ${velocity7d.toFixed(2)}`);
+        if (roas7d > 0 && businessType === 'ecommerce') facts.push(`ROAS 7d: ${roas7d.toFixed(2)}`);
+        if (velocity7d > 0) facts.push(`${metricName}/día: ${velocity7d.toFixed(2)}`);
         if (freq7d > 0) facts.push(`Frecuencia 7d: ${freq7d.toFixed(1)}`);
-        if (Math.abs(roasDelta) > 5) facts.push(`Delta ROAS: ${roasDelta.toFixed(1)}%`);
+        if (Math.abs(roasDelta) > 5 && businessType === 'ecommerce') facts.push(`Delta ROAS: ${roasDelta.toFixed(1)}%`);
         if (Math.abs(hookDelta) > 5) facts.push(`Delta Gancho: ${hookDelta.toFixed(1)}%`);
         if (Math.abs(budgetChange) > 10) facts.push(`Δ Budget 3d: ${budgetChange.toFixed(1)}%`);
 
@@ -262,7 +280,7 @@ export class DecisionEngine {
         // SCALE decision now uses client targets
         if (learning === "EXPLOITATION" && intent === "BOFU") {
             const cpaMeetTarget = targetCpa ? cpa7d <= targetCpa : true;
-            const roasMeetTarget = roas7d >= targetRoas;
+            const roasMeetTarget = businessType === 'ecommerce' ? roas7d >= targetRoas : true; // Only check ROAS for Ecom
             const velocityStable = velocity14d > 0 ? velocity7d >= velocity14d : velocity7d > 0;
             const daysStable = snap.stability.daysSinceLastEdit >= 3;
 

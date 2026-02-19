@@ -101,7 +101,7 @@ export class ConceptService {
             const adsDoc = await db.collection("client_snapshots_ads").doc(clientId).get();
             if (adsDoc.exists) {
                 const adsSnapshot = adsDoc.data() as ClientSnapshotAds;
-                const relevantClassifications = adsSnapshot.classifications.filter(c => adIds.includes(c.entityId));
+                const relevantClassifications = (adsSnapshot.classifications || []).filter(c => adIds.includes(c.entityId));
 
                 const counts = { TOFU: 0, MOFU: 0, BOFU: 0 };
                 relevantClassifications.forEach(c => {

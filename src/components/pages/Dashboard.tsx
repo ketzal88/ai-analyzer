@@ -62,6 +62,50 @@ export default function Dashboard({
     if (healthScore < 80) healthColor = "text-yellow-500";
     if (healthScore < 60) healthColor = "text-red-500";
 
+    // --- Helper for Date Range Labels ---
+    const getRangeLabel = (opt: DateRangeOption) => {
+        const today = new Date();
+        const formatDate = (d: Date) => d.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+
+        switch (opt) {
+            case "today":
+                return `Hoy (${formatDate(today)})`;
+            case "yesterday": {
+                const d = new Date(today);
+                d.setDate(d.getDate() - 1);
+                return `Ayer (${formatDate(d)})`;
+            }
+            case "last_7d": {
+                const s = new Date(today);
+                s.setDate(s.getDate() - 7);
+                const e = new Date(today);
+                e.setDate(e.getDate() - 1);
+                return `Últimos 7 Días (${formatDate(s)} - ${formatDate(e)})`;
+            }
+            case "last_30d": {
+                const s = new Date(today);
+                s.setDate(s.getDate() - 30);
+                const e = new Date(today);
+                e.setDate(e.getDate() - 1);
+                return `Últimos 30 Días (${formatDate(s)} - ${formatDate(e)})`;
+            }
+            case "this_month": {
+                const s = new Date(today.getFullYear(), today.getMonth(), 1);
+                return `Este Mes (desde ${formatDate(s)})`;
+            }
+            default: return opt;
+        }
+    };
+
+    const formatDateRange = (range: { start: string, end: string }) => {
+        const formatDate = (s: string) => {
+            const d = new Date(s + "T12:00:00Z");
+            return d.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+        };
+        if (range.start === range.end) return formatDate(range.start);
+        return `${formatDate(range.start)} - ${formatDate(range.end)}`;
+    };
+
     return (
         <AppLayout>
             <div className="space-y-8 pb-20">
@@ -70,7 +114,7 @@ export default function Dashboard({
                     <div>
                         <h1 className="text-display font-black text-text-primary uppercase tracking-tighter">Centro de Mando</h1>
                         <p className="text-small text-text-muted font-bold uppercase tracking-widest mt-1">
-                            Visión Operativa Unificada • {report.config.currencyCode}
+                            Visión Operativa Unificada • {report.config.currencyCode} • {formatDateRange(report.dateRange)}
                         </p>
                     </div>
 
@@ -78,13 +122,13 @@ export default function Dashboard({
                         <select
                             value={range}
                             onChange={(e) => onRangeChange(e.target.value as DateRangeOption)}
-                            className="bg-stellar border border-argent rounded-lg px-4 py-2 text-small font-bold text-text-primary outline-none focus:border-classic"
+                            className="bg-stellar border border-argent rounded-lg px-4 py-2 text-small font-bold text-text-primary outline-none focus:border-classic min-w-[240px]"
                         >
-                            <option value="today">Hoy (Parcial)</option>
-                            <option value="yesterday">Ayer</option>
-                            <option value="last_7d">Últimos 7 Días</option>
-                            <option value="last_30d">Últimos 30 Días</option>
-                            <option value="this_month">Este Mes</option>
+                            <option value="today">{getRangeLabel("today")}</option>
+                            <option value="yesterday">{getRangeLabel("yesterday")}</option>
+                            <option value="last_7d">{getRangeLabel("last_7d")}</option>
+                            <option value="last_30d">{getRangeLabel("last_30d")}</option>
+                            <option value="this_month">{getRangeLabel("this_month")}</option>
                         </select>
 
                         <button

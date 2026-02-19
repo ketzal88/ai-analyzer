@@ -60,6 +60,8 @@ CRON_SECRET=...
 - **Snapshots**: Cached 6-hour performance views in `creative_kpi_snapshots`.
 - **Intelligent Scoring**: Weighted formula (Spend, Impressions, Fatigue, Opportunity, Newness).
 - **Clustering**: Groups similar creatives by fingerprint to reduce AI analysis tokens by ~70-80%.
+- **Frontend Caching**: Global `ClientContext` provides instantaneous navigation between pages by caching performance snapshots in memory.
+- **Historical Analysis**: The backend now stores versioned snapshots (`clientId_YYYY-MM-DD`). These documents capture a fixed "photo" of the performance, including 7, 14, and 30-day comparisons, allowing historical reviews without re-calculation.
 
 ### 🧠 Engine Configuration & Tuning (Feb 2026)
 - **Service**: `EngineConfigService` manages per-client analysis thresholds.
@@ -96,5 +98,5 @@ CRON_SECRET=...
   - Data Sync (Aggregations): `/api/cron/data-sync`
   - Daily Digest (Alerts + Snapshots): `/api/cron/daily-digest` (Runs daily @ 9 AM)
 - **Manual Sync**: Trigger via `POST` with `clientId` and `Authorization: Bearer <CRON_SECRET>`.
-- **Cleaning Cache**: Delete documents from `entity_rolling_metrics` or `daily_entity_snapshots` to force data refresh.
+- **Cleaning Cache**: Delete documents from `entity_rolling_metrics` or `daily_entity_snapshots` to force data refresh. For frontend cache, simply refresh the browser.
 - **Testing**: Use `npm run build` or `scripts/simulate-monday-remaining.ts` for local dry-runs.

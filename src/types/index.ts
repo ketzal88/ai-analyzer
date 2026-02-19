@@ -5,6 +5,8 @@ export * from "./gem-report";
 export * from "./meta-creative";
 export * from "./creative-kpi";
 
+export type BusinessType = 'ecommerce' | 'leads' | 'whatsapp' | 'apps';
+
 /**
  * Mission 20: Caching & Analysis Types
  */
@@ -265,6 +267,7 @@ export interface Client {
     slug: string;
     name: string;
     active: boolean;
+    businessType: BusinessType;
     isEcommerce: boolean;
     isGoogle: boolean;
     metaAdAccountId?: string;

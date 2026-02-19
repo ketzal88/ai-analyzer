@@ -14,6 +14,7 @@ export interface PerformanceMetrics {
     roas?: number;
     addToCart?: number;
     checkout?: number;
+    installs?: number;
 }
 
 export interface EngagementMetrics {
@@ -87,6 +88,7 @@ export interface EntityRollingMetrics {
         purchases_7d?: number;
         leads_7d?: number;
         whatsapp_7d?: number;
+        installs_7d?: number;
 
         cpa_3d?: number;
         cpa_7d?: number;

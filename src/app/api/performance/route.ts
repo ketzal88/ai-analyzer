@@ -6,17 +6,23 @@ export async function GET(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url);
         const clientId = searchParams.get("clientId");
+        const date = searchParams.get("date"); // YYYY-MM-DD
 
         if (!clientId) return NextResponse.json({ error: "Missing clientId" }, { status: 400 });
 
+        const mainId = date ? `${clientId}_${date}` : clientId;
+        const adsId = date ? `${clientId}_${date}` : clientId;
+
         // 2 parallel doc reads instead of 4 collection scans (~700 docs → 2 docs)
         const [snapshotDoc, adsDoc] = await Promise.all([
-            db.collection("client_snapshots").doc(clientId).get(),
-            db.collection("client_snapshots_ads").doc(clientId).get()
+            db.collection("client_snapshots").doc(mainId).get(),
+            db.collection("client_snapshots_ads").doc(adsId).get()
         ]);
 
         if (!snapshotDoc.exists) {
-            return NextResponse.json({ error: "No snapshot found. Run data-sync first." }, { status: 404 });
+            return NextResponse.json({
+                error: date ? `No snapshot found for date ${date}` : "No snapshot found. Run data-sync first."
+            }, { status: 404 });
         }
 
         const snapshot = snapshotDoc.data() as ClientSnapshot;

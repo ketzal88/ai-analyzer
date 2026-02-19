@@ -241,6 +241,65 @@ export default function AlertsAcademyPage() {
                     </div>
                 </div>
 
+                {/* Business Objectives & Metrics */}
+                <div id="business-objectives" className="mt-32 space-y-12 scroll-mt-24">
+                    <div className="text-center">
+                        <h2 className="text-subheader text-text-primary mb-2">Objetivos de Negocio y Métricas Primarias</h2>
+                        <p className="text-body text-text-secondary max-w-2xl mx-auto">
+                            El cerebro adapta su análisis según el modelo de negocio del cliente, priorizando diferentes KPIs para las alertas y recomendaciones.
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {[
+                            {
+                                type: "eCommerce",
+                                metric: "Ventas / Compras",
+                                kpi: "ROAS & CPA",
+                                logic: "Enfoque en retorno de inversión publicitaria y costo por venta. El motor rastrea revenue y márgenes.",
+                                color: "bg-emerald-500"
+                            },
+                            {
+                                type: "Lead Gen",
+                                metric: "Leads / Registros",
+                                kpi: "CPL (Cost Per Lead)",
+                                logic: "Optimización basada en volumen de prospección y costo por contacto cualificado. Ignora ROAS.",
+                                color: "bg-blue-500"
+                            },
+                            {
+                                type: "WhatsApp",
+                                metric: "Conversaciones",
+                                kpi: "Cost per Link Click",
+                                logic: "Ideal para modelos de venta directa por chat. Mide la eficiencia en iniciar conversaciones nuevas.",
+                                color: "bg-green-500"
+                            },
+                            {
+                                type: "App Installs",
+                                metric: "Instalaciones",
+                                kpi: "CPI (Cost Per Install)",
+                                logic: "Enfoque en adquisición de usuarios para aplicaciones móviles. Monitorea la velocidad de descarga.",
+                                color: "bg-purple-500"
+                            }
+                        ].map((obj) => (
+                            <div key={obj.type} className="p-8 bg-stellar/50 border border-argent/40 rounded-3xl relative overflow-hidden group">
+                                <div className={`absolute top-0 right-0 w-24 h-24 ${obj.color} opacity-5 -mr-8 -mt-8 rounded-full group-hover:scale-150 transition-transform duration-700`} />
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="text-small font-black text-text-primary uppercase tracking-tighter">{obj.type}</h3>
+                                        <span className="text-[10px] font-bold text-text-muted border border-argent px-2 py-0.5 rounded">{obj.kpi}</span>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <p className="text-tiny font-bold text-classic uppercase tracking-widest">Métrica Core: {obj.metric}</p>
+                                        <p className="text-small text-text-secondary leading-relaxed">
+                                            {obj.logic}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
                 {/* Control Panel Section */}
                 <div id="control-panel" className="mt-32 space-y-12 scroll-mt-24">
                     <div className="text-center">
@@ -309,6 +368,32 @@ export default function AlertsAcademyPage() {
                             </div>
                         ))}
                     </div>
+
+                    <div className="p-10 bg-classic/5 border border-classic/20 rounded-3xl relative overflow-hidden group mt-16">
+                        <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:rotate-12 transition-transform duration-700">
+                            <svg className="w-24 h-24 text-classic" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" />
+                            </svg>
+                        </div>
+                        <h3 className="text-small font-black text-classic uppercase mb-4 tracking-tighter flex items-center gap-2">
+                            <span className="w-1.5 h-6 bg-classic rounded-full"></span>
+                            Arquitectura Estratégica: Metodología vs. Física
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                            <div className="space-y-4">
+                                <h4 className="text-tiny font-black text-text-primary uppercase tracking-widest">1. Prompts (La Metodología)</h4>
+                                <p className="text-small text-text-secondary leading-relaxed">
+                                    Los prompts definen <strong>cómo piensa la IA</strong>. Son el manual de estilo y la metodología de la agencia. Si decides que la IA debe ser agresiva o técnica, eso se define aquí y aplica a toda la operación. Es el estándar de calidad unificado.
+                                </p>
+                            </div>
+                            <div className="space-y-4">
+                                <h4 className="text-tiny font-black text-text-primary uppercase tracking-widest">2. Configuración (La Física)</h4>
+                                <p className="text-small text-text-secondary leading-relaxed">
+                                    Los umbrales definen <strong>la tolerancia al error</strong> de cada cliente. Depende del CPA objetivo, la madurez de la cuenta y el volumen diario. Lo que para un cliente es un "éxito", para otro puede ser una "fuga de presupuesto". Es la sintonía fina del motor.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Brain Operations Section */}
@@ -373,10 +458,12 @@ export default function AlertsAcademyPage() {
                         <ul className="space-y-2 list-disc pl-4">
                             <li>El sistema procesa la data completa una vez al día para respetar la ventana de atribución de Meta.</li>
                             <li>Utilizamos una ventana de 7 días (Rolling 7d) para que un día 'malo' o 'excepcional' no sesgue la IA.</li>
+                            <li><strong>Navegación Instantánea:</strong> Hemos implementado un sistema de caché que permite saltar entre el Dashboard y el Ads Manager sin esperas de carga.</li>
                         </ul>
                         <ul className="space-y-2 list-disc pl-4">
                             <li>Los <strong>Prompts de IA</strong> que definen el criterio de análisis se pueden auditar y editar en la sección de Administración.</li>
                             <li>La fatiga creativa se detecta cruzando el incremento de frecuencia con la degradación del CTR en las últimas 72hs.</li>
+                            <li><strong>Soporte Histórico:</strong> Cada análisis diario se guarda de forma permanente. Esto permite auditar qué alertas y clasificaciones existían en una fecha específica del pasado.</li>
                         </ul>
                     </div>
                 </div>

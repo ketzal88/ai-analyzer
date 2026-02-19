@@ -80,9 +80,28 @@ export class AlertEngine {
                     : entityName;
 
             // Metrics normalization based on business model
-            const spend_7d = r.spend_7d || 0; // Fixed spend_7d null check
-            const primaryMetric = isEcommerce ? (r.purchases_7d || 0) : ((r.leads_7d || 0) + (r.whatsapp_7d || 0));
-            const primaryCpa = isEcommerce ? r.cpa_7d : (primaryMetric > 0 ? (spend_7d / primaryMetric) : undefined); // Used spend_7d variable
+            const spend_7d = r.spend_7d || 0;
+            const businessType = config.businessType || 'ecommerce';
+
+            let primaryMetric = 0;
+            let metricName = "Conv.";
+
+            if (businessType === 'ecommerce') {
+                primaryMetric = r.purchases_7d || 0;
+                metricName = "Ventas";
+            } else if (businessType === 'leads') {
+                primaryMetric = r.leads_7d || 0;
+                metricName = "Leads";
+            } else if (businessType === 'whatsapp') {
+                primaryMetric = r.whatsapp_7d || 0;
+                metricName = "Conversaciones";
+            } else if (businessType === 'apps') {
+                primaryMetric = r.installs_7d || 0;
+                metricName = "App Installs";
+            }
+
+            const isEcommerce = businessType === 'ecommerce';
+            const primaryCpa = primaryMetric > 0 ? (spend_7d / primaryMetric) : undefined;
             const targetCpa = clientData?.targetCpa;
             const targetRoas = clientData?.targetRoas || 2.0;
 
@@ -121,8 +140,8 @@ export class AlertEngine {
                     description: formatMessage(template.description, commonVars),
                     impactScore: classif?.impactScore || 50,
                     evidence: [
-                        `${isEcommerce ? 'CPA' : 'Coste/Lead'} 7d: ${commonVars.cpa_7d}`,
-                        isEcommerce ? `ROAS 7d: ${(r.roas_7d || 0).toFixed(2)}x` : `Conversiones: ${primaryMetric}`,
+                        `${isEcommerce ? 'CPA' : `Coste/${metricName}`} 7d: ${commonVars.cpa_7d}`,
+                        isEcommerce ? `ROAS 7d: ${(r.roas_7d || 0).toFixed(2)}x` : `Volumen 7d: ${primaryMetric}`,
                         `Frecuencia: ${commonVars.frequency_7d}`
                     ],
                     createdAt: new Date().toISOString()

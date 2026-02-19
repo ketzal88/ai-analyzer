@@ -20,13 +20,24 @@ export class PerformanceService {
         for (let i = 0; i < retries; i++) {
             try {
                 const response = await fetch(url, options);
-                if (response.ok) return response.json();
+                const data = await response.json();
 
-                const errorData = await response.json();
-                console.error(`Meta API Error (Attempt ${i + 1}):`, errorData);
+                if (response.ok) return data;
+
+                // Handle specific Meta errors
+                const metaError = data.error;
+                console.error(`Meta API Error (Attempt ${i + 1}):`, data);
+
+                // Code 200 is a permission issue - NO point in retrying
+                if (metaError?.code === 200 || metaError?.message?.includes("permission")) {
+                    const cleanMsg = `🛑 ERROR DE PERMISOS META: El token no tiene acceso a esta cuenta (${metaError?.message || 'sin detalle'})`;
+                    reportError("Meta API Permissions", new Error(cleanMsg), { metadata: { url, error: data } });
+                    throw new Error(cleanMsg);
+                }
 
                 if (i === retries - 1) {
-                    reportError("Meta API", new Error(JSON.stringify(errorData)), { metadata: { url, attempt: i + 1 } });
+                    reportError("Meta API", new Error(JSON.stringify(data)), { metadata: { url, attempt: i + 1 } });
+                    throw new Error(JSON.stringify(data));
                 }
 
                 if (response.status === 429) {
@@ -34,9 +45,9 @@ export class PerformanceService {
                     continue;
                 }
 
-                if (i === retries - 1) throw new Error(JSON.stringify(errorData));
-            } catch (error) {
-                if (i === retries - 1) throw error;
+                await new Promise(resolve => setTimeout(resolve, backoff * (i + 1)));
+            } catch (error: any) {
+                if (i === retries - 1 || error.message?.includes("PERMISOS")) throw error;
                 await new Promise(resolve => setTimeout(resolve, backoff * (i + 1)));
             }
         }
