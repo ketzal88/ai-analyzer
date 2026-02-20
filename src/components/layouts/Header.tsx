@@ -12,11 +12,12 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
     const { user, signOut } = useAuth();
     const { selectedClientId, setSelectedClientId, activeClients } = useClient();
     const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+    const avatarUrl = user?.providerData?.[0]?.photoURL || user?.photoURL || null;
 
     const handleLogout = async () => {
         try {
-            await signOut();
             await fetch("/api/auth/session", { method: "DELETE" });
+            await signOut();
         } catch (error) {
             console.error("Logout error:", error);
         }
@@ -99,11 +100,15 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
                     className="w-9 h-9 bg-argent/20 border-2 border-argent hover:border-classic transition-all overflow-hidden"
                     style={{ borderRadius: 0 }}
                 >
-                    <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: 'rgba(250,204,21,0.1)' }}>
-                        <span className="text-classic font-bold uppercase text-sm">
-                            {user?.email?.charAt(0) || "U"}
-                        </span>
-                    </div>
+                    {avatarUrl ? (
+                        <img src={avatarUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: 'rgba(250,204,21,0.1)' }}>
+                            <span className="text-classic font-bold uppercase text-sm">
+                                {user?.email?.charAt(0) || "U"}
+                            </span>
+                        </div>
+                    )}
                 </button>
 
                 {isUserMenuOpen && (

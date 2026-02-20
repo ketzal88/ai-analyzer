@@ -28,26 +28,7 @@ export default function SidebarNav({ isAdmin }: SidebarNavProps) {
         >
             {/* Logo Section */}
             <div className="px-4 py-5 border-b border-argent flex items-center gap-3">
-                <div
-                    className="w-8 h-8 flex items-center justify-center flex-shrink-0"
-                    style={{ backgroundColor: '#FACC15' }}
-                >
-                    <span className="font-bold text-base" style={{ color: '#0F0F10', fontFamily: 'var(--font-jetbrains-mono), monospace' }}>A</span>
-                </div>
-                <div className="flex flex-col min-w-0">
-                    <span
-                        className="text-text-primary font-bold text-[13px] leading-none truncate"
-                        style={{ letterSpacing: '2px', fontFamily: 'var(--font-jetbrains-mono), monospace' }}
-                    >
-                        ANALIZADOR
-                    </span>
-                    <span
-                        className="text-text-muted font-bold text-[9px] uppercase mt-1"
-                        style={{ letterSpacing: '1px', fontFamily: 'var(--font-jetbrains-mono), monospace' }}
-                    >
-                        Motor de Diagnóstico
-                    </span>
-                </div>
+                <img src="/img/logo-h-worker-brain.png" alt="Worker Brain" className="h-8 w-auto" />
             </div>
 
             {/* Nav Section */}

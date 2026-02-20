@@ -9,21 +9,7 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
         <div className="min-h-screen bg-stellar flex flex-col">
             {/* Header */}
             <header className="px-6 py-4">
-                <div className="flex items-center gap-2">
-                    {/* Square logo mark — yellow fill, dark letter */}
-                    <div
-                        className="w-7 h-7 flex items-center justify-center flex-shrink-0"
-                        style={{ backgroundColor: '#FACC15' }}
-                    >
-                        <span className="text-sm font-bold" style={{ color: '#0F0F10' }}>M</span>
-                    </div>
-                    <span
-                        className="text-text-primary font-bold text-[12px] uppercase"
-                        style={{ letterSpacing: '2px' }}
-                    >
-                        DIAGNOSTIC TOOL
-                    </span>
-                </div>
+                <img src="/img/logo-h-worker-brain.png" alt="Worker Brain" className="h-8 w-auto" />
             </header>
 
             {/* Main Content */}

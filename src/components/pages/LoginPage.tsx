@@ -44,6 +44,11 @@ export default function LoginPage() {
         <AuthLayout>
             <div className="w-full max-w-md">
                 <div className="card">
+                    {/* Logo */}
+                    <div className="flex justify-center mb-6">
+                        <img src="/img/logo-v-worker-brain.png" alt="Worker Brain" className="h-24 w-auto" />
+                    </div>
+
                     {/* Header */}
                     <div className="mb-8">
                         <h1 className="text-hero text-text-primary mb-2">Sign In</h1>

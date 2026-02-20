@@ -40,18 +40,7 @@ export default function MobileDrawerNav({ isOpen, onClose, isAdmin }: MobileDraw
                 {/* Header */}
                 <div className="px-4 py-5 border-b border-argent flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div
-                            className="w-8 h-8 flex items-center justify-center flex-shrink-0"
-                            style={{ backgroundColor: '#FACC15' }}
-                        >
-                            <span className="font-bold text-base" style={{ color: '#0F0F10' }}>A</span>
-                        </div>
-                        <span
-                            className="text-text-primary font-bold text-[13px]"
-                            style={{ letterSpacing: '2px' }}
-                        >
-                            ANALIZADOR
-                        </span>
+                        <img src="/img/logo-h-worker-brain.png" alt="Worker Brain" className="h-8 w-auto" />
                     </div>
                     <button
                         onClick={onClose}
