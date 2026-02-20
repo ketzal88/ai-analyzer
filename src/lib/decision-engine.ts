@@ -14,6 +14,10 @@ export interface ClientTargets {
     targetCpa?: number;
     targetRoas?: number;
     primaryGoal?: "scale" | "efficiency" | "stability";
+    growthMode?: "aggressive" | "stable" | "conservative";
+    fatigueTolerance?: "low" | "normal" | "high";
+    scalingSpeed?: "slow" | "normal" | "fast";
+    acceptableVolatilityPct?: number;
 }
 
 export class DecisionEngine {
@@ -37,8 +41,8 @@ export class DecisionEngine {
         // Layer 2: Intent Engine
         const { score: intentScore, stage: intentStage } = this.computeIntent(snap, percentiles, config);
 
-        // Layer 3: Fatigue Engine (now with concentration check)
-        const fatigueState = this.classifyFatigue(rolling, config, conceptMetrics);
+        // Layer 3: Fatigue Engine (now with concentration check + fatigue tolerance)
+        const fatigueState = this.classifyFatigue(rolling, config, conceptMetrics, clientTargets);
 
         // Layer 4: Structure Engine
         const structuralState = this.classifyStructure(snap, activeAdsetsCount, conversions7d, rolling, config);
@@ -136,16 +140,23 @@ export class DecisionEngine {
     private static classifyFatigue(
         rolling: EntityRollingMetrics,
         config: EngineConfig,
-        concept?: ConceptRollingMetrics
+        concept?: ConceptRollingMetrics,
+        clientTargets?: ClientTargets
     ): FatigueState {
         const { frequency_7d, cpa_7d, cpa_14d, hook_rate_delta_pct, spend_7d } = rolling.rolling;
         const f = config.fatigue;
+
+        // Adjust frequency threshold based on fatigue tolerance
+        const toleranceMultiplier = clientTargets?.fatigueTolerance === "high" ? 1.5
+            : clientTargets?.fatigueTolerance === "low" ? 0.75
+            : 1.0;
+        const adjustedFreqThreshold = f.frequencyThreshold * toleranceMultiplier;
 
         // Validation for significance
         if ((spend_7d || 0) < 50) return "NONE";
 
         // Entity Level
-        if (frequency_7d && frequency_7d > f.frequencyThreshold) {
+        if (frequency_7d && frequency_7d > adjustedFreqThreshold) {
             const cpaWorse = cpa_14d && cpa_14d > 0 ? (cpa_7d! > cpa_14d * f.cpaMultiplierThreshold) : false;
             const threshold = -(Math.abs(f.hookRateDeltaThreshold) * 100);
             const hookDrop = (hook_rate_delta_pct || 0) < threshold;
@@ -277,10 +288,12 @@ export class DecisionEngine {
             return { decision: "CONSOLIDATE", confidence: 0.7, facts };
         }
 
-        // SCALE decision now uses client targets
+        // SCALE decision now uses client targets + growthMode
+        const growthMode = clientTargets?.growthMode || "stable";
+
         if (learning === "EXPLOITATION" && intent === "BOFU") {
             const cpaMeetTarget = targetCpa ? cpa7d <= targetCpa : true;
-            const roasMeetTarget = businessType === 'ecommerce' ? roas7d >= targetRoas : true; // Only check ROAS for Ecom
+            const roasMeetTarget = businessType === 'ecommerce' ? roas7d >= targetRoas : true;
             const velocityStable = velocity14d > 0 ? velocity7d >= velocity14d : velocity7d > 0;
             const daysStable = snap.stability.daysSinceLastEdit >= 3;
 
@@ -288,11 +301,22 @@ export class DecisionEngine {
                 facts.push(`Performance alta y estable en fase de explotación.`);
                 if (targetCpa) facts.push(`CPA ($${cpa7d.toFixed(2)}) dentro del target ($${targetCpa}).`);
                 if (roasMeetTarget) facts.push(`ROAS (${roas7d.toFixed(2)}x) supera objetivo (${targetRoas}x).`);
-                return { decision: "SCALE", confidence: 0.88, facts };
+
+                // Adjust confidence based on growthMode
+                const scaleConfidence = growthMode === "aggressive" ? 0.75
+                    : growthMode === "conservative" ? 0.95
+                    : 0.88;
+                if (growthMode === "aggressive") facts.push("Modo crecimiento agresivo: umbral de escalamiento reducido.");
+                return { decision: "SCALE", confidence: scaleConfidence, facts };
             }
         }
 
+        // For aggressive growth, also consider MOFU entities for scaling
         if (learning === "EXPLOITATION" && intent === "MOFU") {
+            if (growthMode === "aggressive" && velocity7d > 0.3 && freq7d < config.alerts.scalingFrequencyMax) {
+                facts.push("Modo agresivo: señales MOFU suficientes para escalar.");
+                return { decision: "SCALE", confidence: 0.70, facts };
+            }
             facts.push("Señales de intención presentes pero el volumen de conversión podría ser mayor.");
             return { decision: "INTRODUCE_BOFU_VARIANTS", confidence: 0.75, facts };
         }

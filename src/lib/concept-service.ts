@@ -93,9 +93,10 @@ export class ConceptService {
         const purchases = ads.reduce((sum, a) => sum + (a.performance.purchases || 0), 0);
         const revenue = ads.reduce((sum, a) => sum + (a.performance.revenue || 0), 0);
 
-        // Get intent mix from snapshot instead of classification collection
+        // Get intent mix and creative categories from snapshot
         const adIds = [...new Set(ads.map(a => a.entityId))];
         let intentMix = { TOFU: 0, MOFU: 0, BOFU: 0 };
+        const creativeCategoryMix: Record<string, number> = {};
 
         if (adIds.length > 0) {
             const adsDoc = await db.collection("client_snapshots_ads").doc(clientId).get();
@@ -107,6 +108,10 @@ export class ConceptService {
                 relevantClassifications.forEach(c => {
                     const stage = c.intentStage as keyof typeof counts;
                     if (stage in counts) counts[stage]++;
+                    // Collect creative categories
+                    if (c.creativeCategory) {
+                        creativeCategoryMix[c.creativeCategory] = (creativeCategoryMix[c.creativeCategory] || 0) + 1;
+                    }
                 });
                 const total = Math.max(1, relevantClassifications.length);
                 intentMix = {
@@ -117,16 +122,39 @@ export class ConceptService {
             }
         }
 
+        // Compute additional numerical context
+        const impressions = ads.reduce((sum, a) => sum + (a.performance.impressions || 0), 0);
+        const clicks = ads.reduce((sum, a) => sum + (a.performance.clicks || 0), 0);
+        const leads = ads.reduce((sum, a) => sum + (a.performance.leads || 0), 0);
+        const cpa = purchases > 0 ? spend / purchases : 0;
+        const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
+        const cpc = clicks > 0 ? spend / clicks : 0;
+        const roas = spend > 0 ? revenue / spend : 0;
+
         return {
             conceptId,
-            performance: { spend, purchases, revenue, cpa: purchases > 0 ? spend / purchases : 0, roas: spend > 0 ? revenue / spend : 0 },
+            performance: { spend, purchases, revenue, cpa, roas, impressions, clicks, leads, ctr, cpc },
             intentMix,
+            creativeCategoryMix,
             topAds: ads.sort((a, b) => b.performance.spend - a.performance.spend).slice(0, 5),
+            numericContext: {
+                uniqueAds: adIds.length,
+                daysInRange: ads.length > 0 ? new Set(ads.map(a => a.date)).size : 0,
+                avgDailySpend: ads.length > 0 ? spend / new Set(ads.map(a => a.date)).size : 0,
+                avgCPCvsAccount: cpc, // placeholder — client can compare
+            },
             evidenceFacts: [
                 `Spend total en rango: $${spend.toFixed(2)}`,
-                `CPA promedio: $${(purchases > 0 ? spend / purchases : 0).toFixed(2)}`,
-                `Mix de intención: ${Math.round(intentMix.BOFU * 100)}% BOFU`
-            ]
+                `CPA promedio: $${cpa.toFixed(2)}`,
+                `ROAS: ${roas.toFixed(2)}x`,
+                `CTR: ${ctr.toFixed(2)}%`,
+                `Impresiones: ${impressions.toLocaleString()}`,
+                `Creativos activos: ${adIds.length}`,
+                `Mix de intención: ${Math.round(intentMix.BOFU * 100)}% BOFU, ${Math.round(intentMix.MOFU * 100)}% MOFU, ${Math.round(intentMix.TOFU * 100)}% TOFU`,
+                Object.keys(creativeCategoryMix).length > 0
+                    ? `Categorías: ${Object.entries(creativeCategoryMix).map(([k, v]) => `${k}(${v})`).join(', ')}`
+                    : null
+            ].filter(Boolean)
         };
     }
 }

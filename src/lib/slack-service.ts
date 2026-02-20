@@ -2,6 +2,7 @@ import { db } from "@/lib/firebase-admin";
 import { Alert, Client } from "@/types";
 import { EntityRollingMetrics } from "@/types/performance-snapshots";
 import { MTDAggregation } from "@/types/client-snapshot";
+import { AccountHealth } from "@/types/system-events";
 
 interface DailySnapshotKPIs {
     // Gastos y Tráfico
@@ -534,7 +535,66 @@ export class SlackService {
     }
 
     // ═════════════════════════════════════════════════════════
-    //  5. BUILD SNAPSHOT KPIs from Rolling Metrics
+    //  6. ACCOUNT HEALTH ALERT — Estado de cuenta Meta
+    // ═════════════════════════════════════════════════════════
+
+    static async sendAccountHealthAlert(
+        clientId: string,
+        clientName: string,
+        alertType: string,
+        severity: "info" | "warning" | "critical",
+        message: string,
+        health: AccountHealth
+    ) {
+        const { channel, botToken, webhook } = await this.resolveChannel(clientId);
+
+        if (!botToken && !webhook) return;
+
+        const isDisabled = alertType === "ACCOUNT_DISABLED";
+        const isReactivated = alertType === "ACCOUNT_REACTIVATED";
+        const isSpendCap = alertType.startsWith("SPEND_CAP_");
+
+        const emoji = isDisabled ? "🚫" : isReactivated ? "✅" : isSpendCap ? "💸" : "⚠️";
+        const color = severity === "critical" ? "🔴" : severity === "warning" ? "🟡" : "🟢";
+
+        let text = `${emoji} *Account Health — ${clientName}*\n\n`;
+        text += `${color} ${message}\n\n`;
+
+        text += `📋 *Estado actual:* ${health.accountStatusName}\n`;
+        text += `🆔 *Cuenta:* \`${health.metaAccountId}\`\n`;
+
+        if (health.spendCap && health.amountSpent !== undefined) {
+            text += `\n💰 *Spend Cap:*\n`;
+            text += `• Gastado: $${this.fmtNum(health.amountSpent)} / $${this.fmtNum(health.spendCap)} (${health.spendCapPct?.toFixed(1)}%)\n`;
+            if (health.projectedCutoffDays !== undefined) {
+                text += `• Días restantes (estimado): ~${health.projectedCutoffDays}\n`;
+            }
+            if (health.avgDailySpend7d) {
+                text += `• Gasto diario promedio (7d): ${this.fmtCurrency(health.avgDailySpend7d)}\n`;
+            }
+        }
+
+        if (health.balance !== undefined) {
+            text += `\n💳 *Balance:* ${this.fmtCurrency(health.balance)}\n`;
+        }
+
+        const blocks: any[] = [
+            { type: "section", text: { type: "mrkdwn", text } },
+            { type: "divider" },
+            {
+                type: "context",
+                elements: [{
+                    type: "mrkdwn",
+                    text: `_Account Health Monitor_ · <https://ai-analyzer.vercel.app/admin/system|Ver Sistema>`
+                }]
+            }
+        ];
+
+        await this.postMessage(botToken, webhook, channel, blocks, `Account Health: ${clientName} — ${alertType}`);
+    }
+
+    // ═════════════════════════════════════════════════════════
+    //  BUILD SNAPSHOT KPIs from Rolling Metrics
     // ═════════════════════════════════════════════════════════
 
     static buildSnapshotFromRolling(rolling: EntityRollingMetrics): DailySnapshotKPIs {

@@ -39,6 +39,19 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
         conversionSchema: initialData?.conversionSchema || {
             primary: { name: "Purchase", actionType: "purchase", isRevenueEvent: true },
             value: { actionType: "offsite_conversion.fb_pixel_purchase", currency: "USD", isNet: true }
+        },
+
+        // Phase 3: Strategic Profile
+        growthMode: initialData?.growthMode || "stable",
+        ltv: initialData?.ltv || 0,
+        seasonalityNotes: initialData?.seasonalityNotes || "",
+        funnelPriority: initialData?.funnelPriority || "FULL_FUNNEL",
+        constraints: {
+            ...initialData?.constraints,
+            maxDailyBudget: initialData?.constraints?.maxDailyBudget || 0,
+            acceptableVolatilityPct: initialData?.constraints?.acceptableVolatilityPct || 0,
+            scalingSpeed: initialData?.constraints?.scalingSpeed || "normal",
+            fatigueTolerance: initialData?.constraints?.fatigueTolerance || "normal",
         }
     });
 
@@ -388,6 +401,104 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
                                 />
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                {/* Strategic Profile — Phase 3 */}
+                <div className="p-4 bg-special/20 rounded-lg border border-argent space-y-4">
+                    <h3 className="text-body font-bold text-text-primary">Strategic Profile</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label className="block text-small font-bold text-text-muted uppercase mb-2">Growth Mode</label>
+                            <select
+                                value={formData.growthMode || "stable"}
+                                onChange={(e) => setFormData({ ...formData, growthMode: e.target.value as any })}
+                                className="w-full bg-stellar border border-argent rounded-lg px-3 py-2 text-text-primary focus:border-classic outline-none"
+                            >
+                                <option value="aggressive">Aggressive — Scale fast, higher risk tolerance</option>
+                                <option value="stable">Stable — Balanced growth (default)</option>
+                                <option value="conservative">Conservative — Protect margins, minimal scaling</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-small font-bold text-text-muted uppercase mb-2">Funnel Priority</label>
+                            <select
+                                value={formData.funnelPriority || "FULL_FUNNEL"}
+                                onChange={(e) => setFormData({ ...formData, funnelPriority: e.target.value as any })}
+                                className="w-full bg-stellar border border-argent rounded-lg px-3 py-2 text-text-primary focus:border-classic outline-none"
+                            >
+                                <option value="TOFU">Top of Funnel — Awareness & Reach</option>
+                                <option value="MOFU">Mid Funnel — Consideration & Engagement</option>
+                                <option value="BOFU">Bottom of Funnel — Conversions</option>
+                                <option value="FULL_FUNNEL">Full Funnel — Balanced</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-small font-bold text-text-muted uppercase mb-2">LTV ($)</label>
+                            <input
+                                type="number"
+                                value={formData.ltv || 0}
+                                onChange={(e) => setFormData({ ...formData, ltv: Number(e.target.value) })}
+                                placeholder="Lifetime Value"
+                                className="w-full"
+                            />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                            <label className="block text-small font-bold text-text-muted uppercase mb-2">Scaling Speed</label>
+                            <select
+                                value={formData.constraints?.scalingSpeed || "normal"}
+                                onChange={(e) => setFormData({ ...formData, constraints: { ...formData.constraints, scalingSpeed: e.target.value as any } })}
+                                className="w-full bg-stellar border border-argent rounded-lg px-3 py-2 text-text-primary focus:border-classic outline-none"
+                            >
+                                <option value="slow">Slow</option>
+                                <option value="normal">Normal</option>
+                                <option value="fast">Fast</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-small font-bold text-text-muted uppercase mb-2">Fatigue Tolerance</label>
+                            <select
+                                value={formData.constraints?.fatigueTolerance || "normal"}
+                                onChange={(e) => setFormData({ ...formData, constraints: { ...formData.constraints, fatigueTolerance: e.target.value as any } })}
+                                className="w-full bg-stellar border border-argent rounded-lg px-3 py-2 text-text-primary focus:border-classic outline-none"
+                            >
+                                <option value="low">Low — Strict frequency limits</option>
+                                <option value="normal">Normal</option>
+                                <option value="high">High — Tolerates higher frequency</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-small font-bold text-text-muted uppercase mb-2">Max Daily Budget ($)</label>
+                            <input
+                                type="number"
+                                value={formData.constraints?.maxDailyBudget || 0}
+                                onChange={(e) => setFormData({ ...formData, constraints: { ...formData.constraints, maxDailyBudget: Number(e.target.value) } })}
+                                className="w-full"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-small font-bold text-text-muted uppercase mb-2">Volatility Tolerance (%)</label>
+                            <input
+                                type="number"
+                                value={formData.constraints?.acceptableVolatilityPct || 0}
+                                onChange={(e) => setFormData({ ...formData, constraints: { ...formData.constraints, acceptableVolatilityPct: Number(e.target.value) } })}
+                                placeholder="e.g. 30"
+                                className="w-full"
+                            />
+                            <p className="mt-1 text-[10px] text-text-muted italic">0 = use system default threshold</p>
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-small font-bold text-text-muted uppercase mb-2">Seasonality Notes</label>
+                        <input
+                            type="text"
+                            value={formData.seasonalityNotes || ""}
+                            onChange={(e) => setFormData({ ...formData, seasonalityNotes: e.target.value })}
+                            placeholder="e.g. Peak in Nov-Dec, low in Jan-Feb"
+                            className="w-full"
+                        />
                     </div>
                 </div>
 

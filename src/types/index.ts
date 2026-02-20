@@ -292,11 +292,21 @@ export interface Client {
         value?: { actionType: string; currency: Currency; isNet: boolean };
     };
 
+    // Phase 3: Strategic Business Profile
+    growthMode?: "aggressive" | "stable" | "conservative";
+    ltv?: number;
+    seasonalityNotes?: string;
+    funnelPriority?: "TOFU" | "MOFU" | "BOFU" | "FULL_FUNNEL";
+
     constraints?: {
         budgetLockedUntil?: string;
         noCreativeUntil?: string;
         stockRisk?: boolean;
         seasonality?: string;
+        maxDailyBudget?: number;
+        acceptableVolatilityPct?: number;   // e.g., 30 = tolerates 30% CPA variation
+        scalingSpeed?: "slow" | "normal" | "fast";
+        fatigueTolerance?: "low" | "normal" | "high";
     };
 
     kpiConfig?: KPIConfig; // Optional custom overrides (legacy/simplified)

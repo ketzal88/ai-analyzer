@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebase-admin";
 import { SlackService } from "@/lib/slack-service";
 import { EngineConfigService } from "@/lib/engine-config-service";
+import { EventService } from "@/lib/event-service";
 import { Client, Alert } from "@/types";
 import { ClientSnapshot } from "@/types/client-snapshot";
 import { reportError } from "@/lib/error-reporter";
@@ -10,12 +11,12 @@ import { reportError } from "@/lib/error-reporter";
  * Daily Digest Cron
  *
  * Sends TWO Slack messages per active client:
- * 1. 📊 Daily Snapshot — KPI report for the last 7 days
- * 2. 🚀 Alert Digest — Grouped alert recommendations
+ * 1. Daily Snapshot — KPI report for the month
+ * 2. Alert Digest — Grouped alert recommendations
  *
- * Also sends individual 🚨 CRITICAL alerts immediately.
+ * Also sends individual CRITICAL alerts immediately.
  *
- * Now reads from pre-computed client_snapshots (1 read per client).
+ * Reads from pre-computed client_snapshots (1 read per client).
  *
  * Triggered by: Vercel Cron or manual GET request
  * Auth: Bearer token via CRON_SECRET
@@ -25,6 +26,9 @@ export async function GET(request: NextRequest) {
     if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const startedAt = new Date().toISOString();
+    const startMs = Date.now();
 
     try {
         const clientsSnap = await db.collection("clients")
@@ -47,7 +51,6 @@ export async function GET(request: NextRequest) {
             try {
                 const config = await EngineConfigService.getEngineConfig(clientId);
 
-                // ── Read pre-computed snapshot (1 read instead of ~800) ──
                 const snapshotDoc = await db.collection("client_snapshots").doc(clientId).get();
 
                 let snapshotSent = false;
@@ -62,8 +65,7 @@ export async function GET(request: NextRequest) {
 
                 const snapshot = snapshotDoc.data() as ClientSnapshot;
 
-                // ── 1. DAILY SNAPSHOT ─────────────────────────────
-
+                // 1. DAILY SNAPSHOT
                 if ((snapshot.accountSummary.rolling.spend_7d || 0) > 0) {
                     const kpis = SlackService.buildSnapshotFromClientSnapshot(snapshot.accountSummary);
 
@@ -76,8 +78,7 @@ export async function GET(request: NextRequest) {
                     snapshotSent = true;
                 }
 
-                // ── 2. ALERTS (already computed in snapshot) ─────
-
+                // 2. ALERTS
                 const alerts = snapshot.alerts;
 
                 if (alerts.length > 0) {
@@ -112,6 +113,27 @@ export async function GET(request: NextRequest) {
             }
         }
 
+        // Log cron execution
+        await EventService.logCronExecution({
+            cronType: "daily-digest",
+            startedAt,
+            completedAt: new Date().toISOString(),
+            durationMs: Date.now() - startMs,
+            summary: {
+                total: results.length,
+                success: results.filter(r => !r.error).length,
+                failed: results.filter(r => r.error).length,
+                skipped: 0,
+            },
+            results: results.map(r => ({
+                clientId: r.clientId,
+                clientName: r.clientName,
+                status: r.error ? "failed" : "success",
+                error: r.error,
+            })),
+            triggeredBy: request.headers.get("x-triggered-by") === "manual" ? "manual" : "schedule",
+        });
+
         return NextResponse.json({
             success: true,
             processed: results.length,
@@ -120,6 +142,17 @@ export async function GET(request: NextRequest) {
 
     } catch (error: any) {
         reportError("Cron Daily Digest (Fatal)", error);
+
+        await EventService.logCronExecution({
+            cronType: "daily-digest",
+            startedAt,
+            completedAt: new Date().toISOString(),
+            durationMs: Date.now() - startMs,
+            summary: { total: 0, success: 0, failed: 1, skipped: 0 },
+            results: [{ clientId: "FATAL", status: "failed", error: error.message }],
+            triggeredBy: "schedule",
+        }).catch(() => {});
+
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

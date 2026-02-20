@@ -2,6 +2,7 @@ import { db } from "@/lib/firebase-admin";
 import { PerformanceService } from "@/lib/performance-service";
 import { DecisionEngine, ClientTargets } from "@/lib/decision-engine";
 import { EngineConfigService } from "@/lib/engine-config-service";
+import { CreativeClassifier } from "@/lib/creative-classifier";
 import { getDefaultEngineConfig } from "@/types/engine-config";
 import { DailyEntitySnapshot, EntityLevel, EntityRollingMetrics, ConceptRollingMetrics } from "@/types/performance-snapshots";
 import { EntityClassification, ClientPercentiles } from "@/types/classifications";
@@ -130,6 +131,28 @@ export class ClientSnapshotService {
             Array.from(conceptMetricsMap.values()), clientData, config
         );
 
+        // ── 6b. Creative classification for ads ─────────────────
+        const adEntitiesForClassifier = entityEntries.filter(e => e.level === 'ad');
+        const adClassificationsForClassifier = classifications.filter(c => c.level === 'ad');
+        const accountSpend7d = accountEntry?.rolling?.spend_7d || totalAdSpend7d || 0;
+
+        if (adEntitiesForClassifier.length > 0) {
+            const categoryResults = CreativeClassifier.classifyAll(
+                adEntitiesForClassifier,
+                adClassificationsForClassifier,
+                accountSpend7d,
+                clientData?.targetCpa
+            );
+            // Enrich ad classifications with creative category
+            for (const cat of categoryResults) {
+                const classif = classifications.find(c => c.entityId === cat.entityId && c.level === 'ad');
+                if (classif) {
+                    classif.creativeCategory = cat.category;
+                    classif.creativeCategoryReasoning = cat.reasoning;
+                }
+            }
+        }
+
         // ── 7. Compute alerts in memory ────────────────────────
         const alerts = this.computeAlertsInMemory(
             clientId, rollingMetrics, classifications, allSnapshots,
@@ -243,7 +266,11 @@ export class ClientSnapshotService {
         const clientTargets: ClientTargets = {
             targetCpa: clientData?.targetCpa,
             targetRoas: clientData?.targetRoas,
-            primaryGoal: clientData?.primaryGoal
+            primaryGoal: clientData?.primaryGoal,
+            growthMode: clientData?.growthMode,
+            fatigueTolerance: clientData?.constraints?.fatigueTolerance,
+            scalingSpeed: clientData?.constraints?.scalingSpeed,
+            acceptableVolatilityPct: clientData?.constraints?.acceptableVolatilityPct,
         };
 
         const activeAdsets = rollingMetrics.filter(r => r.level === 'adset' && (r.rolling.spend_7d || 0) > 0);
@@ -417,7 +444,8 @@ export class ClientSnapshotService {
 
             const defaultConfig = getDefaultEngineConfig(clientId, businessType);
 
-            // SCALING OPPORTUNITY
+            // SCALING OPPORTUNITY (respects growthMode)
+            const growthMode = clientData?.growthMode || "stable";
             const cpaMeetsTarget = targetCpa ? (primaryCpa || Infinity) <= targetCpa : false;
             const roasMeetsTarget = isEcommerce ? (r.roas_7d || 0) >= targetRoas : true;
             const velocity7d = isEcommerce ? (r.conversion_velocity_7d || 0) : (primaryMetric / 7);
@@ -426,22 +454,27 @@ export class ClientSnapshotService {
             const daysStable = snap ? snap.stability.daysSinceLastEdit >= 3 : true;
 
             if ((cpaMeetsTarget || (isEcommerce && roasMeetsTarget)) && velocityStable && freqSafe && daysStable) {
-                const type = "SCALING_OPPORTUNITY";
-                const template = config.alertTemplates[type] || defaultConfig.alertTemplates[type];
-                alerts.push({
-                    id: `SCALING_${rolling.entityId}_${Date.now()}`,
-                    clientId, level: rolling.level, entityId: rolling.entityId, entityName: contextName, type,
-                    severity: "INFO",
-                    title: formatMessage(template.title, commonVars),
-                    description: formatMessage(template.description, commonVars),
-                    impactScore: classif?.impactScore || 50,
-                    evidence: [
+                // Conservative mode: skip SCALING_OPPORTUNITY alerts entirely
+                if (growthMode !== "conservative") {
+                    const type = "SCALING_OPPORTUNITY";
+                    const template = config.alertTemplates[type] || defaultConfig.alertTemplates[type];
+                    const evidence = [
                         `${isEcommerce ? 'CPA' : `Coste/${metricName}`} 7d: ${commonVars.cpa_7d}`,
                         isEcommerce ? `ROAS 7d: ${(r.roas_7d || 0).toFixed(2)}x` : `Volumen 7d: ${primaryMetric}`,
                         `Frecuencia: ${commonVars.frequency_7d}`
-                    ],
-                    createdAt: new Date().toISOString()
-                });
+                    ];
+                    if (clientData?.constraints?.stockRisk) evidence.push("⚠️ Stock sensible — validar inventario antes de escalar");
+                    alerts.push({
+                        id: `SCALING_${rolling.entityId}_${Date.now()}`,
+                        clientId, level: rolling.level, entityId: rolling.entityId, entityName: contextName, type,
+                        severity: "INFO",
+                        title: formatMessage(template.title, commonVars),
+                        description: formatMessage(template.description, commonVars),
+                        impactScore: classif?.impactScore || 50,
+                        evidence,
+                        createdAt: new Date().toISOString()
+                    });
+                }
             }
 
             // LEARNING RESET RISK
@@ -496,8 +529,11 @@ export class ClientSnapshotService {
                 });
             }
 
-            // CPA VOLATILITY
-            if (Math.abs(budgetChange) > (config.findings.volatilityThreshold * 100)) {
+            // CPA VOLATILITY (respects acceptableVolatilityPct)
+            const volatilityThreshold = clientData?.constraints?.acceptableVolatilityPct
+                ? clientData.constraints.acceptableVolatilityPct
+                : config.findings.volatilityThreshold * 100;
+            if (Math.abs(budgetChange) > volatilityThreshold) {
                 const type = "CPA_VOLATILITY";
                 const template = config.alertTemplates[type] || defaultConfig.alertTemplates[type];
                 alerts.push({
@@ -507,7 +543,7 @@ export class ClientSnapshotService {
                     title: formatMessage(template.title, commonVars),
                     description: formatMessage(template.description, commonVars),
                     impactScore: 40,
-                    evidence: [`Δ Budget 3d: ${budgetChange.toFixed(1)}%`, `Threshold: ${config.findings.volatilityThreshold * 100}%`],
+                    evidence: [`Δ Budget 3d: ${budgetChange.toFixed(1)}%`, `Threshold: ${volatilityThreshold}%`],
                     createdAt: new Date().toISOString()
                 });
             }

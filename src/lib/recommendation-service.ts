@@ -167,6 +167,15 @@ export class RecommendationService {
             }
         }
 
+        // Build creative category summary for context
+        const adClassifications = adsSnapshot?.classifications || [];
+        const categoryCounts: Record<string, number> = {};
+        for (const c of adClassifications) {
+            if (c.creativeCategory) {
+                categoryCounts[c.creativeCategory] = (categoryCounts[c.creativeCategory] || 0) + 1;
+            }
+        }
+
         return {
             classification: {
                 clientId,
@@ -181,7 +190,16 @@ export class RecommendationService {
                 cpa: client?.targetCpa,
                 roas: client?.targetRoas,
                 goal: client?.primaryGoal,
-                bizModel: client?.businessModel
+                bizModel: client?.businessModel,
+                growthMode: client?.growthMode,
+                funnelPriority: client?.funnelPriority,
+                ltv: client?.ltv,
+            },
+            creativeInsights: {
+                totalAds: adClassifications.length,
+                categoryCounts,
+                entityCategory: classification.creativeCategory || null,
+                entityCategoryReasoning: classification.creativeCategoryReasoning || null,
             }
         };
     }

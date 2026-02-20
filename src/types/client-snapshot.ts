@@ -65,6 +65,8 @@ export interface ClassificationEntry {
     evidence: string[];
     confidenceScore: number;
     impactScore: number;
+    creativeCategory?: string;          // Phase 4: DOMINANT_SCALABLE | WINNER_SATURATING | etc.
+    creativeCategoryReasoning?: string;
 }
 
 export interface MTDAggregation {
