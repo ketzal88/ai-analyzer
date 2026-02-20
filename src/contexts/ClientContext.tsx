@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import { Client, Alert } from "@/types";
 import { EntityRollingMetrics, ConceptRollingMetrics } from "@/types/performance-snapshots";
 import { EntityClassification } from "@/types/classifications";
+import { useAuth } from "@/contexts/AuthContext";
 
 export interface PerformanceData {
     rolling: EntityRollingMetrics[];
@@ -27,6 +28,7 @@ interface ClientContextType {
 const ClientContext = createContext<ClientContextType | undefined>(undefined);
 
 export function ClientProvider({ children }: { children: React.ReactNode }) {
+    const { user, loading: authLoading } = useAuth();
     const [selectedClientId, setSelectedClientIdState] = useState<string | null>(null);
     const [activeClients, setActiveClients] = useState<Client[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -75,8 +77,8 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
+    // Restore selected client from URL or localStorage
     useEffect(() => {
-        // ... (existing localStorage and URL logic)
         const params = new URLSearchParams(window.location.search);
         const urlId = params.get("clientId");
         const storedId = localStorage.getItem("selectedClientId");
@@ -87,8 +89,17 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
         } else if (storedId) {
             setSelectedClientIdState(storedId);
         }
+    }, []);
+
+    // Fetch clients when user is authenticated
+    useEffect(() => {
+        if (authLoading || !user) {
+            setIsLoading(!authLoading);
+            return;
+        }
 
         const fetchClients = async () => {
+            setIsLoading(true);
             try {
                 const res = await fetch("/api/clients");
                 if (res.ok) {
@@ -103,7 +114,7 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
         };
 
         fetchClients();
-    }, []);
+    }, [user, authLoading]);
 
     // Auto-refresh when client changes
     useEffect(() => {
