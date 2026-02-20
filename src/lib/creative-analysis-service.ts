@@ -3,6 +3,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createHash } from "crypto";
 import { CreativeAIReport } from "@/types/creative-analysis";
 import { reportError } from "@/lib/error-reporter";
+import { buildSystemPrompt } from "@/lib/prompt-utils";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 const MODEL = process.env.GEMINI_MODEL || "gemini-1.5-flash";
@@ -48,36 +49,23 @@ export async function generateCreativeAudit(
         .limit(1)
         .get();
 
-    let systemPrompt = `Eres un experto en Creative Strategy para Meta Ads. 
-    Analiza el creativo proporcionado y genera una auditoría estratégica.
-    
-    FORMATO JSON REQUERIDO:
-    {
-      "diagnosis": "Resumen del rendimiento actual.",
-      "risks": {
-        "fatigue": "Evaluación de saturación.",
-        "collision": "Riesgo de canibalización con otros activos."
-      },
-      "actions": {
-        "horizon7d": "Acción inmediata de optimización.",
-        "horizon14d": "Siguiente paso estratégico.",
-        "horizon30d": "Visión a largo plazo para este activo."
-      },
-      "score": 0-100
-    }
-    
-    IDIOMA: ESPAÑOL.
-    SE BREVE Y ACCIONABLE.`;
+    let baseSystemPrompt = `Eres un experto en Creative Strategy para Meta Ads.
+    Analiza el creativo proporcionado y genera una auditoría estratégica.`;
 
     let promptId = "default";
     let promptVersion = 1;
+    let dbCriticalInstructions: string | undefined;
 
     if (!promptSnap.empty) {
         const p = promptSnap.docs[0].data();
-        systemPrompt = p.system;
+        baseSystemPrompt = p.system;
         promptId = promptSnap.docs[0].id;
         promptVersion = p.version || 1;
+        dbCriticalInstructions = p.criticalInstructions;
     }
+
+    // Build final system prompt: base + critical instructions (from DB or default)
+    const systemPrompt = buildSystemPrompt(baseSystemPrompt, dbCriticalInstructions, 'creative-audit');
 
     // 3. Cache Check (24h)
     // New Human Readable Key: clientId__adId__YYYY-MM-DD_YYYY-MM-DD__p{version}
@@ -235,15 +223,21 @@ export async function generateCreativeVariations(
         .limit(1)
         .get();
 
-    let systemPrompt = `Eres un experto en Creative Strategy (GEM). Generá variaciones de exploración real, no cambios cosméticos. Responde en JSON.`;
+    let baseSystemPrompt = `Eres un experto en Creative Strategy (GEM). Generá variaciones de exploración real, no cambios cosméticos.`;
     let promptId = "default";
     let promptVersion = 1;
+    let dbCriticalInstructions: string | undefined;
 
     if (!promptSnap.empty) {
-        systemPrompt = promptSnap.docs[0].data().system;
+        const p = promptSnap.docs[0].data();
+        baseSystemPrompt = p.system;
         promptId = promptSnap.docs[0].id;
-        promptVersion = promptSnap.docs[0].data().version || 1;
+        promptVersion = p.version || 1;
+        dbCriticalInstructions = p.criticalInstructions;
     }
+
+    // Build final system prompt: base + critical instructions (from DB or default)
+    const systemPrompt = buildSystemPrompt(baseSystemPrompt, dbCriticalInstructions, 'creative-variations');
 
     // 2. Cache Check
     const rangeKey = `${range.start}_${range.end}`;

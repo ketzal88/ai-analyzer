@@ -2,6 +2,7 @@ import { db } from "@/lib/firebase-admin";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { ConceptBriefDoc } from "@/types/concept-ai-brief";
 import { ConceptService } from "./concept-service";
+import { buildSystemPrompt } from "@/lib/prompt-utils";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 const MODEL = process.env.GEMINI_MODEL || "gemini-1.5-flash";
@@ -36,46 +37,19 @@ export class ConceptBriefService {
             .limit(1)
             .get();
 
-        let systemPrompt = "Eres un Director Creativo de Performance experto en Meta Ads.";
+        let baseSystemPrompt = "Eres un Director Creativo de Performance experto en Meta Ads.";
         let userTemplate = "Genera un Creative Brief para este concepto:\n\n{{summary_json}}";
+        let dbCriticalInstructions: string | undefined;
 
         if (!activePromptSnapshot.empty) {
             const template = activePromptSnapshot.docs[0].data();
-            systemPrompt = template.system;
+            baseSystemPrompt = template.system;
             userTemplate = template.userTemplate;
+            dbCriticalInstructions = template.criticalInstructions;
         }
 
-        systemPrompt += `
-    INSTRUCCIONES CRÍTICAS:
-    - Responde EXCLUSIVAMENTE en JSON.
-    - IDIOMA: TODO EL CONTENIDO DEL JSON (exceptuando las keys) DEBE ESTAR EN ESPAÑOL.
-    - No uses markdown.
-    
-    ESQUEMA JSON REQUERIDO:
-    {
-      "context": "string",
-      "evidence": string[],
-      "diagnosis": "string",
-      "rotationPlan": {
-        "avatar": "string",
-        "conflict": "string",
-        "proof": "string",
-        "format": "string",
-        "context": "string"
-      },
-      "deliverables": [
-        {
-          "title": "string",
-          "hooks": [string, string],
-          "script": "string",
-          "visual": "string",
-          "cta": "string",
-          "proofType": "string"
-        }
-      ],
-      "successCriteria": "string"
-    }
-    `;
+        // Build final system prompt: base + critical instructions (from DB or default)
+        const systemPrompt = buildSystemPrompt(baseSystemPrompt, dbCriticalInstructions, promptKey);
 
         // 4. Generate with Gemini
         try {

@@ -7,6 +7,7 @@ import { EntityClassification } from "@/types/classifications";
 import { EntityRollingMetrics, DailyEntitySnapshot, ConceptRollingMetrics } from "@/types/performance-snapshots";
 import { Client } from "@/types";
 import { ClientSnapshot, ClientSnapshotAds } from "@/types/client-snapshot";
+import { buildSystemPrompt } from "@/lib/prompt-utils";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 const MODEL = process.env.GEMINI_MODEL || "gemini-1.5-flash";
@@ -46,36 +47,21 @@ export class RecommendationService {
             .limit(1)
             .get();
 
-        let systemPrompt = "Eres un estratega senior de Performance Marketing experto en el método GEM (Growth, Efficiency, Maintenance).";
+        let baseSystemPrompt = "Eres un estratega senior de Performance Marketing experto en el método GEM (Growth, Efficiency, Maintenance).";
         let userTemplate = "Basado en los siguientes datos de la entidad, genera un playbook de acción concreto:\n\n{{summary_json}}";
         let promptVersion = "v1-default";
+        let dbCriticalInstructions: string | undefined;
 
         if (!activePromptSnapshot.empty) {
             const template = activePromptSnapshot.docs[0].data();
-            systemPrompt = template.system;
+            baseSystemPrompt = template.system;
             userTemplate = template.userTemplate;
             promptVersion = `${template.version}`;
+            dbCriticalInstructions = template.criticalInstructions;
         }
 
-        // Add strict instructions to system prompt
-        systemPrompt += `
-    INSTRUCCIONES CRÍTICAS:
-    - Responde EXCLUSIVAMENTE en formato JSON.
-    - IDIOMA: TODO EL CONTENIDO DEL JSON (exceptuando las keys) DEBE ESTAR EN ESPAÑOL.
-    - No uses markdown ni explicaciones fuera del JSON.
-    - Si los datos son insuficientes, devuelve status: "insufficient_evidence".
-
-    ESQUEMA JSON REQUERIDO:
-    {
-      "decision": "SCALE" | "ROTATE_CONCEPT" | "CONSOLIDATE" | "INTRODUCE_BOFU_VARIANTS" | "KILL_RETRY" | "HOLD",
-      "evidence": string[],
-      "actions": string[],
-      "experiments": string[],
-      "creativeBrief": string | null,
-      "confidence": number,
-      "impactScore": number
-    }
-    `;
+        // Build final system prompt: base + critical instructions (from DB or default)
+        const systemPrompt = buildSystemPrompt(baseSystemPrompt, dbCriticalInstructions, promptKey);
 
         // 4. Generate with Gemini
         try {

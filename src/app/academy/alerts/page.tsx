@@ -72,33 +72,47 @@ export default function AlertsAcademyPage() {
                         </div>
                         <h2 className="text-small font-black text-text-primary uppercase tracking-widest">Estructura del Manual</h2>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
                         <a href="#alerts-catalog" className="flex items-start gap-4 p-4 rounded-xl hover:bg-stellar/50 transition-colors group">
                             <span className="text-small font-black text-text-muted group-hover:text-classic transition-colors">01</span>
                             <div>
-                                <p className="text-small font-bold text-text-primary mb-1">Catálogo de Alertas</p>
-                                <p className="text-tiny text-text-muted">Tipos de notificaciones y acciones sugeridas.</p>
+                                <p className="text-small font-bold text-text-primary mb-1">Alertas</p>
+                                <p className="text-tiny text-text-muted">Notificaciones y acciones.</p>
                             </div>
                         </a>
                         <a href="#intent-logic" className="flex items-start gap-4 p-4 rounded-xl hover:bg-stellar/50 transition-colors group">
                             <span className="text-small font-black text-text-muted group-hover:text-classic transition-colors">02</span>
                             <div>
-                                <p className="text-small font-bold text-text-primary mb-1">Lógica de Intención</p>
-                                <p className="text-tiny text-text-muted">Clasificación TOFU / MOFU / BOFU.</p>
+                                <p className="text-small font-bold text-text-primary mb-1">Intención</p>
+                                <p className="text-tiny text-text-muted">TOFU / MOFU / BOFU.</p>
+                            </div>
+                        </a>
+                        <a href="#creative-categories" className="flex items-start gap-4 p-4 rounded-xl hover:bg-stellar/50 transition-colors group">
+                            <span className="text-small font-black text-text-muted group-hover:text-classic transition-colors">03</span>
+                            <div>
+                                <p className="text-small font-bold text-text-primary mb-1">Clasificación</p>
+                                <p className="text-tiny text-text-muted">6 categorías de creativos.</p>
+                            </div>
+                        </a>
+                        <a href="#account-health" className="flex items-start gap-4 p-4 rounded-xl hover:bg-stellar/50 transition-colors group">
+                            <span className="text-small font-black text-text-muted group-hover:text-classic transition-colors">04</span>
+                            <div>
+                                <p className="text-small font-bold text-text-primary mb-1">Salud de Cuenta</p>
+                                <p className="text-tiny text-text-muted">Monitoreo automático Meta.</p>
                             </div>
                         </a>
                         <a href="#control-panel" className="flex items-start gap-4 p-4 rounded-xl hover:bg-stellar/50 transition-colors group">
-                            <span className="text-small font-black text-text-muted group-hover:text-classic transition-colors">03</span>
+                            <span className="text-small font-black text-text-muted group-hover:text-classic transition-colors">05</span>
                             <div>
-                                <p className="text-small font-bold text-text-primary mb-1">Mesa de Control</p>
-                                <p className="text-tiny text-text-muted">Prompts de IA y lógica de negocio configurables.</p>
+                                <p className="text-small font-bold text-text-primary mb-1">Cerebro</p>
+                                <p className="text-tiny text-text-muted">IA y lógica configurables.</p>
                             </div>
                         </a>
                         <a href="#brain-sync" className="flex items-start gap-4 p-4 rounded-xl hover:bg-stellar/50 transition-colors group">
-                            <span className="text-small font-black text-text-muted group-hover:text-classic transition-colors">04</span>
+                            <span className="text-small font-black text-text-muted group-hover:text-classic transition-colors">06</span>
                             <div>
                                 <p className="text-small font-bold text-text-primary mb-1">Sincronización</p>
-                                <p className="text-tiny text-text-muted">Cronograma de operaciones del cerebro.</p>
+                                <p className="text-tiny text-text-muted">Cronograma de operaciones.</p>
                             </div>
                         </a>
                     </div>
@@ -241,6 +255,129 @@ export default function AlertsAcademyPage() {
                     </div>
                 </div>
 
+                {/* Creative Categories */}
+                <div id="creative-categories" className="mt-32 space-y-8 scroll-mt-24">
+                    <div className="text-center">
+                        <h2 className="text-subheader text-text-primary mb-2">Clasificación Automática de Creativos</h2>
+                        <p className="text-body text-text-secondary max-w-xl mx-auto">
+                            El sistema clasifica cada creativo en una de 6 categorías según su rendimiento. Esto te permite priorizar rápidamente qué necesita atención.
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {[
+                            {
+                                category: "Dominante Escalable",
+                                icon: "🚀",
+                                color: "border-emerald-500/40 bg-emerald-500/5",
+                                badge: "bg-emerald-500/10 text-emerald-500",
+                                condition: "Alto gasto + CPA eficiente",
+                                desc: "Tu mejor creativo. Está convirtiendo bien y tiene margen para absorber más presupuesto.",
+                                action: "Escalar presupuesto gradualmente (20% cada 48h)."
+                            },
+                            {
+                                category: "Ganador Saturándose",
+                                icon: "⚠️",
+                                color: "border-amber-500/40 bg-amber-500/5",
+                                badge: "bg-amber-500/10 text-amber-500",
+                                condition: "Frecuencia alta + CPA subiendo",
+                                desc: "Fue un ganador pero muestra señales de fatiga. El público ya lo vio demasiado.",
+                                action: "Rotar variantes, preparar reemplazo."
+                            },
+                            {
+                                category: "BOFU Oculto",
+                                icon: "💎",
+                                color: "border-blue-500/40 bg-blue-500/5",
+                                badge: "bg-blue-500/10 text-blue-500",
+                                condition: "Poco gasto + excelente conversión",
+                                desc: "Joya escondida. Convierte muy bien pero no tiene suficiente presupuesto asignado.",
+                                action: "Subir presupuesto inmediatamente."
+                            },
+                            {
+                                category: "TOFU Ineficiente",
+                                icon: "🔥",
+                                color: "border-red-500/40 bg-red-500/5",
+                                badge: "bg-red-500/10 text-red-500",
+                                condition: "Mucho gasto + poca eficiencia",
+                                desc: "Está quemando presupuesto sin devolver resultados proporcionales.",
+                                action: "Pausar o reestructurar urgente."
+                            },
+                            {
+                                category: "Zombie",
+                                icon: "👻",
+                                color: "border-gray-500/40 bg-gray-500/5",
+                                badge: "bg-gray-500/10 text-gray-400",
+                                condition: "Gasto mínimo + resultados mínimos",
+                                desc: "No aporta nada significativo. Ni gasta mucho ni convierte.",
+                                action: "Pausar o refrescar creativo."
+                            },
+                            {
+                                category: "Nuevo (Sin Data)",
+                                icon: "🆕",
+                                color: "border-purple-500/40 bg-purple-500/5",
+                                badge: "bg-purple-500/10 text-purple-400",
+                                condition: "<48h activo o <2000 impresiones",
+                                desc: "Demasiado nuevo para clasificar. Necesita más data antes de tomar decisiones.",
+                                action: "Esperar y monitorear."
+                            }
+                        ].map((c) => (
+                            <div key={c.category} className={`p-6 border rounded-2xl ${c.color} transition-all duration-300 hover:scale-[1.02]`}>
+                                <div className="flex items-center gap-3 mb-4">
+                                    <span className="text-2xl">{c.icon}</span>
+                                    <div>
+                                        <h3 className="text-small font-bold text-text-primary">{c.category}</h3>
+                                        <span className={`text-[10px] font-black px-2 py-0.5 rounded ${c.badge}`}>{c.condition}</span>
+                                    </div>
+                                </div>
+                                <p className="text-tiny text-text-secondary leading-relaxed mb-3">{c.desc}</p>
+                                <div className="p-3 bg-stellar/50 rounded-lg border border-argent/20">
+                                    <p className="text-tiny text-classic font-medium">{c.action}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Account Health */}
+                <div id="account-health" className="mt-32 space-y-8 scroll-mt-24">
+                    <div className="text-center">
+                        <h2 className="text-subheader text-text-primary mb-2">Salud de Cuenta (Account Health)</h2>
+                        <p className="text-body text-text-secondary max-w-xl mx-auto">
+                            Monitoreo automático del estado de tu cuenta de Meta Ads cada 2 horas. Te evita sorpresas.
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {[
+                            {
+                                title: "Estado de Cuenta",
+                                icon: "🔒",
+                                desc: "Detecta cambios en el estado de tu cuenta (activa, deshabilitada, no liquidada). Si Meta pausa tu cuenta a las 9 AM, lo sabrás antes del mediodía.",
+                                alert: "Alerta inmediata en Slack si el estado cambia."
+                            },
+                            {
+                                title: "Spend Cap (Tope de Gasto)",
+                                icon: "📊",
+                                desc: "Monitorea el gasto acumulado vs el tope configurado en Meta. Te alerta cuando superas el 80% del límite para que no te quedes sin delivery.",
+                                alert: "Alerta cuando el gasto se acerca al tope."
+                            },
+                            {
+                                title: "Transiciones de Estado",
+                                icon: "🔄",
+                                desc: "Registra cada cambio de estado como un evento auditable. Puedes ver el historial completo en la sección de Sistema.",
+                                alert: "Log permanente de todos los cambios."
+                            }
+                        ].map((h) => (
+                            <div key={h.title} className="p-6 bg-stellar/30 border border-argent/40 rounded-2xl">
+                                <div className="text-3xl mb-4">{h.icon}</div>
+                                <h3 className="text-small font-bold text-text-primary mb-2">{h.title}</h3>
+                                <p className="text-tiny text-text-secondary leading-relaxed mb-3">{h.desc}</p>
+                                <p className="text-tiny text-classic font-medium italic">{h.alert}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
                 {/* Business Objectives & Metrics */}
                 <div id="business-objectives" className="mt-32 space-y-12 scroll-mt-24">
                     <div className="text-center">
@@ -303,9 +440,9 @@ export default function AlertsAcademyPage() {
                 {/* Control Panel Section */}
                 <div id="control-panel" className="mt-32 space-y-12 scroll-mt-24">
                     <div className="text-center">
-                        <h2 className="text-subheader text-text-primary mb-2">Mesa de Control: Personalización del Cerebro</h2>
+                        <h2 className="text-subheader text-text-primary mb-2">Cerebro de Worker: Personalización de la IA</h2>
                         <p className="text-body text-text-secondary max-w-2xl mx-auto">
-                            El sistema no es una "caja negra". Como administrador, puedes ajustar cómo piensa la IA y qué reglas de negocio aplica para cada cliente.
+                            El sistema no es una &quot;caja negra&quot;. Desde el Cerebro de Worker (Admin), puedes ajustar cómo piensa la IA, sus instrucciones críticas y las reglas de negocio por cliente.
                         </p>
                     </div>
 
@@ -428,6 +565,11 @@ export default function AlertsAcademyPage() {
                                 desc: "Se dispara el reporte consolidado a Slack. Las alertas de optimización (Escala, Rotación) se organizan según su importancia."
                             },
                             {
+                                time: "Cada 2 Horas",
+                                title: "Account Health Check",
+                                desc: "El sistema verifica el estado de la cuenta de Meta (activa/deshabilitada), gasto acumulado vs spend cap y detecta transiciones de estado."
+                            },
+                            {
                                 time: "En Tiempo Real",
                                 title: "Auditoría de Creativos",
                                 desc: "Cada vez que subes un nuevo anuncio a Meta, el sistema lo detecta, crea su huella digital y le pide a la IA un reporte creativo inicial."
@@ -461,9 +603,10 @@ export default function AlertsAcademyPage() {
                             <li><strong>Navegación Instantánea:</strong> Hemos implementado un sistema de caché que permite saltar entre el Dashboard y el Ads Manager sin esperas de carga.</li>
                         </ul>
                         <ul className="space-y-2 list-disc pl-4">
-                            <li>Los <strong>Prompts de IA</strong> que definen el criterio de análisis se pueden auditar y editar en la sección de Administración.</li>
+                            <li>Los <strong>Prompts de IA</strong> e instrucciones críticas se pueden auditar y editar desde el <strong>Cerebro de Worker</strong> en Administración.</li>
                             <li>La fatiga creativa se detecta cruzando el incremento de frecuencia con la degradación del CTR en las últimas 72hs.</li>
-                            <li><strong>Soporte Histórico:</strong> Cada análisis diario se guarda de forma permanente. Esto permite auditar qué alertas y clasificaciones existían en una fecha específica del pasado.</li>
+                            <li><strong>Clasificación Automática:</strong> Cada creativo se clasifica en 1 de 6 categorías (Dominante, Saturándose, BOFU Oculto, TOFU Ineficiente, Zombie, Nuevo).</li>
+                            <li><strong>Account Health:</strong> Se verifica el estado de la cuenta Meta cada 2 horas para detectar problemas antes de que impacten el delivery.</li>
                         </ul>
                     </div>
                 </div>

@@ -326,6 +326,8 @@ export interface PromptTemplate {
     userTemplate: string;
     variables: string[]; // should include "summary_json"
     outputSchemaVersion?: string; // "v1" (old) or "v2" (GemReport)
+    criticalInstructions?: string;  // Cerebro: instructions appended after system prompt (JSON schema, language, etc.)
+    outputSchema?: string;          // Cerebro: expected output JSON schema (visual reference)
     createdAt: string;
     updatedAt: string;
     createdByUid: string;

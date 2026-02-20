@@ -2,6 +2,7 @@ import { db } from "@/lib/firebase-admin";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createHash } from "crypto";
 import { reportError } from "@/lib/error-reporter";
+import { buildSystemPrompt } from "@/lib/prompt-utils";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 const PRIMARY_MODEL = process.env.GEMINI_MODEL || "gemini-1.5-flash";
@@ -93,54 +94,21 @@ export async function generateGeminiReport(
         .limit(1)
         .get();
 
-    let systemPrompt = "Eres un analista experto en Meta Ads.";
+    let baseSystemPrompt = "Eres un analista experto en Meta Ads.";
     let userTemplate = `Analiza... {{summary_json}}`;
     let promptVersion = 0;
+    let dbCriticalInstructions: string | undefined;
 
     if (!activePromptSnapshot.empty) {
         const template = activePromptSnapshot.docs[0].data();
-        systemPrompt = template.system;
+        baseSystemPrompt = template.system;
         userTemplate = template.userTemplate;
         promptVersion = template.version;
+        dbCriticalInstructions = template.criticalInstructions;
     }
 
-    // ENFORCE SPANISH & ROLE SEPARATION
-    // Token Reduction: Use GraphQL Schema Definition for output structure instead of verbose JSON
-    systemPrompt += `
-    
-    INSTRUCCIONES CRÍTICAS:
-    1. Eres un ANALISTA ESTRATÉGICO. NO repitas datos. INTERPRETA y PLANIFICA.
-    2. IDIOMA: ESPAÑOL.
-    
-    FORMATO DE RESPUESTA (JSON):
-    Debes responder con un JSON válido que cumpla este esquema (TypeScript/GraphQL-like):
-    
-    type Response = {
-      meta: any; // Metadatos libres
-      sections: Section[];
-    }
-    
-    type Section = {
-      id: "strategy"; // Única sección requerida
-      title: string;
-      summary: string; // Resumen ejecutivo
-      insights: Insight[];
-    }
-    
-    type Insight = {
-      title: string;
-      observation: string; // Causa raíz + hallazgos
-      implication: string; // Impacto en negocio
-      actions: Action[];
-    }
-
-    type Action = {
-      type: "DO";
-      description: string;
-      horizon: "IMMEDIATE" | "SHORT_TERM";
-      expectedImpact: string;
-    }
-    `;
+    // Build final system prompt: base + critical instructions (from DB or default)
+    const systemPrompt = buildSystemPrompt(baseSystemPrompt, dbCriticalInstructions, 'report');
 
     const finalPrompt = userTemplate
         .replace("{{summary_json}}", JSON.stringify(summary)) // Removed null, 2 spacing to save tokens

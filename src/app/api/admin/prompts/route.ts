@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const { key, system, userTemplate, variables, outputSchemaVersion } = body;
+        const { key, system, userTemplate, variables, outputSchemaVersion, criticalInstructions, outputSchema } = body;
 
         if (!userTemplate.includes("{{summary_json}}")) {
             return NextResponse.json({ error: "userTemplate must include {{summary_json}}" }, { status: 400 });
@@ -44,6 +44,14 @@ export async function POST(request: NextRequest) {
         // Validate prompt size
         if (system.length > 20000 || userTemplate.length > 20000) {
             return NextResponse.json({ error: "Prompt too large (max 20k chars)" }, { status: 400 });
+        }
+
+        if (criticalInstructions && criticalInstructions.length > 10000) {
+            return NextResponse.json({ error: "Critical instructions too large (max 10k chars)" }, { status: 400 });
+        }
+
+        if (outputSchema && outputSchema.length > 5000) {
+            return NextResponse.json({ error: "Output schema too large (max 5k chars)" }, { status: 400 });
         }
 
         // Get latest version (in-memory sort to avoid index)
@@ -65,6 +73,8 @@ export async function POST(request: NextRequest) {
             userTemplate,
             variables: variables || ["summary_json"],
             outputSchemaVersion: outputSchemaVersion || "v1",
+            ...(criticalInstructions && { criticalInstructions }),
+            ...(outputSchema && { outputSchema }),
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
             createdByUid: uid!
