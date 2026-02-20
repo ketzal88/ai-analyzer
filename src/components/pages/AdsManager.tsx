@@ -279,8 +279,8 @@ export default function AdsManager() {
                         <div className="overflow-auto scrollbar-thin scrollbar-thumb-argent/50 h-full">
                             <table className="w-full text-left border-collapse min-w-[1400px]">
                                 <thead className="sticky top-0 z-50">
-                                    <tr className="bg-special/80 border-b border-argent/50">
-                                        <th onClick={() => handleSort('name')} className="p-6 font-black text-[10px] text-text-muted uppercase tracking-[0.2em] sticky left-0 bg-special/95 z-40 shadow-[4px_0_15px_rgba(0,0,0,0.2)] border-r border-argent/20 cursor-pointer hover:text-text-primary transition-colors min-w-[280px]" title="Nombre y tipo de la entidad.">
+                                    <tr className="bg-special border-b border-argent/50">
+                                        <th onClick={() => handleSort('name')} className="p-6 font-black text-[10px] text-text-muted uppercase tracking-[0.2em] sticky left-0 bg-special z-40 shadow-[4px_0_15px_rgba(0,0,0,0.2)] border-r border-argent/20 cursor-pointer hover:text-text-primary transition-colors min-w-[280px]" title="Nombre y tipo de la entidad.">
                                             <div className="flex items-center gap-2">Entidad <SortIcon active={sortConfig.key === 'name'} direction={sortConfig.direction} /></div>
                                         </th>
                                         <th onClick={() => handleSort('spend_7d')} className="p-4 font-black text-[10px] text-text-muted uppercase tracking-[0.2em] text-right cursor-pointer hover:text-text-primary transition-colors min-w-[120px]" title="Gasto total (7d).">
@@ -357,7 +357,7 @@ export default function AdsManager() {
                                                     onClick={() => handleRowClick(m.entityId)}
                                                     className="group/row border-b border-argent/10 hover:bg-classic/[0.05] cursor-pointer transition-all duration-200"
                                                 >
-                                                    <td className="p-6 sticky left-0 bg-second/90 group-hover/row:bg-second z-20 transition-colors shadow-[4px_0_15px_rgba(0,0,0,0.2)] border-r border-argent/20 min-w-[220px]">
+                                                    <td className="p-6 sticky left-0 bg-second group-hover/row:bg-second z-20 transition-colors shadow-[4px_0_15px_rgba(0,0,0,0.2)] border-r border-argent/20 min-w-[220px]">
                                                         <div className="flex flex-col min-w-[220px]">
                                                             <div className="flex items-center gap-2">
                                                                 <span className="text-small font-black text-text-primary truncate transition-all group-hover/row:text-classic" title={m.name || m.entityId}>
