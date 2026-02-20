@@ -6,7 +6,9 @@
       "Bash(npx tsc:*)",
       "Bash(npm run build)",
       "Bash(git status:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "mcp__claude_ai_Notion__notion-fetch",
+      "WebFetch(domain:prod-files-secure.s3.us-west-2.amazonaws.com)"
     ]
   }
 }

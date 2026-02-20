@@ -151,7 +151,7 @@ export default function ConceptDetail() {
                             </div>
                         ) : (
                             <div className="space-y-8 animate-in fade-in duration-500">
-                                <div className="bg-white border border-argent shadow-2xl rounded-3xl overflow-hidden">
+                                <div className="bg-stellar border border-argent shadow-2xl rounded-3xl overflow-hidden">
                                     <div className="bg-stellar p-8 border-b border-argent">
                                         <h2 className="text-subheader font-black text-text-primary uppercase tracking-widest mb-4">Contexto y Diagnóstico</h2>
                                         <p className="text-body text-text-secondary leading-relaxed font-medium">{brief.context}</p>
@@ -169,7 +169,7 @@ export default function ConceptDetail() {
                                                 ))}
                                             </div>
                                         </div>
-                                        <div className="bg-argent/5 p-6 rounded-2xl border border-argent/50">
+                                        <div className="bg-special p-6 rounded-2xl border border-argent/50">
                                             <h4 className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4">Diagnóstico IA</h4>
                                             <p className="text-small text-text-secondary italic leading-relaxed">{brief.diagnosis}</p>
                                         </div>
@@ -179,10 +179,10 @@ export default function ConceptDetail() {
                                         <h4 className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-6">Entregables de Producción</h4>
                                         <div className="space-y-6">
                                             {brief.deliverables.map((item, i) => (
-                                                <div key={i} className="bg-white border border-argent/50 p-6 rounded-2xl shadow-sm">
+                                                <div key={i} className="bg-special border border-argent/50 p-6 rounded-2xl shadow-sm">
                                                     <div className="flex justify-between items-start mb-4">
                                                         <h5 className="text-small font-black text-text-primary">Idea {i + 1}: {item.title}</h5>
-                                                        <span className="text-[8px] font-black px-2 py-0.5 bg-special/10 text-special rounded uppercase">{item.proofType}</span>
+                                                        <span className="text-[8px] font-black px-2 py-0.5 bg-stellar text-text-muted rounded uppercase">{item.proofType}</span>
                                                     </div>
                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                         <div className="space-y-4">
@@ -200,7 +200,7 @@ export default function ConceptDetail() {
                                                         <div className="bg-stellar p-4 rounded-xl">
                                                             <p className="text-[9px] font-black text-text-muted uppercase mb-2">Visual / Guion</p>
                                                             <p className="text-small text-text-secondary leading-tight mb-3 font-medium">{item.visual}</p>
-                                                            <div className="bg-white/50 p-3 rounded border border-argent/20">
+                                                            <div className="bg-special p-3 rounded border border-argent/20">
                                                                 <p className="text-[10px] text-text-primary font-bold italic leading-relaxed">{item.script}</p>
                                                             </div>
                                                         </div>

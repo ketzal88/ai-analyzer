@@ -356,9 +356,28 @@ export class AlertEngine {
             }
         }
 
-        // 5. Final Filter: Only keep enabled alerts
+        // 5. Deduplicate: Keep only the highest-level alert per type + campaign chain
+        const levelPriority: Record<string, number> = { campaign: 3, adset: 2, ad: 1, account: 4 };
+        const deduped: Alert[] = [];
+        const seen = new Map<string, Alert>(); // key: type__campaignId
+
+        for (const alert of alerts) {
+            const snap = dailySnapshots.find(s => s.entityId === alert.entityId && s.level === alert.level);
+            const campaignId = alert.level === 'campaign'
+                ? alert.entityId
+                : snap?.meta?.campaignId || alert.entityId;
+            const dedupeKey = `${alert.type}__${campaignId}`;
+
+            const existing = seen.get(dedupeKey);
+            if (!existing || (levelPriority[alert.level] || 0) > (levelPriority[existing.level] || 0)) {
+                seen.set(dedupeKey, alert);
+            }
+        }
+        deduped.push(...seen.values());
+
+        // 6. Final Filter: Only keep enabled alerts
         const activeAlertIds = config.enabledAlerts || Object.keys(config.alertTemplates);
-        const filteredAlerts = alerts.filter(a => activeAlertIds.includes(a.type));
+        const filteredAlerts = deduped.filter(a => activeAlertIds.includes(a.type));
 
         // Save alerts to Firestore (clear old + write new)
         const oldAlerts = await db.collection("alerts")
