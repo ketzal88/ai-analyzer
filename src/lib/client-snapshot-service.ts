@@ -134,6 +134,7 @@ export class ClientSnapshotService {
         // ── 6b. Creative classification for ads ─────────────────
         const adEntitiesForClassifier = entityEntries.filter(e => e.level === 'ad');
         const adClassificationsForClassifier = classifications.filter(c => c.level === 'ad');
+        const accountEntry = entityEntries.find(e => e.level === 'account');
         const accountSpend7d = accountEntry?.rolling?.spend_7d || totalAdSpend7d || 0;
 
         if (adEntitiesForClassifier.length > 0) {
@@ -163,7 +164,6 @@ export class ClientSnapshotService {
         const mtd = this.computeMTD(allSnapshots, refDate);
 
         // ── 9. Find account-level rolling for summary ──────────
-        const accountEntry = entityEntries.find(e => e.level === 'account');
         const accountRolling: EntityRollingMetrics["rolling"] = accountEntry?.rolling || this.emptyRolling();
 
         // ── 10. Split into main + ads ──────────────────────────
