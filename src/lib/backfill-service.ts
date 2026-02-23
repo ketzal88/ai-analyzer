@@ -8,7 +8,7 @@ export class BackfillService {
     /**
      * Enqueue tasks for a client for the last N days
      */
-    static async enqueueClient(clientId: string, days: number = 30) {
+    static async enqueueClient(clientId: string, days: number = 60) {
         const clientDoc = await db.collection("clients").doc(clientId).get();
         if (!clientDoc.exists) throw new Error("Client not found");
 
