@@ -5,7 +5,7 @@ import type { NextRequest } from "next/server";
 const protectedRoutes = ["/select-account", "/dashboard", "/findings", "/report", "/admin"];
 
 // Routes that should redirect to dashboard if already authenticated
-const authRoutes = ["/"];
+const authRoutes = ["/login"];
 
 export function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
@@ -23,7 +23,7 @@ export function middleware(request: NextRequest) {
 
     // If trying to access protected route without session, redirect to login
     if (isProtectedRoute && !sessionCookie) {
-        const url = new URL("/", request.url);
+        const url = new URL("/login", request.url);
         return NextResponse.redirect(url);
     }
 
