@@ -1,0 +1,43 @@
+name: App Crons
+
+on:
+  schedule:
+    # Super Cron (Data Sync + Reports) - Daily at 10:00 UTC (7:00 AM ART approx)
+    - cron: '0 10 * * *'
+    # Account Health - Every 6 hours
+    - cron: '0 */6 * * *'
+    # Backfill Processor - Every hour (while queue is not empty)
+    - cron: '0 * * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub UI
+
+jobs:
+  trigger-crons:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Cron Endpoint
+        run: |
+          # Determine which cron to run based on schedule or manual trigger
+          # For simplicity in this implementation, we check the hour
+          HOUR=$(date +%H)
+          MINUTE=$(date +%M)
+          
+          echo "Current UTC Time: $HOUR:$MINUTE"
+          
+          # 1. Super Cron (Data Sync)
+          if [ "$HOUR" == "10" ] && [ "$MINUTE" == "00" ] || [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "🚀 Triggering Super Cron..."
+            curl -X POST "https://ai-analyzer-pink.vercel.app/api/cron/data-sync" \
+              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+          fi
+          
+          # 2. Account Health (0, 6, 12, 18 UTC)
+          if (( HOUR % 6 == 0 )) && [ "$MINUTE" == "00" ] || [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "🏥 Triggering Account Health..."
+            curl -X POST "https://ai-analyzer-pink.vercel.app/api/cron/account-health" \
+              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+          fi
+          
+          # 3. Backfill Processor (Every hour)
+          echo "🔄 Triggering Backfill Batch..."
+          curl -X POST "https://ai-analyzer-pink.vercel.app/api/backfill" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
