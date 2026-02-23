@@ -136,6 +136,12 @@ Extended `ClientConfig` with business-aware fields:
 - **Health Check**: `/api/health` endpoint returns system status + Firestore connectivity.
 - **Admin UI**: `/admin/system` with 3 tabs: System Events, Cron History, Account Health.
 
+### Backfill & Historical Data
+- **Problem**: Syncing 30 days of data for multiple clients (e.g., 29 clients * 500 ads) exceeds Firebase Free Tier write quotas (20k/day) and Vercel execution timeouts.
+- **Solution**: The system uses a **Historical Backfill Queue** (`backfill_queue`).
+- **Process**: Tasks are enqueued for missing days. The main cron processes a small batch (3-5 tasks) at the end of every run to progressively build the 30-day history without crashing the system.
+- **Trigger**: New clients or missing history can be seeded using the backfill utility.
+
 ---
 
 ## 4. Design System (Stitch)
@@ -168,14 +174,13 @@ Extended `ClientConfig` with business-aware fields:
 
 | Cron | Route | Schedule | Purpose |
 |------|-------|----------|---------|
-| Creative Sync | `/api/cron/sync-creatives` | Daily | Fetch ads from Meta API |
-| Data Sync | `/api/cron/data-sync` | Daily | Aggregate rolling metrics & snapshots |
-| Daily Digest | `/api/cron/daily-digest` | Daily 9 AM | Slack MTD report + alert evaluation |
-| Account Health | `/api/cron/account-health` | Every 2h | Meta account status & spend cap checks |
+| Super Cron (Consolidated) | `/api/cron/data-sync` | Daily | Sync `today` + Compute Snapshots + Classify + **Slack Reports (KPIs & Digest)** + Backfill Batch |
+| Creative Sync | `/api/cron/sync-creatives` | Daily | Fetch ad metadata & creative assets from Meta |
+| Account Health | `/api/cron/account-health` | Every 6h | Meta account status & spend cap checks |
 
-- **Manual Trigger**: `POST` with `clientId` and `Authorization: Bearer <CRON_SECRET>`.
-- **Cleaning Cache**: Delete documents from `entity_rolling_metrics` or `daily_entity_snapshots` to force data refresh. For frontend cache, simply refresh the browser.
-- **Testing**: Use `npm run build` or `scripts/simulate-monday-remaining.ts` for local dry-runs.
+- **Consolidation**: Since Vercel Free allows only **one cron slot**, the Data Sync route was expanded to handle the full pipeline (Sync → Analysis → Slack Reporting).
+- **Manual Trigger**: `/api/admin/trigger-cron` mimics the Super Cron logic for manual on-demand audits.
+- **Quota Management**: Daily syncs are restricted to `today`'s data to respect the 20,000 Firebase write limit (unless on Blaze plan).
 
 ---
 

@@ -6,12 +6,12 @@ Esta documentacion explica como integrar el **AI Analyzer** en el flujo de traba
 ## 1. El Flujo de Trabajo (Workflow)
 El sistema no reemplaza al Media Buyer, sino que actua como un **Analista Jr. 24/7** que audita cada cuenta.
 
-1.  **Manana (09:00 AM)**: Revisar el `Daily Snapshot` en Slack.
-    *   Mira el gasto acumulado del mes vs el total esperado.
-    *   Compara el CPA actual vs el Target CPA configurado.
-2.  **Durante el dia**: Reaccionar a las `Alertas Criticas`.
+1.  **Mañana (09:00 - 10:00 AM)**: Revisar el reporte automático en Slack.
+    *   **KPI Snapshot**: Resumen acumulado del mes (Gasto, CPA, ROAS).
+    *   **Alert Digest**: Listado de acciones recomendadas por la IA basadas en la data de hoy.
+2.  **Durante el día**: Reaccionar a las `Alertas Críticas` inmediatas.
     *   Si recibes un `Budget Bleed`, entra a Meta y apaga el asset.
-    *   Si recibes una `Scaling Opportunity`, evalua si el stock/operacion permite escalar presupuesto.
+    *   Si recibes una `Scaling Opportunity`, evalúa si el stock/operación permite escalar presupuesto.
     *   Si recibes una alerta de `Account Health`, verifica el estado de la cuenta en Meta Business Manager.
 3.  **Semanalmente**: Auditoria de Creativos en el `Creative Intel`.
     *   Filtra por "High Opportunity" para encontrar ganadores infra-presupuestados.
