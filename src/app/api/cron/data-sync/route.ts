@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebase-admin";
 import { PerformanceService } from "@/lib/performance-service";
 import { ClientSnapshotService } from "@/lib/client-snapshot-service";
+import { BackfillService } from "@/lib/backfill-service";
 import { EventService } from "@/lib/event-service";
 import { reportError } from "@/lib/error-reporter";
 import { Client } from "@/types";
@@ -35,10 +36,35 @@ export async function GET(request: NextRequest) {
             }
 
             try {
-                console.log(`[Cron Data Sync] Syncing ${clientId}...`);
-                await PerformanceService.syncAllLevels(clientId, client.metaAdAccountId, "this_month");
-                await ClientSnapshotService.computeAndStore(clientId);
+                // CRITICAL: Using "today" instead of "this_month" to stay within Firebase free tier (20k writes/day).
+                await PerformanceService.syncAllLevels(clientId, client.metaAdAccountId, "today");
+                const { main } = await ClientSnapshotService.computeAndStore(clientId);
                 await ClientSnapshotService.cleanupOldSnapshots(clientId);
+
+                // Send Daily Digest & Alerts
+                const { SlackService } = await import("@/lib/slack-service");
+                const { EngineConfigService } = await import("@/lib/engine-config-service");
+
+                try {
+                    const config = await EngineConfigService.getEngineConfig(clientId);
+
+                    // 1. Send Daily KPI Snapshot (Month-to-Date)
+                    if ((main.accountSummary.rolling.spend_7d || 0) > 0) {
+                        const kpis = SlackService.buildSnapshotFromClientSnapshot(main.accountSummary);
+                        const todayStr = new Date().toISOString().split("T")[0];
+                        const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0];
+                        const dateRange = { start: startOfMonth, end: todayStr };
+
+                        await SlackService.sendDailySnapshot(clientId, client.name, dateRange, kpis, config.dailySnapshotTitle);
+                    }
+
+                    // 2. Send Alert Digest (Grouped recommendations)
+                    if (main.alerts.length > 0) {
+                        await SlackService.sendDigest(clientId, client.name, main.alerts);
+                    }
+                } catch (slackErr) {
+                    console.error(`[Slack] Failed to send digest/snapshot for ${client.name}:`, slackErr);
+                }
 
                 results.push({ clientId, clientName: client.name, status: "success" });
             } catch (e: any) {
@@ -46,6 +72,17 @@ export async function GET(request: NextRequest) {
                 reportError("Cron Data Sync (Client)", e, { clientId, clientName: client.name });
                 results.push({ clientId, clientName: client.name, status: "failed", error: e.message });
             }
+        }
+
+        // --- Historical Backfill Integration ---
+        try {
+            console.log("[Cron Data Sync] Processing historical backfill batch...");
+            const backfillResults = await BackfillService.processBatch(3); // Conservative 3 tasks per run
+            if (backfillResults.length > 0) {
+                console.log(`[Cron Data Sync] Processed ${backfillResults.length} backfill tasks.`);
+            }
+        } catch (be) {
+            console.error("Backfill processing failed (non-fatal):", be);
         }
 
         const completedAt = new Date().toISOString();
@@ -82,7 +119,7 @@ export async function GET(request: NextRequest) {
             summary: { total: 0, success: 0, failed: 1, skipped: 0 },
             results: [{ clientId: "FATAL", status: "failed", error: error.message }],
             triggeredBy: "schedule",
-        }).catch(() => {});
+        }).catch(() => { });
 
         return NextResponse.json({ error: error.message }, { status: 500 });
     }

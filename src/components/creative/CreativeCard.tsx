@@ -24,42 +24,77 @@ export default function CreativeCard({ creative, range }: CreativeCardProps) {
 
     return (
         <div className="bg-special border border-argent rounded-xl overflow-hidden hover:shadow-xl transition-all duration-300 group flex flex-col h-full">
-            {/* Thumbnail Area */}
-            <div className="aspect-video bg-stellar/30 relative flex items-center justify-center border-b border-argent overflow-hidden">
-                <span className="text-4xl filter grayscale group-hover:grayscale-0 transition-all duration-500">
-                    {formatIcon(creative.format)}
-                </span>
+            {/* Thumbnail Area - Only show if we have media */}
+            {(creative.imageUrl || creative.videoUrl) ? (
+                <div className="aspect-video bg-stellar/30 relative flex items-center justify-center border-b border-argent overflow-hidden group/media">
+                    {creative.videoUrl && creative.videoId ? (
+                        <video
+                            src={creative.videoUrl}
+                            poster={creative.imageUrl}
+                            controls
+                            className="w-full h-full object-cover"
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    ) : (
+                        <img
+                            src={creative.imageUrl || creative.videoUrl}
+                            alt={creative.adName}
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover/media:scale-105"
+                            onError={(e) => {
+                                // If image fails to load, hide the container
+                                (e.target as any).parentElement.style.display = 'none';
+                            }}
+                        />
+                    )}
 
-                {/* Format Badge */}
-                <div className="absolute top-3 left-3 px-2 py-1 bg-black/60 backdrop-blur-md rounded text-[10px] uppercase font-bold text-white tracking-widest border border-white/10">
-                    {creative.format}
-                </div>
-
-                {/* Cluster Badge */}
-                {cluster && cluster.size > 1 && (
-                    <div className="absolute top-3 right-3 px-2 py-1 bg-classic text-[10px] font-bold text-special border border-argent/20">
-                        {cluster.size} COPIAS
+                    {/* Format Badge */}
+                    <div className="absolute top-3 left-3 px-2 py-1 bg-black/60 backdrop-blur-md rounded text-[10px] uppercase font-bold text-white tracking-widest border border-white/10 z-10">
+                        {creative.format}
                     </div>
-                )}
 
-                {/* Score Overlay */}
-                <div className="absolute bottom-3 right-3 text-right">
-                    <div className="text-[10px] text-text-muted font-bold uppercase tracking-widest mb-0.5">Score</div>
-                    <div className="text-xl font-bold text-classic leading-none tabular-nums drop-shadow-sm">
-                        {(score * 100).toFixed(0)}
-                    </div>
+                    {/* Play Icon if video but no URL source (fallback) */}
+                    {!creative.videoUrl && creative.videoId && (
+                        <div
+                            className="absolute inset-0 flex items-center justify-center bg-black/20 cursor-pointer group/play"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (creative.previewUrl) window.open(creative.previewUrl, '_blank');
+                            }}
+                        >
+                            <div className="w-10 h-10 flex items-center justify-center rounded-full bg-classic/90 backdrop-blur-md border border-white/30 text-special shadow-lg transition-transform group-hover/play:scale-110">
+                                <span className="text-xl ml-1">▶</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Cluster Badge */}
+                    {cluster && cluster.size > 1 && (
+                        <div className="absolute top-3 right-3 px-2 py-1 bg-classic text-[10px] font-bold text-special border border-argent/20 z-10">
+                            {cluster.size} COPIAS
+                        </div>
+                    )}
+
+                    {/* Score Overlay */}
+                    {score !== undefined && (
+                        <div className="absolute bottom-3 right-3 text-right z-10">
+                            <div className="text-[10px] text-text-muted font-bold uppercase tracking-widest mb-0.5 text-white drop-shadow-md">Score</div>
+                            <div className="text-xl font-bold text-classic leading-none tabular-nums drop-shadow-md bg-white/10 px-1 rounded backdrop-blur-sm">
+                                {(score * 100).toFixed(0)}
+                            </div>
+                        </div>
+                    )}
                 </div>
-            </div>
+            ) : null}
 
             {/* Content Area */}
             <div className="p-4 flex-1 flex flex-col">
                 {/* Titles */}
                 <div className="mb-4">
-                    <h3 className="text-sm font-bold text-text-primary line-clamp-1 mb-0.5" title={creative.adName}>
-                        {creative.adName}
+                    <h3 className="text-sm font-bold text-text-primary line-clamp-1 mb-0.5" title={creative.headline || creative.adName}>
+                        {creative.headline || creative.adName}
                     </h3>
                     <p className="text-[10px] text-text-muted font-medium line-clamp-1 uppercase tracking-tight">
-                        {creative.campaignName} • {creative.adsetName}
+                        {creative.primaryText || creative.campaignName}
                     </p>
                 </div>
 

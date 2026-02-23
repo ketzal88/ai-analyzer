@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth, db } from "@/lib/firebase-admin";
-import { calculateCreativeKPISnapshot } from "@/lib/creative-kpi-service";
+import { calculateCreativeKPISnapshot, fetchMetaMediaForAds, scoreCreative } from "@/lib/creative-kpi-service";
 import { MetaCreativeDoc } from "@/types/meta-creative";
 import { CreativeKPIMetrics } from "@/types/creative-kpi";
 import { DailyEntitySnapshot } from "@/types/performance-snapshots";
@@ -183,9 +183,36 @@ export async function GET(request: NextRequest) {
             console.warn("[Creative Detail] AI Report fetch failed (non-fatal):", reportError.message);
         }
 
+        // 5. Enrichment: Media URLs & Metadata
+        const mediaMap = await fetchMetaMediaForAds([adId]);
+        const media = mediaMap.get(adId);
+
+        if (media?.videoId) {
+            creativeData.creative.format = "VIDEO";
+        }
+
+        // Calculate Score IA & Reasons
+        const maxSpend = Math.max(...snapshot.metricsByCreative.map(m => m.spend), 1);
+        const maxImpressions = Math.max(...snapshot.metricsByCreative.map(m => m.impressions), 1);
+        const avgCpa = snapshot.metricsByCreative.reduce((s, m) => s + m.cpa, 0) /
+            snapshot.metricsByCreative.length || 1;
+        const reference = { maxSpend, maxImpressions, avgCpa };
+
+        const { score, reasons } = scoreCreative(kpis, reference, creativeData);
+
         return NextResponse.json({
             creative: creativeData,
-            kpis,
+            kpis: {
+                ...kpis,
+                headline: media?.headline || kpis.headline,
+                primaryText: media?.primaryText || kpis.primaryText,
+                imageUrl: media?.imageUrl,
+                videoUrl: media?.videoUrl,
+                videoId: media?.videoId,
+                previewUrl: media?.previewUrl
+            },
+            score,
+            reasons,
             cluster: {
                 size: clusterSnap.size || 1,
                 totalSpend: snapshot.metricsByCreative
@@ -198,7 +225,11 @@ export async function GET(request: NextRequest) {
                     .reduce((sum, m) => sum + m.spend, 0),
                 members: clusterMembers
             },
-            aiReport: latestReport
+            aiReport: latestReport,
+            imageUrl: media?.imageUrl,
+            videoUrl: media?.videoUrl,
+            videoId: media?.videoId,
+            previewUrl: media?.previewUrl
         });
 
     } catch (error: any) {

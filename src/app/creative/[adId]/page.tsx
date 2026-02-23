@@ -8,6 +8,15 @@ import Link from "next/link";
 import { CreativeDetailResponse } from "@/types/creative-analysis";
 import CreativeVariationsDrawer from "@/components/creative/CreativeVariationsDrawer";
 
+const scoreDetails: Record<string, string> = {
+    TOP_SPEND: "Validador de volumen: Este activo concentró la mayor inversión.",
+    TOP_IMPRESSIONS: "Dominio de alcance: Logró la mayor cantidad de impresiones.",
+    HIGH_FATIGUE_RISK: "Riesgo de saturación: La frecuencia superó 3.0, posible fatiga.",
+    UNDERFUNDED_WINNER: "Oportunidad de escalado: Resultados excelentes con poca inversión.",
+    NEW_CREATIVE: "Prioridad Aprendizaje: Activado recientemente, priorizado para obtener datos.",
+    LOW_SIGNAL: "Datos en umbral bajo: Análisis preliminar basado en métricas incipientes."
+};
+
 export default function CreativeDetailPage() {
     const { adId } = useParams();
     const router = useRouter();
@@ -102,60 +111,96 @@ export default function CreativeDetailPage() {
                 </div>
 
                 {/* Header Section */}
-                <div className="flex flex-col lg:flex-row justify-between gap-6">
-                    <div className="space-y-2">
-                        <div className="flex items-center gap-3">
-                            <span className="px-2 py-0.5 bg-classic/10 text-classic text-[10px] font-black rounded uppercase">
-                                {creative.creative.format}
-                            </span>
-                            <h1 className="text-2xl font-black text-text-primary uppercase tracking-tight">
-                                {creative.ad.name}
-                            </h1>
-                        </div>
-                        <p className="text-text-secondary text-sm font-medium">
-                            Camp: <span className="text-text-primary">{creative.campaign.name}</span>
-                        </p>
-                    </div>
+                <div className="flex flex-col lg:flex-row gap-8">
+                    {/* Media Container */}
+                    {(data.imageUrl || data.videoUrl) && (
+                        <div className="w-full lg:w-1/3 aspect-video bg-stellar/20 border border-argent rounded-2xl overflow-hidden flex items-center justify-center relative group/media">
+                            {data.videoUrl && data.videoId ? (
+                                <video
+                                    src={data.videoUrl}
+                                    poster={data.imageUrl}
+                                    controls
+                                    className="w-full h-full object-cover"
+                                />
+                            ) : (
+                                <img
+                                    src={data.imageUrl || data.videoUrl}
+                                    alt={creative.ad.name}
+                                    className="w-full h-full object-cover"
+                                />
+                            )}
 
-                    <div className="flex items-center gap-4">
-                        <div className="text-right">
-                            <div className="text-[10px] font-bold text-text-muted uppercase tracking-widest mb-1">Score IA</div>
-                            <div className="text-3xl font-black text-classic">
-                                {aiReport?.output?.score !== undefined
-                                    ? aiReport.output.score
-                                    : ((creative.score || 0) * 100).toFixed(0)}
+                            {!data.videoUrl && data.videoId && (
+                                <div
+                                    className="absolute inset-0 flex items-center justify-center bg-black/20 cursor-pointer group"
+                                    onClick={() => data.previewUrl && window.open(data.previewUrl, '_blank')}
+                                >
+                                    <div className="w-16 h-16 flex items-center justify-center rounded-full bg-classic/90 text-special shadow-2xl transition-transform group-hover:scale-110">
+                                        <span className="text-2xl ml-1">▶</span>
+                                    </div>
+                                    <div className="absolute bottom-4 bg-black/60 px-3 py-1 rounded-full text-[10px] text-white font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                                        Ver en Meta
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    <div className="flex-1 flex flex-col justify-between gap-6">
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-3">
+                                <span className="px-2 py-0.5 bg-classic/10 text-classic text-[10px] font-black rounded uppercase">
+                                    {creative.creative.format}
+                                </span>
+                                <h1 className="text-2xl font-black text-text-primary uppercase tracking-tight">
+                                    {kpis.headline || creative.ad.name}
+                                </h1>
                             </div>
+                            <p className="text-text-secondary text-sm font-medium">
+                                {kpis.primaryText || `Camp: ${creative.campaign.name}`}
+                            </p>
                         </div>
 
-                        <div className="flex flex-col md:flex-row gap-3">
-                            {/* <button
-                                onClick={() => setIsVariationsOpen(true)}
-                                className="px-6 py-3 border border-argent rounded-xl font-black text-[12px] uppercase tracking-widest text-text-secondary hover:bg-argent/10 hover:text-text-primary transition-all flex items-center gap-2"
-                            >
-                                <span className="text-lg">🧪</span>
-                                Explorar Variaciones GEM
-                            </button> */}
+                        <div className="flex items-start justify-between">
+                            <div className="space-y-2">
+                                <div className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Score IA</div>
+                                <div className="text-4xl font-black text-classic">
+                                    {data.aiReport?.output?.score !== undefined
+                                        ? data.aiReport.output.score
+                                        : ((data.score || 0) * 100).toFixed(0)}
+                                </div>
+                                <div className="max-w-md space-y-1">
+                                    {(data.reasons || []).map(reason => (
+                                        <div key={reason} className="text-[10px] font-medium text-text-secondary flex items-center gap-2">
+                                            <div className="w-1 h-1 bg-classic rounded-full" />
+                                            {scoreDetails[reason] || reason}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
 
-                            <button
-                                onClick={runAnalysis}
-                                disabled={isAnalyzing}
-                                className={`px-6 py-3 rounded-xl font-black text-[12px] uppercase tracking-widest transition-all ${isAnalyzing
-                                    ? "bg-stellar text-text-muted cursor-not-allowed"
-                                    : "bg-classic text-special hover:brightness-110 active:scale-95 flex items-center gap-2"
-                                    }`}
-                            >
-                                {isAnalyzing ? (
-                                    <>
-                                        <div className="w-3 h-3 border-2 border-text-muted border-t-transparent rounded-full animate-spin" />
-                                        Analizando...
-                                    </>
-                                ) : (
-                                    <>
-                                        <span>✨</span>
-                                        Generar Auditoría GEM
-                                    </>
-                                )}
-                            </button>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={runAnalysis}
+                                    disabled={isAnalyzing}
+                                    className={`px-6 py-3 rounded-xl font-black text-[12px] uppercase tracking-widest transition-all ${isAnalyzing
+                                        ? "bg-stellar text-text-muted cursor-not-allowed"
+                                        : "bg-classic text-special hover:brightness-110 active:scale-95 flex items-center gap-2"
+                                        }`}
+                                >
+                                    {isAnalyzing ? (
+                                        <>
+                                            <div className="w-3 h-3 border-2 border-text-muted border-t-transparent rounded-full animate-spin" />
+                                            Analizando...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span>✨</span>
+                                            Generar Auditoría GEM
+                                        </>
+                                    )}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -243,11 +288,11 @@ export default function CreativeDetailPage() {
                         <div className="p-6 bg-special border border-argent rounded-2xl space-y-6">
                             <div>
                                 <h3 className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mb-3">Copy Principal</h3>
-                                <p className="text-small text-text-primary line-clamp-[10]">{creative.creative.primaryText || "Sin texto"}</p>
+                                <p className="text-small text-text-primary line-clamp-[10]">{kpis.primaryText || creative.creative.primaryText || "Sin texto"}</p>
                             </div>
                             <div>
                                 <h3 className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mb-3">Headline</h3>
-                                <p className="text-small font-bold text-text-primary">{creative.creative.headline || "Sin título"}</p>
+                                <p className="text-small font-bold text-text-primary">{kpis.headline || creative.creative.headline || "Sin título"}</p>
                             </div>
                         </div>
 

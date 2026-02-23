@@ -66,8 +66,16 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
             console.log("Fetching performance data for:", newKey);
             const url = `/api/performance?clientId=${selectedClientId}${date ? `&date=${date}` : ""}`;
             const res = await fetch(url);
+
             if (!res.ok) throw new Error("Failed to fetch performance data");
             const data = await res.json();
+
+            if (data.notSynced) {
+                setPerformanceData(null);
+                setPerformanceError(data.error || "No hay datos de rendimiento. Ejecuta el sync.");
+                return;
+            }
+
             setPerformanceData(data);
             setCacheKey(newKey);
         } catch (err: any) {

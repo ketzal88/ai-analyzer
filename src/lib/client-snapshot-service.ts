@@ -23,8 +23,9 @@ export class ClientSnapshotService {
      * Firestore reads: 3 (daily_entity_snapshots query + client doc + engine_config)
      * Firestore writes: 2 (client_snapshots + client_snapshots_ads)
      */
-    static async computeAndStore(clientId: string): Promise<{ main: ClientSnapshot; ads: ClientSnapshotAds }> {
+    static async computeAndStore(clientId: string, targetDate?: string): Promise<{ main: ClientSnapshot; ads: ClientSnapshotAds }> {
         const today = new Date().toISOString().split("T")[0];
+        const computationDateStr = targetDate || today;
 
         // ── 1. Fetch all raw data (3 reads) ────────────────────
         const [snapshotDocs, clientDoc, config] = await Promise.all([
@@ -47,9 +48,20 @@ export class ClientSnapshotService {
             return { main: emptyMain, ads: emptyAds };
         }
 
-        // Sort and determine reference date
-        const snapshots = allSnapshots.sort((a, b) => b.date.localeCompare(a.date));
-        const refDate = new Date(snapshots[0].date);
+        // Determine reference date for sliding windows (rolling metrics)
+        // If targetDate is provided, we use it. Otherwise, we use the latest available snapshot date.
+        const snapshotsSorted = allSnapshots.sort((a, b) => b.date.localeCompare(a.date));
+        const latestSnapDate = snapshotsSorted[0].date;
+        const refDate = new Date(targetDate || latestSnapDate);
+
+        // Filter snapshots to only include those on or before refDate for historical accuracy
+        const snapshots = allSnapshots.filter(s => s.date <= (targetDate || latestSnapDate));
+        if (snapshots.length === 0) {
+            const emptyMain = this.buildEmptySnapshot(clientId, computationDateStr);
+            const emptyAds = this.buildEmptyAdsSnapshot(clientId, computationDateStr);
+            await this.writeSnapshots(clientId, emptyMain, emptyAds);
+            return { main: emptyMain, ads: emptyAds };
+        }
 
         // ── 2. Group by entity ─────────────────────────────────
         const entityGroups: Record<string, DailyEntitySnapshot[]> = {};
@@ -101,7 +113,7 @@ export class ClientSnapshotService {
                 entityId,
                 level,
                 name: group[0]?.name,
-                lastUpdate: today,
+                lastUpdate: computationDateStr,
                 rolling
             });
         }
@@ -120,14 +132,14 @@ export class ClientSnapshotService {
                 clientId,
                 conceptId: c.conceptId,
                 rolling: c.rolling,
-                lastUpdate: today
+                lastUpdate: computationDateStr
             });
         }
 
         // ── 6. Compute classifications in memory ───────────────
         const rollingMetrics = Array.from(rollingMap.values());
         const classifications = this.computeClassificationsInMemory(
-            clientId, today, rollingMetrics, allSnapshots,
+            clientId, computationDateStr, rollingMetrics, allSnapshots,
             Array.from(conceptMetricsMap.values()), clientData, config
         );
 
@@ -175,7 +187,7 @@ export class ClientSnapshotService {
         const mainSnapshot: ClientSnapshot = {
             clientId,
             computedAt: new Date().toISOString(),
-            computedDate: today,
+            computedDate: computationDateStr,
             entities: {
                 account: nonAdEntries.filter(e => e.level === 'account'),
                 campaign: nonAdEntries.filter(e => e.level === 'campaign'),
@@ -206,7 +218,7 @@ export class ClientSnapshotService {
 
         const adsSnapshot: ClientSnapshotAds = {
             clientId,
-            computedDate: today,
+            computedDate: computationDateStr,
             ads: adEntries,
             classifications: adClassifications,
             meta: { adCount: adEntries.length, docSizeKB: 0 }

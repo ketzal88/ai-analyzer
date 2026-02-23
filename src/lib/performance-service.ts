@@ -56,7 +56,7 @@ export class PerformanceService {
     /**
      * Sync all levels for a specific client and date range
      */
-    static async syncAllLevels(clientId: string, metaAdAccountId: string, range: string = "last_7d") {
+    static async syncAllLevels(clientId: string, metaAdAccountId: string, range: string | { since: string; until: string } = "last_7d") {
         if (!META_ACCESS_TOKEN) throw new Error("Meta API Token not configured");
 
         const cleanAdAccountId = metaAdAccountId.startsWith("act_") ? metaAdAccountId : `act_${metaAdAccountId}`;
@@ -68,6 +68,10 @@ export class PerformanceService {
             adset: 0,
             ad: 0
         };
+
+        const rangeParam = typeof range === 'string'
+            ? `date_preset=${range}`
+            : `time_range=${encodeURIComponent(JSON.stringify(range))}`;
 
         for (const level of levels) {
             const fields = [
@@ -100,11 +104,11 @@ export class PerformanceService {
                 { field: "spend", operator: "GREATER_THAN", value: 0 }
             ]));
 
-            let nextUrl = `https://graph.facebook.com/${META_API_VERSION}/${cleanAdAccountId}/insights?level=${level}&time_increment=1&date_preset=${range}&fields=${fields}&filtering=${filtering}&limit=500&access_token=${META_ACCESS_TOKEN}`;
+            let nextUrl = `https://graph.facebook.com/${META_API_VERSION}/${cleanAdAccountId}/insights?level=${level}&time_increment=1&${rangeParam}&fields=${fields}&filtering=${filtering}&limit=500&access_token=${META_ACCESS_TOKEN}`;
             let pageCount = 0;
             let totalLevelCount = 0;
 
-            console.log(`[Sync] Fetching ${level} data for ${clientId} (Spend > 0)...`);
+            console.log(`[Sync] Fetching ${level} data for ${clientId} (${typeof range === 'string' ? range : `${range.since} to ${range.until}`})...`);
 
             while (nextUrl && pageCount < 20) {
                 pageCount++;
@@ -328,7 +332,7 @@ export class PerformanceService {
 
             // Concentration at entity level (for account/campaign parents)
             let spendTop1Pct = globalSpendTop1Pct;
-            let spendTop3Pct = globalSpendTop3Pct;
+            const spendTop3Pct = globalSpendTop3Pct;
             if (level === 'ad') {
                 spendTop1Pct = totalAdSpend7d > 0 ? (adEntitySpends7d[entityId] || 0) / totalAdSpend7d : 0;
             }

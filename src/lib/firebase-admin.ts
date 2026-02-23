@@ -16,17 +16,24 @@ if (!admin.apps.length) {
             }
         }
 
+        const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID;
+        const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+
+        if (!projectId || !clientEmail || !privateKey) {
+            throw new Error(`Missing Firebase credentials: ${!projectId ? 'projectId ' : ''}${!clientEmail ? 'clientEmail ' : ''}${!privateKey ? 'privateKey' : ''}`);
+        }
+
         admin.initializeApp({
             credential: admin.credential.cert({
-                projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-                clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-                privateKey: privateKey,
+                projectId,
+                clientEmail,
+                privateKey,
             }),
         });
         admin.firestore().settings({ ignoreUndefinedProperties: true });
         console.log("✅ Firebase Admin initialized successfully");
     } catch (error: any) {
-        console.error("❌ Firebase Init Error:", error.message);
+        console.error("❌ Firebase Init Error:", error);
         // Important: In Next.js dev, we want to see this error clearly
     }
 }

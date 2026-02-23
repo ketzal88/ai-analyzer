@@ -89,4 +89,10 @@ export interface CreativeDetailResponse {
         }>;
     };
     aiReport?: CreativeAIReport | null;
+    imageUrl?: string;
+    videoUrl?: string;
+    videoId?: string;
+    previewUrl?: string;
+    score?: number;
+    reasons?: string[];
 }

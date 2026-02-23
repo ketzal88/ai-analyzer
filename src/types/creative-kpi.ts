@@ -24,6 +24,14 @@ export interface CreativeKPIMetrics {
     ctr: number;
     cpc: number;
 
+    // Media Content (Dynamic)
+    imageUrl?: string;
+    videoUrl?: string;
+    videoId?: string;
+    headline?: string;
+    primaryText?: string;
+    previewUrl?: string;
+
     // Comparison (if previous period available)
     prev?: {
         spend: number;
@@ -80,6 +88,10 @@ export interface SelectedCreative {
     fingerprint: string;
     headline?: string;
     primaryText?: string;
+    imageUrl?: string;
+    videoUrl?: string;
+    videoId?: string;
+    previewUrl?: string;
 
     // KPIs
     kpis: CreativeKPIMetrics;

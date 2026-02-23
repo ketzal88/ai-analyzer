@@ -12,6 +12,46 @@ import { createHash } from "crypto";
 
 const CACHE_FRESHNESS_HOURS = 6;
 
+/**
+ * Calculate Selection Score for a creative
+ */
+export function scoreCreative(
+    metrics: CreativeKPIMetrics,
+    reference: { maxSpend: number; maxImpressions: number; avgCpa: number },
+    meta?: { firstSeenAt?: string }
+): { score: number; reasons: SelectionReason[] } {
+    const normSpend = metrics.spend / (reference.maxSpend || 1);
+    const normImpressions = metrics.impressions / (reference.maxImpressions || 1);
+    const fatigueRisk = (metrics.frequency || 0) > 3 ? 0.5 : 0;
+    const isUnderfunded = metrics.cpa > 0 && metrics.cpa < reference.avgCpa * 0.7 && normSpend < 0.3;
+    const underfundedOpportunity = isUnderfunded ? 0.8 : 0;
+
+    const daysSinceFirst = meta?.firstSeenAt
+        ? (Date.now() - new Date(meta.firstSeenAt).getTime()) / (1000 * 60 * 60 * 24)
+        : 999;
+    const newnessBoost = daysSinceFirst <= 5 ? 0.7 : 0;
+    const lowSignalPenalty = metrics.impressions < 500 ? 0.5 : 0;
+
+    const score =
+        0.35 * normSpend +
+        0.20 * normImpressions +
+        0.20 * fatigueRisk +
+        0.15 * underfundedOpportunity +
+        0.10 * newnessBoost -
+        0.30 * lowSignalPenalty;
+
+    const reasons: SelectionReason[] = [];
+    if (normSpend > 0.7) reasons.push("TOP_SPEND");
+    if (normImpressions > 0.7) reasons.push("TOP_IMPRESSIONS");
+    if (fatigueRisk > 0) reasons.push("HIGH_FATIGUE_RISK");
+    if (underfundedOpportunity > 0) reasons.push("UNDERFUNDED_WINNER");
+    if (newnessBoost > 0) reasons.push("NEW_CREATIVE");
+    if (lowSignalPenalty > 0) reasons.push("LOW_SIGNAL");
+    if (reasons.length === 0) reasons.push("LOW_SIGNAL");
+
+    return { score: Math.max(0, score), reasons };
+}
+
 function parseRange(rangePreset: string): { start: Date; end: Date; days: number } {
     const today = new Date();
     const end = new Date(today);
@@ -177,6 +217,159 @@ export async function calculateCreativeKPISnapshot(
 }
 
 /**
+ * Fetch creative media URLs (image_url, thumbnail_url) and metadata from Meta in batch
+ */
+export async function fetchMetaMediaForAds(adIds: string[]): Promise<Map<string, {
+    imageUrl?: string;
+    videoUrl?: string;
+    videoId?: string;
+    headline?: string;
+    primaryText?: string;
+    previewUrl?: string;
+}>> {
+    const results = new Map<string, {
+        imageUrl?: string;
+        videoUrl?: string;
+        videoId?: string;
+        headline?: string;
+        primaryText?: string;
+        previewUrl?: string;
+    }>();
+    if (adIds.length === 0 || !process.env.META_ACCESS_TOKEN) return results;
+
+    const META_API_VERSION = process.env.META_API_VERSION || "v24.0";
+    const BATCH_SIZE = 50;
+
+    for (let i = 0; i < adIds.length; i += BATCH_SIZE) {
+        const chunk = adIds.slice(i, i + BATCH_SIZE);
+
+        // Fetch basic metadata + Ad-level preview link
+        const batch = chunk.map(id => ({
+            method: "GET",
+            relative_url: `${id}?fields=preview_shareable_link,creative{id,object_story_spec,asset_feed_spec,thumbnail_url,image_url,body,title}`
+        }));
+
+        try {
+            const res = await fetch(`https://graph.facebook.com/${META_API_VERSION}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    access_token: process.env.META_ACCESS_TOKEN,
+                    batch: JSON.stringify(batch)
+                })
+            });
+
+            if (!res.ok) throw new Error("Meta Batch API failed");
+
+            const responses: any[] = await res.json();
+            const videoRequests: { adId: string, videoId: string }[] = [];
+
+            for (let j = 0; j < chunk.length; j++) {
+                const r = responses[j];
+                if (r.code !== 200) {
+                    console.warn(`[Creative KPI] Batch item ${chunk[j]} failed with code ${r.code}:`, r.body);
+                    continue;
+                }
+
+                const data = JSON.parse(r.body);
+                const creative = data.creative;
+                if (!creative) continue;
+
+                const adId = chunk[j];
+                const storySpec = creative.object_story_spec || {};
+                const assetSpec = creative.asset_feed_spec || {};
+                const linkData = storySpec.link_data || {};
+                const videoData = storySpec.video_data || {};
+
+                // 1. Extract Copy (Enrichment)
+                const primaryText = creative.body || linkData.message || assetSpec.bodies?.[0]?.text;
+                const headline = creative.title || linkData.name || assetSpec.titles?.[0]?.text;
+                const previewUrl = data.preview_shareable_link;
+
+                // 2. Identify Media & Video ID
+                let imageUrl: string | undefined;
+                let videoUrl: string | undefined;
+                let videoId = creative.video_id || videoData.video_id || assetSpec.videos?.[0]?.video_id;
+
+                // Priority for Image Quality: creative.image_url (Full Res) > story_spec images > thumbnail_url
+                if (creative.image_url) {
+                    imageUrl = creative.image_url;
+                } else if (creative.thumbnail_url) {
+                    imageUrl = creative.thumbnail_url;
+                } else if (videoData.image_url || videoData.thumbnail_url) {
+                    imageUrl = videoData.image_url || videoData.thumbnail_url;
+                } else if (linkData.image_url) {
+                    imageUrl = linkData.image_url;
+                } else if (assetSpec.images?.[0]?.url) {
+                    imageUrl = assetSpec.images[0].url;
+                }
+
+                if (videoId) {
+                    videoRequests.push({ adId, videoId });
+                }
+
+                results.set(adId, {
+                    imageUrl,
+                    videoUrl,
+                    videoId,
+                    headline,
+                    primaryText,
+                    previewUrl
+                });
+            }
+
+            // 3. Optional: Fetch Video Source URLs if we found videos
+            if (videoRequests.length > 0) {
+                const videoBatch = videoRequests.map(v => ({
+                    method: "GET",
+                    relative_url: `${v.videoId}?fields=source,thumbnail_url,thumbnails{uri,width,height}`
+                }));
+
+                const vRes = await fetch(`https://graph.facebook.com/${META_API_VERSION}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        access_token: process.env.META_ACCESS_TOKEN,
+                        batch: JSON.stringify(videoBatch)
+                    })
+                });
+
+                if (vRes.ok) {
+                    const vResponses: any[] = await vRes.json();
+                    for (let k = 0; k < videoRequests.length; k++) {
+                        const vr = vResponses[k];
+                        if (vr.code === 200) {
+                            const vData = JSON.parse(vr.body);
+                            const current = results.get(videoRequests[k].adId);
+                            if (current) {
+                                // Find highest resolution thumbnail if available
+                                let bestThumb = vData.thumbnail_url;
+                                if (vData.thumbnails?.data) {
+                                    const sorted = [...vData.thumbnails.data].sort((a: any, b: any) => b.width - a.width);
+                                    if (sorted[0]) bestThumb = sorted[0].uri;
+                                }
+
+                                results.set(videoRequests[k].adId, {
+                                    ...current,
+                                    videoUrl: vData.source, // Actual playable mp4 URL
+                                    imageUrl: bestThumb || current.imageUrl,
+                                    previewUrl: current.previewUrl
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
+        } catch (error) {
+            console.error("[Creative KPI] Media fetch error:", error);
+        }
+    }
+
+    return results;
+}
+
+/**
  * Build creative selection with scoring — queries all entity info in batch
  */
 export async function selectCreativesForAudit(
@@ -283,6 +476,7 @@ export async function selectCreativesForAudit(
     const avgCpa = snapshot.metricsByCreative.reduce((s, m) => s + m.cpa, 0) /
         snapshot.metricsByCreative.length || 1;
 
+    const reference = { maxSpend, maxImpressions, avgCpa };
     const candidates: Array<SelectedCreative & { rawScore: number }> = [];
 
     for (const metrics of snapshot.metricsByCreative) {
@@ -290,35 +484,8 @@ export async function selectCreativesForAudit(
         const metaDoc = creativesMap.get(adId);
         const adInfo = adInfoMap.get(adId);
 
-        const normSpend = metrics.spend / maxSpend;
-        const normImpressions = metrics.impressions / maxImpressions;
-        const fatigueRisk = (metrics.frequency || 0) > 3 ? 0.5 : 0;
-        const isUnderfunded = metrics.cpa > 0 && metrics.cpa < avgCpa * 0.7 && normSpend < 0.3;
-        const underfundedOpportunity = isUnderfunded ? 0.8 : 0;
-
-        const firstDateStr = metaDoc?.firstSeenAt || "";
-        const daysSinceFirst = firstDateStr
-            ? (Date.now() - new Date(firstDateStr).getTime()) / (1000 * 60 * 60 * 24)
-            : 999;
-        const newnessBoost = daysSinceFirst <= 5 ? 0.7 : 0;
-        const lowSignalPenalty = metrics.impressions < 500 ? 0.5 : 0;
-
-        const rawScore =
-            0.35 * normSpend +
-            0.20 * normImpressions +
-            0.20 * fatigueRisk +
-            0.15 * underfundedOpportunity +
-            0.10 * newnessBoost -
-            0.30 * lowSignalPenalty;
-
-        const reasons: SelectionReason[] = [];
-        if (normSpend > 0.7) reasons.push("TOP_SPEND");
-        if (normImpressions > 0.7) reasons.push("TOP_IMPRESSIONS");
-        if (fatigueRisk > 0) reasons.push("HIGH_FATIGUE_RISK");
-        if (underfundedOpportunity > 0) reasons.push("UNDERFUNDED_WINNER");
-        if (newnessBoost > 0) reasons.push("NEW_CREATIVE");
-        if (lowSignalPenalty > 0) reasons.push("LOW_SIGNAL");
-        if (reasons.length === 0) reasons.push("LOW_SIGNAL");
+        const { score, reasons } = scoreCreative(metrics, reference, metaDoc);
+        const rawScore = score;
 
         const campaignId = adInfo?.meta?.campaignId || metaDoc?.campaign?.id || "";
         const adsetId = adInfo?.meta?.adsetId || metaDoc?.adset?.id || "";
@@ -365,5 +532,38 @@ export async function selectCreativesForAudit(
     }
 
     deduped.sort((a, b) => b.score - a.score);
-    return deduped.slice(0, limit);
+    const finalSelected = deduped.slice(0, limit);
+
+    // ── Enrichment: Fetch Media URLs for final selection ──
+    const selectedAdIds = finalSelected.map(c => c.adId);
+    const mediaMap = await fetchMetaMediaForAds(selectedAdIds);
+
+    for (const creative of finalSelected) {
+        const media = mediaMap.get(creative.adId);
+        if (media) {
+            creative.imageUrl = media.imageUrl;
+            creative.videoUrl = media.videoUrl;
+            creative.videoId = media.videoId;
+            creative.previewUrl = media.previewUrl;
+
+            // Enrich text if missing
+            if (media.headline) creative.headline = media.headline;
+            if (media.primaryText) creative.primaryText = media.primaryText;
+
+            // Force format if we found a videoId
+            if (media.videoId) {
+                creative.format = "VIDEO";
+            }
+
+            // Also update the metrics object inside since it's used in some places
+            creative.kpis.imageUrl = media.imageUrl;
+            creative.kpis.videoUrl = media.videoUrl;
+            creative.kpis.videoId = media.videoId;
+            creative.kpis.headline = media.headline;
+            creative.kpis.primaryText = media.primaryText;
+            creative.kpis.previewUrl = media.previewUrl;
+        }
+    }
+
+    return finalSelected;
 }

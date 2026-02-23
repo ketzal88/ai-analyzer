@@ -21,8 +21,13 @@ export async function GET(request: NextRequest) {
 
         if (!snapshotDoc.exists) {
             return NextResponse.json({
-                error: date ? `No snapshot found for date ${date}` : "No snapshot found. Run data-sync first."
-            }, { status: 404 });
+                rolling: [],
+                concepts: [],
+                alerts: [],
+                classifications: [],
+                error: date ? `No snapshot found for date ${date}` : "No snapshot found. Run data-sync first.",
+                notSynced: true
+            });
         }
 
         const snapshot = snapshotDoc.data() as ClientSnapshot;
