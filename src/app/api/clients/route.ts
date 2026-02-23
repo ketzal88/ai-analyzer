@@ -60,6 +60,14 @@ export async function POST(request: NextRequest) {
 
         const docRef = await db.collection("clients").add(newClient);
 
+        // 🚀 Trigger automatic backfill for the last 60 days
+        try {
+            const { BackfillService } = await import("@/lib/backfill-service");
+            await BackfillService.enqueueClient(docRef.id, 60);
+        } catch (backfillErr) {
+            console.error(`[Backfill] Failed to enqueue for new client ${docRef.id}:`, backfillErr);
+        }
+
         return NextResponse.json({ id: docRef.id, ...newClient });
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
