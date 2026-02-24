@@ -52,7 +52,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
             {/* Work Area */}
             <div className="flex-1 flex flex-col min-w-0 lg:pl-64 relative">
-                <Header onOpenMobileMenu={() => setIsMobileMenuOpen(true)} />
+                <Header onOpenMobileMenu={() => setIsMobileMenuOpen(true)} hideClientSelector={isAdminRoute} />
 
                 <main className="p-6 lg:p-10">
                     <div className="max-w-[1400px] mx-auto min-h-screen">

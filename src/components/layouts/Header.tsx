@@ -6,9 +6,10 @@ import { useClient } from "@/contexts/ClientContext";
 
 interface HeaderProps {
     onOpenMobileMenu: () => void;
+    hideClientSelector?: boolean;
 }
 
-export default function Header({ onOpenMobileMenu }: HeaderProps) {
+export default function Header({ onOpenMobileMenu, hideClientSelector = false }: HeaderProps) {
     const { user, signOut } = useAuth();
     const { selectedClientId, setSelectedClientId, activeClients } = useClient();
     const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -37,48 +38,50 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
                     </svg>
                 </button>
 
-                <div className="flex items-center gap-3 border-l lg:border-none border-argent pl-4 lg:pl-0">
-                    <div className="flex flex-col">
-                        <span
-                            className="text-text-muted font-bold hidden md:inline text-[9px] uppercase leading-none mb-1"
-                            style={{ letterSpacing: '1px' }}
-                        >
-                            SELECCIONAR CLIENTE:
-                        </span>
-                        <div className="flex items-center gap-3">
-                            <select
-                                value={selectedClientId || ""}
-                                onChange={(e) => setSelectedClientId(e.target.value || null)}
-                                className="bg-stellar border border-argent px-3 py-1.5 text-small font-medium text-text-primary focus:outline-none focus:border-classic transition-all cursor-pointer min-w-[200px]"
-                                style={{ borderRadius: 0 }}
+                {!hideClientSelector && (
+                    <div className="flex items-center gap-3 border-l lg:border-none border-argent pl-4 lg:pl-0">
+                        <div className="flex flex-col">
+                            <span
+                                className="text-text-muted font-bold hidden md:inline text-[9px] uppercase leading-none mb-1"
+                                style={{ letterSpacing: '1px' }}
                             >
-                                <option value="">SELECCIONAR CLIENTE...</option>
-                                {activeClients.map(client => (
-                                    <option key={client.id} value={client.id}>
-                                        {client.name.toUpperCase()}
-                                    </option>
-                                ))}
-                            </select>
+                                SELECCIONAR CLIENTE:
+                            </span>
+                            <div className="flex items-center gap-3">
+                                <select
+                                    value={selectedClientId || ""}
+                                    onChange={(e) => setSelectedClientId(e.target.value || null)}
+                                    className="bg-stellar border border-argent px-3 py-1.5 text-small font-medium text-text-primary focus:outline-none focus:border-classic transition-all cursor-pointer min-w-[200px]"
+                                    style={{ borderRadius: 0 }}
+                                >
+                                    <option value="">SELECCIONAR CLIENTE...</option>
+                                    {activeClients.map(client => (
+                                        <option key={client.id} value={client.id}>
+                                            {client.name.toUpperCase()}
+                                        </option>
+                                    ))}
+                                </select>
 
-                            {/* Client Context Info */}
-                            {selectedClientId && (
-                                <div className="hidden xl:flex items-center gap-2 px-3 border-l border-argent/50">
-                                    <div className="flex flex-col">
-                                        <div className="flex items-center gap-1.5">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-synced animate-pulse" />
-                                            <span className="text-[10px] font-black text-text-primary uppercase tracking-tighter">
-                                                {activeClients.find(c => c.id === selectedClientId)?.businessType || 'eCommerce'}
+                                {/* Client Context Info */}
+                                {selectedClientId && (
+                                    <div className="hidden xl:flex items-center gap-2 px-3 border-l border-argent/50">
+                                        <div className="flex flex-col">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-synced animate-pulse" />
+                                                <span className="text-[10px] font-black text-text-primary uppercase tracking-tighter">
+                                                    {activeClients.find(c => c.id === selectedClientId)?.businessType || 'eCommerce'}
+                                                </span>
+                                            </div>
+                                            <span className="text-[9px] text-text-muted font-bold uppercase tracking-widest leading-none">
+                                                {activeClients.find(c => c.id === selectedClientId)?.conversionSchema?.primary.actionType || 'purchase'}
                                             </span>
                                         </div>
-                                        <span className="text-[9px] text-text-muted font-bold uppercase tracking-widest leading-none">
-                                            {activeClients.find(c => c.id === selectedClientId)?.conversionSchema?.primary.actionType || 'purchase'}
-                                        </span>
                                     </div>
-                                </div>
-                            )}
+                                )}
+                            </div>
                         </div>
                     </div>
-                </div>
+                )}
             </div>
 
             {/* Right: User Menu */}
