@@ -1,5 +1,5 @@
 # Estrategia Meta con IA: Guia para Paid Media
-Esta documentacion explica como integrar el **AI Analyzer** en el flujo de trabajo diario de gestion de pauta.
+Esta documentacion explica como integrar el **Worker Brain** en el flujo de trabajo diario de gestion de pauta.
 
 ---
 

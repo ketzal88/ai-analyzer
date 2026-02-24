@@ -22,6 +22,14 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
     title: "Meta Ads Diagnostic Tool",
     description: "Access your Meta Ads diagnostic suite",
+    icons: {
+        icon: [
+            { url: "/favicon.ico" },
+            { url: "/favicon.png", type: "image/png" },
+        ],
+        shortcut: "/favicon.ico",
+        apple: "/favicon.png",
+    },
 };
 
 export default function RootLayout({
