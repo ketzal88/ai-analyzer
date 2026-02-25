@@ -1,31 +1,101 @@
-# Design System: AI Worker Generator / AI Analyzer
-**Project ID:** 5165520689568295033
+# Design System: webapp-1-industrialtechnical
+**Source:** Pencil Style Guide · **Synced with:** `tailwind.config.ts` + `src/lib/design-tokens.ts`
+
+---
 
 ## 1. Visual Theme & Atmosphere
-The design system for this project is anchored in a **Sleek, Professional Dark Mode** aesthetic. It prioritizes clarity, technical precision, and a high-performance "command center" feel. The atmosphere is dense but organized, utilizing subtle elevation and high-contrast primary accents to guide the user's attention through complex data-heavy interfaces.
+Industrial-technical dark mode. Zero-decoration aesthetic — no border radius, sharp edges, high-contrast yellow accent on near-black surfaces. The feel is a **precision control panel**: dense, utilitarian, data-first. Decorative elements are eliminated in favor of structural clarity.
 
 ## 2. Color Palette & Roles
-*   **Vibrant Electric Blue (#135BEC):** The primary brand color. Used for main action buttons (CTA), active state borders, and critical UI highlights. It provides a focal point against the dark background.
-*   **Deep Space Background (#030712):** The base background color for all screens. Provides maximum contrast for text and vibrant accents.
-*   **Surface Graphite (#111827):** Used for card backgrounds, navigation sidewalls, and header areas. This creates a clear hierarchy and visual layering.
-*   **Subtle Slate Border (#1F2937):** Used for component outlines and table separators to maintain structure without adding visual noise.
-*   **Success Emerald (#10B981):** Used for positive status indicators and completion markers.
-*   **Warning Amber (#F59E0B):** Used for cautionary notices or pending actions.
+
+### Surfaces
+| Token | Hex | Role |
+|-------|-----|------|
+| `stellar` | `#18181B` | Page background (charcoal) |
+| `special` | `#0F0F10` | Sidebar / card background (near-black) |
+| `second` | `#141415` | Subtle surface tint |
+| `argent` | `#27272A` | Borders / dividers |
+
+### Brand & Accent
+| Token | Hex | Role |
+|-------|-----|------|
+| `classic` | `#FACC15` | **Primary accent** — vivid yellow. CTAs, active states, highlights |
+| `white` | `#FFFFFF` | Pure white — headings, key data |
+
+### Status
+| Token | Hex | Role |
+|-------|-----|------|
+| `synced` | `#22C55E` | Success / positive indicators |
+| `sync-required` | `#FACC15` | Warning — reuses yellow accent |
+
+### Text
+| Token | Hex | Role |
+|-------|-----|------|
+| `text-primary` | `#FAFAFA` | Off-white — main body text |
+| `text-secondary` | `#71717A` | Gray-500 — secondary info, labels |
+| `text-muted` | `#52525B` | Mid-gray — tertiary, disabled |
+| `text-on-accent` | `#0F0F10` | Dark text on yellow fills |
+
+### Dashboard Theme (Indigo)
+| Token | Hex | Role |
+|-------|-----|------|
+| `dashboard-primary` | `#4F46E5` | Indigo-600 — dashboard accent |
+| `dashboard-light` | `#EEF2FF` | Indigo-50 — light surfaces |
+| `dashboard-dark` | `#3730A3` | Indigo-800 — deep emphasis |
 
 ## 3. Typography Rules
-*   **Font Family:** Inter (primary sans-serif font).
-*   **Headings:** Bold weights (700) with slight letter-spacing reduction for a compact, authoritative feel.
-*   **Body Text:** Regular weight (400) for high readability. Secondary info uses Slate text colors to reduce visual weight.
-*   **Monospace:** Used for Project IDs, Hex codes, and technical logs.
 
-## 4. Component Stylings
-*   Button Shape:** Subtly rounded (8px / `rounded-lg`).
-*   **Primary Buttons:** Solid Electric Blue background with white text. Hover state increases brightness slightly.
-*   **Secondary Buttons:** Ghost style (transparent background) with Electric Blue borders and text.
-*   **Cards/Containers:** Surface Graphite background with 8px rounding and a very subtle Slate border. No heavy shadows; depth is communicated through background color shifts.
-*   **Inputs/Forms:** 1px Slate border on Surface Graphite background. Focus state switches border to Electric Blue with a thin outer glow.
+| Scale | Size | Line Height | Weight | Usage |
+|-------|------|-------------|--------|-------|
+| `display` | 40px | 44px | 700 | Page titles, hero numbers |
+| `metric` | 32px | 36px | 700 | KPI values, large data |
+| `hero` | 24px | 32px | 700 | Section headers |
+| `subheader` | 18px | 28px | 600 | Card titles, sub-sections |
+| `body` | 14px | 20px | 400 | Default body text |
+| `small` | 12px | 16px | 400 | Labels, captions, metadata |
 
-## 5. Layout Principles
-*   **Density:** Medium-high. Components are tightly packed but grouped logically with consistent 16px or 24px padding.
-*   **Alignment:** Grid-based, predominantly left-aligned text with centered layout for landing/login components.
-*   **Whitespace:** Used strategically to separate distinct functional areas (e.g., Sidebar vs. Main Feed).
+- **Primary font:** Space Grotesk (geometric sans-serif — technical feel)
+- **Monospace:** JetBrains Mono (data tables, code, IDs, metrics)
+- **Letter spacing:** `wide` 0.5px · `wider` 1px · `widest` 2px (used on uppercase labels)
+
+## 4. Spacing Scale
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| `xs` | 4px | Tight gaps, inline spacing |
+| `sm` | 8px | Component internal padding |
+| `md` | 12px | Default gap |
+| `lg` | 16px | Card padding, section gaps |
+| `xl` | 24px | Major section separation |
+| `2xl` | 32px | Page-level spacing |
+| `3xl` | 48px | Hero sections, major breaks |
+
+## 5. Border Radius
+**Zero. Everywhere.**
+
+All border radius tokens are set to `0px`. This is the defining visual characteristic of the industrial aesthetic — sharp corners, no rounding, no softening. Cards, buttons, inputs, modals, badges — all rectangular.
+
+## 6. Component Stylings
+
+- **Buttons:** Sharp rectangle. Primary = `classic` yellow bg + `text-on-accent` dark text. Secondary = transparent with `argent` border. No rounded corners.
+- **Cards/Containers:** `special` background, 1px `argent` border, 0px radius. Depth via background color shifts, not shadows.
+- **Inputs/Forms:** 1px `argent` border on `special` background. Focus state = `classic` yellow border.
+- **Tables:** `argent` row dividers, `special` alternating rows. Monospace for numeric data.
+- **Badges/Tags:** Sharp rectangle, `classic` yellow for active/important, `argent` border for neutral.
+
+## 7. Layout Principles
+
+- **Density:** High. Tight spacing, data-dense layouts. Minimal decorative whitespace.
+- **Alignment:** Grid-based, left-aligned text. Sidebar navigation pattern.
+- **Whitespace:** Functional only — separates logical groups, never decorative.
+- **Transitions:** `fast` 150ms · `normal` 200ms · `slow` 300ms — all ease-in-out.
+
+## 8. Key Differences from Previous (Google Stitch)
+
+| Aspect | Old (Stitch) | Current (Industrial) |
+|--------|-------------|---------------------|
+| Accent | Electric Blue `#135BEC` | Vivid Yellow `#FACC15` |
+| Font | Inter | Space Grotesk |
+| Border Radius | 4-12px rounded | 0px everywhere |
+| Feel | Clean/corporate | Industrial/utilitarian |
+| Backgrounds | Deeper blacks | Zinc/charcoal tones |

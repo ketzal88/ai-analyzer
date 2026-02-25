@@ -1,35 +1,54 @@
 /**
- * Design Tokens - Centralized design system values from Stitch
- * DO NOT modify these values without updating the Stitch design first
+ * Design Tokens — webapp-1-industrialtechnical (Pencil)
+ * Synced with tailwind.config.ts — this is the JS reference for runtime usage.
+ * DO NOT modify without updating tailwind.config.ts in parallel.
  */
 
 export const colors = {
     // Background colors
-    special: "#0f1419",
-    second: "#1a1f26",
-    stellar: "#0a0d11",
-    argent: "#2d3339",
+    stellar: "#18181B",       // page background (charcoal)
+    special: "#0F0F10",       // sidebar / card background (near-black)
+    second: "#141415",        // subtle surface tint
+    argent: "#27272A",        // borders / dividers
 
     // Brand colors
-    classic: "#135bec",
+    classic: "#FACC15",       // PRIMARY ACCENT: vivid yellow
     white: "#ffffff",
 
     // Status colors
-    synced: "#10b981",
-    syncRequired: "#f59e0b",
+    synced: "#22C55E",        // success green
+    syncRequired: "#FACC15",  // warning = yellow accent
 
     // Text colors
-    textPrimary: "#ffffff",
-    textSecondary: "#9ca3af",
-    textMuted: "#6b7280",
+    textPrimary: "#FAFAFA",   // off-white
+    textSecondary: "#71717A", // gray-500
+    textMuted: "#52525B",     // mid-gray
+    textOnAccent: "#0F0F10",  // dark text on yellow fills
+
+    // Dashboard theme (indigo-based)
+    dashboard: {
+        primary: "#4F46E5",   // indigo-600
+        light: "#EEF2FF",     // indigo-50
+        dark: "#3730A3",      // indigo-800
+    },
 } as const;
 
 export const typography = {
     fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
+        sans: ["Space Grotesk", "system-ui", "sans-serif"],
         mono: ["JetBrains Mono", "monospace"],
     },
     fontSize: {
+        display: {
+            size: "40px",
+            lineHeight: "44px",
+            fontWeight: "700",
+        },
+        metric: {
+            size: "32px",
+            lineHeight: "36px",
+            fontWeight: "700",
+        },
         hero: {
             size: "24px",
             lineHeight: "32px",
@@ -64,11 +83,19 @@ export const spacing = {
 } as const;
 
 export const borderRadius = {
-    sm: "4px",
-    md: "6px",
-    lg: "8px",
-    xl: "12px",
-    full: "9999px",
+    // Zero radius everywhere — industrial / zero-decoration aesthetic
+    DEFAULT: "0px",
+    sm: "0px",
+    md: "0px",
+    lg: "0px",
+    xl: "0px",
+    full: "0px",
+} as const;
+
+export const letterSpacing = {
+    wide: "0.5px",
+    wider: "1px",
+    widest: "2px",
 } as const;
 
 export const transitions = {
