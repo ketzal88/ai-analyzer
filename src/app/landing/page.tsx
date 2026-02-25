@@ -423,7 +423,21 @@ export default function LandingPage() {
             <footer className="border-t border-argent/50">
                 <div className="max-w-6xl mx-auto px-6 py-8 flex flex-col md:flex-row items-center justify-between gap-4">
                     <img src="/img/logo-h-worker-brain.png" alt="Worker Brain" className="h-6 w-auto opacity-50" />
-                    <div className="flex items-center gap-6">
+                    <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-4">
+                        <Link
+                            href="/privacy"
+                            className="text-[10px] font-bold text-text-muted uppercase tracking-widest hover:text-text-primary transition-colors"
+                            style={{ fontFamily: 'var(--font-jetbrains-mono), monospace' }}
+                        >
+                            Privacy Policy
+                        </Link>
+                        <Link
+                            href="/terms"
+                            className="text-[10px] font-bold text-text-muted uppercase tracking-widest hover:text-text-primary transition-colors"
+                            style={{ fontFamily: 'var(--font-jetbrains-mono), monospace' }}
+                        >
+                            Terms of Use
+                        </Link>
                         <Link
                             href="/login"
                             className="text-[10px] font-bold text-text-muted uppercase tracking-widest hover:text-text-primary transition-colors"

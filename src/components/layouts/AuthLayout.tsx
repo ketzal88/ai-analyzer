@@ -1,4 +1,4 @@
-import React from "react";
+import Link from "next/link";
 
 interface AuthLayoutProps {
     children: React.ReactNode;
@@ -9,7 +9,9 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
         <div className="min-h-screen bg-stellar flex flex-col">
             {/* Header */}
             <header className="px-6 py-4">
-                <img src="/img/logo-h-worker-brain.png" alt="Worker Brain" className="h-8 w-auto" />
+                <Link href="/">
+                    <img src="/img/logo-h-worker-brain.png" alt="Worker Brain" className="h-8 w-auto cursor-pointer" />
+                </Link>
             </header>
 
             {/* Main Content */}
@@ -18,8 +20,12 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
             </main>
 
             {/* Footer */}
-            <footer className="px-6 py-4 flex items-center justify-between text-[10px] text-text-muted font-bold uppercase" style={{ letterSpacing: '1px' }}>
-                <span>V3.0.0-250411</span>
+            <footer className="px-6 py-8 flex flex-col md:flex-row items-center justify-between text-[10px] text-text-muted font-bold uppercase gap-4" style={{ letterSpacing: '1px' }}>
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-6">
+                    <span>V3.0.0-250411</span>
+                    <Link href="/privacy" className="hover:text-text-primary transition-colors">Privacy Policy</Link>
+                    <Link href="/terms" className="hover:text-text-primary transition-colors">Terms of Use</Link>
+                </div>
                 <div className="flex items-center gap-2">
                     <span>DIAGNOSTIC STATUS: US-EAST-1</span>
                     {/* Square status indicator — no rounded-full */}
