@@ -4,6 +4,7 @@ import { calculateCreativeKPISnapshot, fetchMetaMediaForAds, scoreCreative } fro
 import { MetaCreativeDoc } from "@/types/meta-creative";
 import { CreativeKPIMetrics } from "@/types/creative-kpi";
 import { DailyEntitySnapshot } from "@/types/performance-snapshots";
+import { reportError } from "@/lib/error-reporter";
 
 /**
  * AG-45: Get detailed creative data, KPIs, cluster info and AI reports
@@ -233,7 +234,11 @@ export async function GET(request: NextRequest) {
         });
 
     } catch (error: any) {
-        console.error("[Creative Detail] Error:", error);
+        const { searchParams } = new URL(request.url);
+        await reportError("API Creative Detail", error, {
+            clientId: searchParams.get("clientId") || undefined,
+            metadata: { adId: searchParams.get("adId") }
+        });
 
         if (error.code === 9 || error.message?.toLowerCase().includes("index")) {
             return NextResponse.json({

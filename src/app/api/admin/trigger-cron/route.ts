@@ -83,13 +83,16 @@ export async function POST(request: NextRequest) {
                     if (main.alerts.length > 0) {
                         await SlackService.sendDigest(clientId, client.name, main.alerts);
                     }
-                } catch (slackErr) {
-                    console.error(`[Slack] Failed to send digest/snapshot for ${client.name}:`, slackErr);
+                } catch (slackErr: any) {
+                    await reportError("Admin Trigger Cron (Slack Delivery)", slackErr, {
+                        clientId,
+                        clientName: client.name,
+                        metadata: { stage: "slack_digest" }
+                    });
                 }
 
                 results.push({ clientId, clientName: client.name, status: "success" });
             } catch (e: any) {
-                console.error(`[Admin Trigger] Failed for ${clientId}:`, e);
                 reportError("Admin Trigger Cron", e, { clientId });
                 results.push({ clientId, clientName: client.name, status: "failed", error: e.message });
             }

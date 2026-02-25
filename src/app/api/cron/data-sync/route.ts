@@ -62,13 +62,17 @@ export async function GET(request: NextRequest) {
                     if (main.alerts.length > 0) {
                         await SlackService.sendDigest(clientId, client.name, main.alerts);
                     }
-                } catch (slackErr) {
-                    console.error(`[Slack] Failed to send digest/snapshot for ${client.name}:`, slackErr);
+                } catch (slackErr: any) {
+                    // Non-fatal: sync succeeded, only delivery failed — still worth knowing
+                    await reportError("Cron Data Sync (Slack Delivery)", slackErr, {
+                        clientId,
+                        clientName: client.name,
+                        metadata: { stage: "slack_digest" }
+                    });
                 }
 
                 results.push({ clientId, clientName: client.name, status: "success" });
             } catch (e: any) {
-                console.error(`Sync failed for ${clientId}:`, e);
                 reportError("Cron Data Sync (Client)", e, { clientId, clientName: client.name });
                 results.push({ clientId, clientName: client.name, status: "failed", error: e.message });
             }
@@ -81,8 +85,11 @@ export async function GET(request: NextRequest) {
             if (backfillResults.length > 0) {
                 console.log(`[Cron Data Sync] Processed ${backfillResults.length} backfill tasks.`);
             }
-        } catch (be) {
-            console.error("Backfill processing failed (non-fatal):", be);
+        } catch (be: any) {
+            // Non-fatal: backfill failures mean the queue may accumulate — worth monitoring
+            await reportError("Cron Data Sync (Backfill Batch)", be, {
+                metadata: { stage: "backfill_batch" }
+            });
         }
 
         const completedAt = new Date().toISOString();

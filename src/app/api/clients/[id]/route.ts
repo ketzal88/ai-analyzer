@@ -1,5 +1,6 @@
 import { auth, db } from "@/lib/firebase-admin";
 import { NextRequest, NextResponse } from "next/server";
+import { reportError } from "@/lib/error-reporter";
 
 /**
  * PATCH /api/clients/[id] - Update client (e.g., toggle active, soft delete)
@@ -28,6 +29,7 @@ export async function PATCH(
 
         return NextResponse.json({ success: true });
     } catch (error: any) {
+        await reportError("API Clients PATCH", error, { metadata: { id: (await params).id } });
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
@@ -55,6 +57,7 @@ export async function DELETE(
 
         return NextResponse.json({ success: true });
     } catch (error: any) {
+        await reportError("API Clients DELETE", error, { metadata: { id: (await params).id } });
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

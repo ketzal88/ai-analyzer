@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebase-admin";
 import { generateCreativeVariations } from "@/lib/creative-analysis-service";
+import { withErrorReporting } from "@/lib/error-reporter";
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorReporting("API Creative Variations", async (request: NextRequest) => {
     try {
         const isDev = process.env.NODE_ENV === "development";
         const sessionCookie = request.cookies.get("session")?.value;
@@ -85,4 +86,4 @@ export async function POST(request: NextRequest) {
         console.error("[API Variations] Error:", error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
-}
+});

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebase-admin";
+import { withErrorReporting } from "@/lib/error-reporter";
 
-export async function GET(req: NextRequest) {
+export const GET = withErrorReporting("API Recommendations Detail", async (req: NextRequest) => {
     try {
         const { searchParams } = new URL(req.url);
         const clientId = searchParams.get("clientId");
@@ -28,4 +29,4 @@ export async function GET(req: NextRequest) {
     } catch (e: any) {
         return NextResponse.json({ error: e.message }, { status: 500 });
     }
-}
+});

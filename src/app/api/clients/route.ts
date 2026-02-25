@@ -1,5 +1,6 @@
 import { auth, db } from "@/lib/firebase-admin";
 import { NextRequest, NextResponse } from "next/server";
+import { reportError } from "@/lib/error-reporter";
 
 /**
  * GET /api/clients - List all clients (Admin only)
@@ -24,6 +25,7 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json(clients);
     } catch (error: any) {
+        await reportError("API Clients GET", error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
@@ -70,6 +72,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ id: docRef.id, ...newClient });
     } catch (error: any) {
+        await reportError("API Clients POST", error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

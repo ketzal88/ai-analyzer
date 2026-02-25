@@ -2,6 +2,7 @@ import { db } from "@/lib/firebase-admin";
 import { getAdminStatus } from "@/lib/server-utils";
 import { InsightDaily, AdvancedKPISummary, KPIConfig, Currency } from "@/types";
 import { NextRequest, NextResponse } from "next/server";
+import { reportError } from "@/lib/error-reporter";
 
 export async function GET(request: NextRequest) {
     try {
@@ -202,6 +203,10 @@ export async function GET(request: NextRequest) {
         });
 
     } catch (error: any) {
+        const { searchParams } = new URL(request.url);
+        await reportError("API Dashboard", error, {
+            clientId: searchParams.get("clientId") || undefined
+        });
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

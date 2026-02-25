@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { PerformanceService } from "@/lib/performance-service";
 import { ClientSnapshotService } from "@/lib/client-snapshot-service";
 import { Client } from "@/types";
+import { reportError } from "@/lib/error-reporter";
 
 export const maxDuration = 300; // 5 minutes for bulk operations
 
@@ -38,7 +39,9 @@ export async function POST(request: NextRequest) {
         });
 
     } catch (error: any) {
-        console.error("[Backfill] Fatal error:", error);
+        await reportError("Admin Backfill", error, {
+            metadata: { clientId: new URL(request.url).searchParams.get("clientId") }
+        });
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

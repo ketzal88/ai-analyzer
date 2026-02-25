@@ -1,5 +1,6 @@
 import { auth, db } from "@/lib/firebase-admin";
 import { NextRequest, NextResponse } from "next/server";
+import { reportError } from "@/lib/error-reporter";
 
 export async function GET(request: NextRequest) {
     try {
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json(accounts);
     } catch (error: any) {
-        console.error("Error fetching accounts:", error);
+        await reportError("API Accounts GET", error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
@@ -64,7 +65,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ id: docRef.id, ...newAccount }, { status: 201 });
     } catch (error: any) {
-        console.error("Error creating account:", error);
+        await reportError("API Accounts POST", error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

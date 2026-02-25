@@ -1,6 +1,7 @@
 import { auth, db } from "@/lib/firebase-admin";
 import { NextRequest, NextResponse } from "next/server";
 import { generateGeminiReport } from "@/lib/gemini-service";
+import { reportError } from "@/lib/error-reporter";
 
 // Configuration from environment variables
 const PRIMARY_MODEL = process.env.GEMINI_MODEL || "gemini-1.5-flash";
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
 
             return NextResponse.json(fullReport);
         } catch (error: any) {
-            console.error("Gemini Service Error:", error);
+            await reportError("API Report Gemini", error, { clientId: clientId || undefined });
             if (error.message?.includes("not available") || error.message?.includes("404")) {
                 return NextResponse.json({
                     error: "LLM_UNAVAILABLE",
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: error.message }, { status: 500 });
         }
     } catch (error: any) {
-        console.error("Report Route Error:", error);
+        await reportError("API Report", error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

@@ -1,5 +1,6 @@
 import { auth, db } from "@/lib/firebase-admin";
 import { NextRequest, NextResponse } from "next/server";
+import { reportError } from "@/lib/error-reporter";
 
 export async function PATCH(
     request: NextRequest,
@@ -44,7 +45,7 @@ export async function PATCH(
 
         return NextResponse.json({ success: true, id: accountId, ...updates });
     } catch (error: any) {
-        console.error("Error updating account:", error);
+        await reportError("API Accounts PATCH", error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

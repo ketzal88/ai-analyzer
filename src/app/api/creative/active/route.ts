@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/firebase-admin";
 import { selectCreativesForAudit } from "@/lib/creative-kpi-service";
 import { CreativeSelectionResponse } from "@/types/creative-kpi";
+import { reportError } from "@/lib/error-reporter";
 
 /**
  * AG-42: Get active creatives with KPIs and intelligent selection
@@ -100,7 +101,10 @@ export async function GET(request: NextRequest) {
         return NextResponse.json(response);
 
     } catch (error: any) {
-        console.error("[Creative Active] Error:", error);
+        const { searchParams } = new URL(request.url);
+        await reportError("API Creative Active", error, {
+            clientId: searchParams.get("clientId") || undefined
+        });
 
         // Handle missing index error
         if (error.code === 9 || error.message?.toLowerCase().includes("index")) {
