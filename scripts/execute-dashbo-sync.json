@@ -1,0 +1,39 @@
+{
+  "dashboClients": [
+    {"id": 5839, "name": "Accuracy Solutions"},
+    {"id": 7350, "name": "Aires"},
+    {"id": 7334, "name": "Almacen de Colchones"},
+    {"id": 5844, "name": "Blackhorn"},
+    {"id": 7332, "name": "Bluna Deco"},
+    {"id": 5852, "name": "Blunua"},
+    {"id": 5858, "name": "Cambre"},
+    {"id": 7341, "name": "Carrara"},
+    {"id": 7336, "name": "Casa Nostra"},
+    {"id": 5859, "name": "Cavego"},
+    {"id": 7337, "name": "CocoNude"},
+    {"id": 7352, "name": "Cordoba Notebooks"},
+    {"id": 7342, "name": "Cover"},
+    {"id": 7339, "name": "Escaladio"},
+    {"id": 7346, "name": "Galo"},
+    {"id": 7340, "name": "Hogar en Tela"},
+    {"id": 7335, "name": "Luvee"},
+    {"id": 7343, "name": "Napoles"},
+    {"id": 7344, "name": "Nascentis"},
+    {"id": 7353, "name": "Paia"},
+    {"id": 7348, "name": "Phonecase"},
+    {"id": 7349, "name": "Pietra"},
+    {"id": 7351, "name": "Presencia"},
+    {"id": 7347, "name": "Shallpass"},
+    {"id": 2847, "name": "Simonetta"},
+    {"id": 5849, "name": "The Minimal Co"},
+    {"id": 7333, "name": "Tienda Andalue"},
+    {"id": 7338, "name": "Vinitus"},
+    {"id": 7345, "name": "Worker"}
+  ],
+  "dataSources": {
+    "5839": ["SOURCE_FACEBOOK_ADS", "SOURCE_GA4"],
+    "7350": ["SOURCE_FACEBOOK_ADS", "SOURCE_GOOGLE_ADS"],
+    "5844": ["SOURCE_FACEBOOK_ADS", "SOURCE_GOOGLE_ADS", "SOURCE_TIENDA_NUBE"],
+    "7334": ["SOURCE_FACEBOOK_ADS", "SOURCE_GA4", "SOURCE_GOOGLE_ADS", "SOURCE_TIENDA_NUBE"]
+  }
+}

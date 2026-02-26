@@ -309,10 +309,46 @@ export interface Client {
         fatigueTolerance?: "low" | "normal" | "high";
     };
 
+    // Worker Brain V2: Multi-channel integrations (Phase 1+)
+    integraciones?: {
+        meta: boolean;                               // Meta Ads (Facebook/Instagram) — Phase 1
+        google: boolean;                             // Google Ads — Phase 4
+        ga4: boolean;                                // Google Analytics 4 — Phase 3
+        ecommerce: 'tiendanube' | 'shopify' | null;  // Ecommerce platform — Phase 2
+        email: 'klaviyo' | 'perfit' | null;          // Email marketing — Phase 6
+    };
+
+    // Worker Brain V2: Channel-specific targets
+    targets?: {
+        cpa_meta?: number;                  // CPA target for Meta
+        cpa_google?: number;                // CPA target for Google
+        roas_meta?: number;                 // ROAS target for Meta
+        roas_google?: number;               // ROAS target for Google
+        blended_roas_target?: number;       // Blended ROAS target (Phase 4)
+        tasa_rebote_baseline?: number;      // Bounce rate baseline (Phase 3)
+        tasa_checkout_baseline?: number;    // Checkout conversion baseline (Phase 3)
+    };
+
+    // Worker Brain V2: Cross-channel alert thresholds
+    crossChannelThresholds?: {
+        attribution_discrepancy_pct: number;  // % discrepancy to trigger alert (default: 40)
+        organic_drop_pct: number;             // % organic drop to trigger alert (default: 25)
+        bounce_spike_pct: number;             // % bounce spike to trigger alert (default: 20)
+    };
+
+    // Worker Brain V2: Timezone for date construction
+    timezone?: string;  // IANA timezone (e.g., "America/Argentina/Buenos_Aires", "America/Mexico_City")
+
     kpiConfig?: KPIConfig; // Optional custom overrides (legacy/simplified)
     createdAt: string;
     updatedAt: string;
 }
+
+/**
+ * Worker Brain V2: Type alias for backward compatibility
+ * ClientConfigV2 is just Client with new optional fields
+ */
+export type ClientConfigV2 = Client;
 
 /**
  * Prompt Management (Mission 15)

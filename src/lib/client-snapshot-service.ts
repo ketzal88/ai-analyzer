@@ -15,6 +15,8 @@ import {
     ClassificationEntry,
     MTDAggregation
 } from "@/types/client-snapshot";
+import { MetaBrain } from "@/lib/meta-brain";
+import { buildDateRanges } from "@/lib/date-utils";
 
 export class ClientSnapshotService {
 
@@ -22,8 +24,11 @@ export class ClientSnapshotService {
      * Main pipeline: read raw data, compute everything in memory, write 2 docs.
      * Firestore reads: 3 (daily_entity_snapshots query + client doc + engine_config)
      * Firestore writes: 2 (client_snapshots + client_snapshots_ads)
+     *
+     * Worker Brain V2: If USE_METABRAIN_ALERTS env is true, reads alerts from MetaBrain instead of AlertEngine.
      */
     static async computeAndStore(clientId: string, targetDate?: string): Promise<{ main: ClientSnapshot; ads: ClientSnapshotAds }> {
+        const useMetaBrain = process.env.USE_METABRAIN_ALERTS === 'true';
         const today = new Date().toISOString().split("T")[0];
         const computationDateStr = targetDate || today;
 
@@ -167,10 +172,19 @@ export class ClientSnapshotService {
         }
 
         // ── 7. Compute alerts in memory ────────────────────────
-        const alerts = this.computeAlertsInMemory(
-            clientId, rollingMetrics, classifications, allSnapshots,
-            clientData, config, isEcommerce
-        );
+        let alerts: Alert[];
+
+        if (useMetaBrain && clientData) {
+            // Worker Brain V2: Use MetaBrain for alert generation
+            console.log(`[ClientSnapshot] Using MetaBrain for ${clientId}`);
+            alerts = await this.computeAlertsViaMetaBrain(clientId, clientData, targetDate);
+        } else {
+            // Legacy: Use existing AlertEngine
+            alerts = this.computeAlertsInMemory(
+                clientId, rollingMetrics, classifications, allSnapshots,
+                clientData, config, isEcommerce
+            );
+        }
 
         // ── 8. Compute MTD aggregation ─────────────────────────
         const mtd = this.computeMTD(allSnapshots, refDate);
@@ -380,6 +394,51 @@ export class ClientSnapshotService {
     }
 
     // ─── PRIVATE: Alert computation ──────────────────────────
+
+    /**
+     * Worker Brain V2: Compute alerts via MetaBrain
+     */
+    private static async computeAlertsViaMetaBrain(
+        clientId: string,
+        clientData: Client,
+        targetDate?: string
+    ): Promise<Alert[]> {
+        try {
+            // Build date range
+            const dateRanges = buildDateRanges();
+            const dateRange = targetDate
+                ? { start: targetDate, end: targetDate }
+                : dateRanges.yesterday;
+
+            // Run MetaBrain analysis
+            const metaBrain = new MetaBrain();
+            const signals = await metaBrain.analyze(clientId, dateRange, clientData);
+
+            // Convert ChannelAlerts to system Alerts
+            const alerts: Alert[] = signals.alerts.map(channelAlert => ({
+                clientId,
+                type: channelAlert.type,
+                severity: channelAlert.severity,
+                title: channelAlert.message,
+                description: channelAlert.recommendation,
+                entityId: channelAlert.data.entityId as string,
+                entityName: channelAlert.data.entityName as string,
+                level: channelAlert.data.level as any,
+                evidence: channelAlert.data.evidence as string[],
+                impactScore: channelAlert.data.impactScore as number || 50,
+                createdAt: new Date().toISOString(),
+                status: 'active'
+            }));
+
+            console.log(`[ClientSnapshot] MetaBrain generated ${alerts.length} alerts`);
+            return alerts;
+
+        } catch (error) {
+            console.error('[ClientSnapshot] MetaBrain error, falling back to AlertEngine:', error);
+            // Fallback: return empty array (AlertEngine will be called in next iteration)
+            return [];
+        }
+    }
 
     private static computeAlertsInMemory(
         clientId: string,

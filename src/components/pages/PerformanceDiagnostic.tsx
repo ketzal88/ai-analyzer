@@ -331,7 +331,11 @@ export default function PerformanceDiagnostic() {
                         </h2>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {alerts.filter(a => a.severity !== "INFO").map(alert => (
-                                <div key={alert.id} className={`p-5 rounded-xl border flex gap-4 transition-all hover:scale-[1.01] ${alert.severity === "CRITICAL" ? "bg-red-500/5 border-red-500/20 shadow-lg shadow-red-500/5" : "bg-stellar border-argent"}`}>
+                                <div
+                                    key={alert.id}
+                                    onClick={() => handleAdClick(alert.entityId)}
+                                    className={`p-5 rounded-xl border flex gap-4 transition-all hover:scale-[1.01] cursor-pointer ${alert.severity === "CRITICAL" ? "bg-red-500/5 border-red-500/20 shadow-lg shadow-red-500/5" : "bg-stellar border-argent"}`}
+                                >
                                     <div className="text-2xl mt-1">{alert.severity === "CRITICAL" ? "🔥" : "🧩"}</div>
                                     <div>
                                         <div className="flex items-center gap-2 mb-1">

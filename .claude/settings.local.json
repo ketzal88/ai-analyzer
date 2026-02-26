@@ -9,7 +9,16 @@
       "Bash(grep:*)",
       "mcp__claude_ai_Notion__notion-fetch",
       "WebFetch(domain:prod-files-secure.s3.us-west-2.amazonaws.com)",
-      "Bash(git check-ignore:*)"
+      "Bash(git check-ignore:*)",
+      "Bash(ls:*)",
+      "Bash(npx ts-node:*)",
+      "Bash(npx tsx:*)",
+      "Bash(npm install:*)",
+      "Bash(curl:*)",
+      "mcp__claude_ai_Dashbo__dashbo_list_clients",
+      "mcp__claude_ai_Dashbo__dashbo_list_client_available_fields",
+      "Bash(node -e:*)",
+      "Bash(npm run dev:*)"
     ]
   }
 }
