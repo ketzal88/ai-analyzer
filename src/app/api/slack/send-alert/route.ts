@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebase-admin";
 import { SlackService } from "@/lib/slack-service";
-import { AlertEngine, Alert } from "@/lib/alert-engine";
-import { Client } from "@/types";
+import { AlertEngine } from "@/lib/alert-engine";
+import { Client, Alert } from "@/types";
+import { withErrorReporting } from "@/lib/error-reporter";
 
 /**
  * On-demand Slack Alert Sender
@@ -12,7 +13,7 @@ import { Client } from "@/types";
  * 
  * Useful for manual triggering from the UI or testing.
  */
-export async function POST(request: NextRequest) {
+export const POST = withErrorReporting("API Slack Send Alert", async (request: NextRequest) => {
     try {
         const body = await request.json();
         const { clientId, mode = "all" } = body;
@@ -54,11 +55,10 @@ export async function POST(request: NextRequest) {
 
         // ── ALERTS ──
         if (mode === "digest" || mode === "critical" || mode === "all") {
-            const alertResult = await AlertEngine.run(clientId);
-            const alerts = alertResult.alerts || [];
+            const alerts: Alert[] = await AlertEngine.run(clientId);
 
             if (mode === "critical" || mode === "all") {
-                const criticals = alerts.filter(a => a.severity === "CRITICAL");
+                const criticals = alerts.filter((a: Alert) => a.severity === "CRITICAL");
                 for (const alert of criticals) {
                     await SlackService.sendCriticalAlert(clientId, client.name, alert);
                 }
@@ -84,4 +84,4 @@ export async function POST(request: NextRequest) {
         console.error("[Slack Send Alert] Error:", error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
-}
+});

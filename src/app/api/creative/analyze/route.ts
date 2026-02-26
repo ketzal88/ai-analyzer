@@ -4,13 +4,14 @@ import { generateCreativeAudit } from "@/lib/creative-analysis-service";
 import { calculateCreativeKPISnapshot } from "@/lib/creative-kpi-service";
 import { MetaCreativeDoc } from "@/types/meta-creative";
 import { DailyEntitySnapshot } from "@/types/performance-snapshots";
+import { withErrorReporting } from "@/lib/error-reporter";
 
 /**
  * AG-45: Trigger AI Audit for a specific creative
  * POST /api/creative/analyze
  * Body: { clientId, adId, range }
  */
-export async function POST(request: NextRequest) {
+export const POST = withErrorReporting("API Creative Analyze", async (request: NextRequest) => {
     try {
         const isDev = process.env.NODE_ENV === "development";
         const sessionCookie = request.cookies.get("session")?.value;
@@ -103,4 +104,4 @@ export async function POST(request: NextRequest) {
         console.error("[Creative Analyze] Error:", error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
-}
+});

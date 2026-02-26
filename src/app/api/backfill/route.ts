@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { BackfillService } from "@/lib/backfill-service";
 import { db } from "@/lib/firebase-admin";
+import { reportError } from "@/lib/error-reporter";
 
 export const maxDuration = 300; // 5 minutes
 
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
                 }, { status: 400 });
         }
     } catch (e: any) {
-        console.error("[Backfill API Error]:", e);
+        await reportError("API Backfill", e, { metadata: { action: request.nextUrl.searchParams.get("action") } });
         return NextResponse.json({ error: e.message }, { status: 500 });
     }
 }

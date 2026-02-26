@@ -153,8 +153,11 @@ export class AlertEngine {
             // ─────────────────────────────────────────────
             const budgetChange = r.budget_change_3d_pct || 0;
             const recentEdit = snap ? snap.stability.daysSinceLastEdit < 3 : false;
+            // Only check at campaign/adset level (ads don't have independent budgets)
+            // Require minimum spend to avoid noise from low-spend entities
+            const hasMinSpend = (r.spend_7d || 0) > 10;
 
-            if (Math.abs(budgetChange) > config.alerts.learningResetBudgetChangePct && recentEdit) {
+            if (Math.abs(budgetChange) > config.alerts.learningResetBudgetChangePct && recentEdit && (rolling.level === 'campaign' || rolling.level === 'adset') && hasMinSpend) {
                 const type = "LEARNING_RESET_RISK";
                 const template = config.alertTemplates[type] || getDefaultEngineConfig(clientId).alertTemplates[type];
                 alerts.push({

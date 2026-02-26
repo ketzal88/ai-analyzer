@@ -1,6 +1,7 @@
 import { auth, db } from "@/lib/firebase-admin";
 import { NextRequest, NextResponse } from "next/server";
 import { Client } from "@/types";
+import { reportError } from "@/lib/error-reporter";
 
 /**
  * POST /api/clients/import - Batch create/update clients
@@ -50,7 +51,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ success: true, count: clients.length });
     } catch (error: any) {
-        console.error("Import error:", error);
+        await reportError("API Clients Import", error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

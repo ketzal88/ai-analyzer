@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth, db } from "@/lib/firebase-admin";
 import { MetaCreativeDoc, CreativeLibraryFilters } from "@/types/meta-creative";
+import { withErrorReporting } from "@/lib/error-reporter";
 
 /**
  * AG-41: Get creative library for a client
  * GET /api/creative/library?clientId=xxx&campaignId=xxx&format=VIDEO&status=ACTIVE&activeSince=2026-01-01
  */
-export async function GET(request: NextRequest) {
+export const GET = withErrorReporting("API Creative Library", async (request: NextRequest) => {
     try {
         // 1. Auth check
         const sessionCookie = request.cookies.get("session")?.value;
@@ -88,4 +89,4 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
-}
+});
