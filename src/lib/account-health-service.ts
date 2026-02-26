@@ -237,7 +237,24 @@ export class AccountHealthService {
             }
         }
 
-        // 3. Send alerts
+        // 3. Balance alerts (no funds / pending debt)
+        if (health.balance !== undefined && health.balance <= 0) {
+            const prevHadBalance = prev?.balance === undefined || prev.balance > 0;
+
+            if (prevHadBalance) {
+                // Transition: had funds → no funds (or first check with no balance)
+                const debtMsg = health.balance < 0
+                    ? ` — Deuda pendiente: $${Math.abs(health.balance).toFixed(2)}`
+                    : "";
+                alerts.push({
+                    type: "ACCOUNT_NO_BALANCE",
+                    severity: "critical",
+                    message: `Sin saldo disponible en cuenta Meta${debtMsg}`,
+                });
+            }
+        }
+
+        // 4. Send alerts
         for (const alert of alerts) {
             // Log to EventService
             await EventService.log({

@@ -553,8 +553,9 @@ export class SlackService {
         const isDisabled = alertType === "ACCOUNT_DISABLED";
         const isReactivated = alertType === "ACCOUNT_REACTIVATED";
         const isSpendCap = alertType.startsWith("SPEND_CAP_");
+        const isNoBalance = alertType === "ACCOUNT_NO_BALANCE";
 
-        const emoji = isDisabled ? "🚫" : isReactivated ? "✅" : isSpendCap ? "💸" : "⚠️";
+        const emoji = isNoBalance ? "🚨" : isDisabled ? "🚫" : isReactivated ? "✅" : isSpendCap ? "💸" : "⚠️";
         const color = severity === "critical" ? "🔴" : severity === "warning" ? "🟡" : "🟢";
 
         let text = `${emoji} *Account Health — ${clientName}*\n\n`;
