@@ -311,7 +311,7 @@ export class ClientSnapshotService {
                     performance: { spend: 0, impressions: 0, reach: 0, clicks: 0, ctr: 0, cpc: 0 },
                     engagement: {},
                     audience: {},
-                    stability: { daysActive: 0, daysSinceLastEdit: 0 },
+                    stability: { daysActive: 0, daysSinceLastEdit: 7 },
                     meta: {}
                 };
             }
@@ -492,8 +492,10 @@ export class ClientSnapshotService {
             // LEARNING RESET RISK
             const budgetChange = r.budget_change_3d_pct || 0;
             const recentEdit = snap ? snap.stability.daysSinceLastEdit < 3 : false;
+            // Only check at campaign/adset level + require min spend
+            const hasMinSpendLR = (r.spend_7d || 0) > 10;
 
-            if (Math.abs(budgetChange) > config.alerts.learningResetBudgetChangePct && recentEdit) {
+            if (Math.abs(budgetChange) > config.alerts.learningResetBudgetChangePct && recentEdit && (rolling.level === 'campaign' || rolling.level === 'adset') && hasMinSpendLR) {
                 const type = "LEARNING_RESET_RISK";
                 const template = config.alertTemplates[type] || defaultConfig.alertTemplates[type];
                 alerts.push({

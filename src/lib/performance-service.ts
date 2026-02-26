@@ -163,7 +163,7 @@ export class PerformanceService {
                         audience: {},
                         stability: {
                             daysActive: 1,
-                            daysSinceLastEdit: 0
+                            daysSinceLastEdit: 7
                         }
                     };
 

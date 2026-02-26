@@ -64,7 +64,7 @@ export class ClassificationService {
                     performance: { spend: 0, impressions: 0, reach: 0, clicks: 0, ctr: 0, cpc: 0 },
                     engagement: {},
                     audience: {},
-                    stability: { daysActive: 0, daysSinceLastEdit: 0 },
+                    stability: { daysActive: 0, daysSinceLastEdit: 7 },
                     meta: {}
                 };
             }

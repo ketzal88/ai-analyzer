@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
                     snapshotSent = true;
                 }
 
-                // 2. ALERTS
+                // 2. ALERTS — Only send CRITICAL alerts to Slack daily
                 const alerts = snapshot.alerts;
 
                 if (alerts.length > 0) {
@@ -88,8 +88,11 @@ export async function GET(request: NextRequest) {
                         criticalAlertsSent++;
                     }
 
-                    await SlackService.sendDigest(clientId, client.name, alerts);
-                    alertDigestSent = true;
+                    // Only send digest if there are critical alerts (skip WARNING/INFO-only digests)
+                    if (criticalAlerts.length > 0) {
+                        await SlackService.sendDigest(clientId, client.name, criticalAlerts);
+                        alertDigestSent = true;
+                    }
                 }
 
                 results.push({
