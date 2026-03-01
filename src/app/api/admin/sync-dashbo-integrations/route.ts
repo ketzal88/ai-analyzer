@@ -10,8 +10,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase-admin';
 
-// Real Dashbo data from MCP calls
-const dashboIntegrations: Record<number, { name: string; dataSources: string[] }> = {
+// Real Dashbo data from MCP calls (8 clients verified)
+const dashboIntegrations: Record<number, { name: string; aliases?: string[]; dataSources: string[] }> = {
   5839: {
     name: "Accuracy Solutions",
     dataSources: ["SOURCE_FACEBOOK_ADS", "SOURCE_GA4"]
@@ -26,6 +26,24 @@ const dashboIntegrations: Record<number, { name: string; dataSources: string[] }
   },
   7334: {
     name: "Almacen de Colchones",
+    aliases: ["Alma Colchones"],
+    dataSources: ["SOURCE_FACEBOOK_ADS", "SOURCE_GA4", "SOURCE_GOOGLE_ADS", "SOURCE_TIENDA_NUBE"]
+  },
+  5858: {
+    name: "Cambre",
+    dataSources: ["SOURCE_FACEBOOK_ADS", "SOURCE_GA4", "SOURCE_GOOGLE_ADS"]
+  },
+  7337: {
+    name: "CocoNude",
+    aliases: ["Coconude"],
+    dataSources: ["SOURCE_FACEBOOK_ADS", "SOURCE_GOOGLE_ADS"]
+  },
+  2847: {
+    name: "Simonetta",
+    dataSources: ["SOURCE_FACEBOOK_ADS"]
+  },
+  7335: {
+    name: "Luvee",
     dataSources: ["SOURCE_FACEBOOK_ADS", "SOURCE_GA4", "SOURCE_GOOGLE_ADS", "SOURCE_TIENDA_NUBE"]
   }
 };
@@ -82,7 +100,15 @@ export async function GET(request: NextRequest) {
     for (const [dashboClientId, dashboData] of Object.entries(dashboIntegrations)) {
       try {
         const normalizedName = normalizeName(dashboData.name);
-        const localClient = localClientsMap.get(normalizedName);
+        let localClient = localClientsMap.get(normalizedName);
+
+        // Try aliases if primary name didn't match
+        if (!localClient && dashboData.aliases) {
+          for (const alias of dashboData.aliases) {
+            localClient = localClientsMap.get(normalizeName(alias));
+            if (localClient) break;
+          }
+        }
 
         if (!localClient) {
           results.noMatch++;

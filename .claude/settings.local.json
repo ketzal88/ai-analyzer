@@ -18,7 +18,8 @@
       "mcp__claude_ai_Dashbo__dashbo_list_clients",
       "mcp__claude_ai_Dashbo__dashbo_list_client_available_fields",
       "Bash(node -e:*)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "mcp__claude_ai_Dashbo__dashbo_query_data"
     ]
   }
 }
