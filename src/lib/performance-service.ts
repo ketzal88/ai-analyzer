@@ -83,6 +83,7 @@ export class PerformanceService {
                 "adset_name",
                 "campaign_name",
                 "account_name",
+                "objective",
                 "spend",
                 "impressions",
                 "reach",
@@ -235,6 +236,7 @@ export class PerformanceService {
         const meta: MetaInfo = {
             campaignId: item.campaign_id,
             adsetId: item.adset_id,
+            objective: item.objective
         };
 
         const name = item.ad_name || item.adset_name || item.campaign_name || "";
@@ -316,14 +318,27 @@ export class PerformanceService {
             // Comparison windows for deltas
             const prev7d = this.sumPerformance(group.filter(s => this.isWithinDays(s.date, 14, refDate) && !this.isWithinDays(s.date, 7, refDate)));
 
-            // CPA delta
-            const cpa7d = r7d.purchases > 0 ? r7d.spend / r7d.purchases : 0;
-            const cpa14d = r14d.purchases > 0 ? r14d.spend / r14d.purchases : 0;
+            const obj = group[0]?.meta?.objective;
+            const name = (group[0]?.name || "").toLowerCase();
+            const isMessaging = obj === 'OUTCOME_ENGAGEMENT' || obj === 'MESSAGES' || name.includes("mensaje") || name.includes("message");
+            const isLeads = obj === 'OUTCOME_LEAD_GEN' || name.includes("leads") || name.includes("clientes");
+
+            const getResults = (r: any) => {
+                if (isMessaging) return r.whatsapp || 0;
+                if (isLeads) return r.leads || 0;
+                return r.purchases || 0;
+            };
+
+            // CPA delta (uses the relevant metric)
+            const mainResults7d = getResults(r7d);
+            const mainResults14d = getResults(r14d);
+            const cpa7d = mainResults7d > 0 ? r7d.spend / mainResults7d : 0;
+            const cpa14d = mainResults14d > 0 ? r14d.spend / mainResults14d : 0;
             const cpaDeltaPct = this.calcDelta(cpa7d, cpa14d);
 
             // Conversion per impression delta
-            const convPerImp7d = r7d.impressions > 0 ? r7d.purchases / r7d.impressions : 0;
-            const convPerImpPrev = prev7d.impressions > 0 ? prev7d.purchases / prev7d.impressions : 0;
+            const convPerImp7d = r7d.impressions > 0 ? mainResults7d / r7d.impressions : 0;
+            const convPerImpPrev = prev7d.impressions > 0 ? getResults(prev7d) / prev7d.impressions : 0;
             const convPerImpDelta = this.calcDelta(convPerImp7d, convPerImpPrev);
 
             // Budget change (compare last 3d spend vs previous 3d spend)
@@ -367,9 +382,9 @@ export class PerformanceService {
                         prev7d.spend > 0 ? prev7d.revenue / prev7d.spend : 0
                     ),
 
-                    conversion_velocity_3d: r3d.purchases / 3,
-                    conversion_velocity_7d: r7d.purchases / 7,
-                    conversion_velocity_14d: r14d.purchases / 14,
+                    conversion_velocity_3d: getResults(r3d) / 3,
+                    conversion_velocity_7d: mainResults7d / 7,
+                    conversion_velocity_14d: mainResults14d / 14,
 
                     frequency_7d: r7d.impressions > 0 ? r7d.impressions / (r7d.reach || 1) : undefined,
                     ctr_delta_pct: this.calcDelta(

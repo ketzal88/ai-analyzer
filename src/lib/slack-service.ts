@@ -97,7 +97,10 @@ export class SlackService {
         return n % 1 === 0 ? n.toLocaleString("es-AR") : n.toFixed(2);
     }
 
-    private static fmtCurrency(n: number): string {
+    private static fmtCurrency(n: number, currency?: string): string {
+        if (currency && currency !== "USD") {
+            return `$${this.fmtNum(n)} ${currency}`;
+        }
         return `$${this.fmtNum(n)}`;
     }
 
@@ -235,20 +238,21 @@ export class SlackService {
 
         let text = `${title}\n\n`;
 
+        const currency = client?.currency || "USD";
+
         // Gastos y Tráfico
         text += `💰 *Gastos y Tráfico*\n`;
-        text += `• Inversión: ${this.fmtCurrency(kpis.spend)}\n`;
+        text += `• Inversión: ${this.fmtCurrency(kpis.spend, currency)}\n`;
         text += `• Clicks: ${this.fmtNum(kpis.clicks)}\n`;
-        text += `• CPC: ${this.fmtCurrency(kpis.cpc)}\n`;
+        text += `• CPC: ${this.fmtCurrency(kpis.cpc, currency)}\n`;
         text += `• CTR: ${this.fmtPct(kpis.ctr)}\n`;
         text += `• Impresiones: ${this.fmtNum(kpis.impressions)}\n\n`;
 
-        // Conversiones (ecommerce)
         if (isEcommerce) {
             text += `🛒 *Conversiones*\n`;
             text += `• Purchases: ${kpis.purchases}\n`;
-            text += `• Valor de compra: ${this.fmtCurrency(kpis.purchaseValue)}\n`;
-            text += `• Coste por compra: ${this.fmtCurrency(kpis.costPerPurchase)}\n`;
+            text += `• Valor de compra: ${this.fmtCurrency(kpis.purchaseValue, currency)}\n`;
+            text += `• Coste por compra: ${this.fmtCurrency(kpis.costPerPurchase, currency)}\n`;
             text += `• ROAS: ${kpis.roas.toFixed(2)}\n\n`;
         }
 
@@ -256,21 +260,21 @@ export class SlackService {
         if (isLeadGen) {
             text += `📋 *Generación de Leads*\n`;
             text += `• Leads: ${kpis.leads}\n`;
-            text += `• Coste por Lead: ${this.fmtCurrency(kpis.costPerLead)}\n\n`;
+            text += `• Coste por Lead: ${this.fmtCurrency(kpis.costPerLead, currency)}\n\n`;
         }
 
         // WhatsApp
         if (isWhatsApp || kpis.whatsapp > 0) {
             text += `💬 *WhatsApp*\n`;
             text += `• Conversaciones: ${kpis.whatsapp}\n`;
-            text += `• Coste por conversación: ${this.fmtCurrency(kpis.costPerWhatsapp)}\n\n`;
+            text += `• Coste por conversación: ${this.fmtCurrency(kpis.costPerWhatsapp, currency)}\n\n`;
         }
 
         // App Installs
         if (isApps || (kpis as any).installs > 0) {
             text += `📱 *App Installs*\n`;
             text += `• Installs: ${(kpis as any).installs || 0}\n`;
-            text += `• Coste por Install: ${this.fmtCurrency((kpis as any).costPerInstall || 0)}\n\n`;
+            text += `• Coste por Install: ${this.fmtCurrency((kpis as any).costPerInstall || 0, currency)}\n\n`;
         }
 
         // Eventos de intención
@@ -278,13 +282,13 @@ export class SlackService {
             text += `🧺 *Eventos de intención*\n`;
             if (kpis.addToCart > 0) {
                 text += `• Add to Cart: ${kpis.addToCart}\n`;
-                if (kpis.addToCartValue > 0) text += `• Valor ATC: ${this.fmtCurrency(kpis.addToCartValue)}\n`;
-                text += `• Coste ATC: ${this.fmtCurrency(kpis.costPerAddToCart)}\n\n`;
+                if (kpis.addToCartValue > 0) text += `• Valor ATC: ${this.fmtCurrency(kpis.addToCartValue, currency)}\n`;
+                text += `• Coste ATC: ${this.fmtCurrency(kpis.costPerAddToCart, currency)}\n\n`;
             }
             if (kpis.checkout > 0) {
                 text += `• Checkout: ${kpis.checkout}\n`;
-                if (kpis.checkoutValue > 0) text += `• Valor Checkout: ${this.fmtCurrency(kpis.checkoutValue)}\n`;
-                text += `• Coste Checkout: ${this.fmtCurrency(kpis.costPerCheckout)}\n\n`;
+                if (kpis.checkoutValue > 0) text += `• Valor Checkout: ${this.fmtCurrency(kpis.checkoutValue, currency)}\n`;
+                text += `• Coste Checkout: ${this.fmtCurrency(kpis.costPerCheckout, currency)}\n\n`;
             }
         }
 
@@ -407,6 +411,17 @@ export class SlackService {
             return acc;
         }, {} as Record<string, Alert[]>);
 
+        // Calculate Date Range for analysis (last 7 days from most recent alert)
+        const latestAlertDate = alerts.length > 0
+            ? new Date(Math.max(...alerts.map(a => new Date(a.createdAt).getTime())))
+            : new Date();
+
+        const startAnalysis = new Date(latestAlertDate);
+        startAnalysis.setDate(startAnalysis.getDate() - 7);
+
+        const formatDate = (d: Date) => `${d.getDate()}/${d.getMonth() + 1}`;
+        const dateRangeStr = `(${formatDate(startAnalysis)} al ${formatDate(latestAlertDate)})`;
+
         const blocks: any[] = [
             {
                 type: "header",
@@ -420,7 +435,7 @@ export class SlackService {
                 type: "section",
                 text: {
                     type: "mrkdwn",
-                    text: `He analizado tus campañas. Aquí están las acciones recomendadas para hoy:`
+                    text: `He analizado tus campañas entre el *${formatDate(startAnalysis)}* y el *${formatDate(latestAlertDate)}*. Aquí están las acciones recomendadas para hoy:`
                 }
             }
         ];
@@ -434,12 +449,15 @@ export class SlackService {
             });
 
             topImpact.forEach(item => {
-                const evidenceLine = item.evidence?.[0] || "Consultar dashboard";
+                const evidenceText = item.evidence?.length > 0
+                    ? item.evidence.join(" | ")
+                    : "Consultar dashboard";
+
                 blocks.push({
                     type: "section",
                     text: {
                         type: "mrkdwn",
-                        text: `• *${item.title}*\n  📊 _Evidencia:_ ${evidenceLine}\n  ✅ _Acción:_ ${item.description}`
+                        text: `• *${item.title}*\n  📊 _Evidencia:_ ${evidenceText}\n  ✅ _Acción:_ ${item.description}`
                     }
                 });
             });
@@ -466,18 +484,33 @@ export class SlackService {
             "KILL_RETRY", "UNDERFUNDED_WINNER", "LEARNING_RESET_RISK", "CPA_VOLATILITY"
         ];
 
+        const categoryExplanations: Record<string, string> = {
+            SCALING_OPPORTUNITY: "_CPA por debajo del objetivo y volumen estable. Oportunidad de invertir más._",
+            CPA_SPIKE: "_El coste por resultado subió bruscamente vs la semana anterior._",
+            BUDGET_BLEED: "_Gasto acumulado sin conversiones. Detener o revisar creativos._",
+            ROTATE_CONCEPT: "_Frecuencia alta con caída en CTR/Hook Rate. El público ya se cansó de este anuncio._",
+            CONSOLIDATE: "_Muchos conjuntos de anuncios compitiendo entre sí. Sugerimos agrupar._",
+            KILL_RETRY: "_Anuncios que no lograron traccionar después de un gasto significativo._",
+            CPA_VOLATILITY: "_Inestabilidad en los resultados causada por cambios bruscos de presupuesto._",
+            UNDERFUNDED_WINNER: "_Anuncios con excelente ROAS pero poco presupuesto asignado._"
+        };
+
         for (const type of decisionOrder) {
             const items = grouped[type]?.filter(a => !topImpact.find(ti => ti.id === a.id));
             if (items && items.length > 0) {
                 blocks.push({
                     type: "section",
-                    text: { type: "mrkdwn", text: `*${emojis[type] || type} (${items.length})*` }
+                    text: {
+                        type: "mrkdwn",
+                        text: `*${emojis[type] || type} (${items.length})* ${dateRangeStr}\n${categoryExplanations[type] || ""}`
+                    }
                 });
 
-                items.slice(0, 3).forEach(item => {
+                items.slice(0, 5).forEach(item => {
+                    const briefEvidence = item.evidence?.[0] ? ` (${item.evidence[0]})` : "";
                     blocks.push({
                         type: "section",
-                        text: { type: "mrkdwn", text: `• ${item.title}` }
+                        text: { type: "mrkdwn", text: `• ${item.title}${briefEvidence}` }
                     });
                 });
             }

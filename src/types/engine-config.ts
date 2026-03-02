@@ -128,11 +128,11 @@ export function getDefaultEngineConfig(clientId: string, businessType: BusinessT
             },
             ROTATE_CONCEPT: {
                 title: "Rotar Creativo: {entityName}",
-                description: "{fatigueLabel} detectada. Hook rate {hook_rate_7d} con frecuencia {frequency_7d}."
+                description: "{fatigueLabel} detectada. Hook rate {hook_rate_7d} con frecuencia {frequency_7d}. Objetivo: Evitar el aumento de CPA refrescando el contenido visual."
             },
             CONSOLIDATE: {
                 title: "Sugerencia de Consolidación: {entityName}",
-                description: "Estructura {structuralState}. Se recomienda consolidar para mejorar el aprendizaje."
+                description: "Estructura {structuralState}. Objetivo: Agrupar conjuntos para acelerar la salida de la fase de aprendizaje y estabilizar el CPA."
             },
             KILL_RETRY: {
                 title: "Gasto sin Señales: {entityName}",

@@ -30,7 +30,8 @@ export class DecisionEngine {
         conceptMetrics?: ConceptRollingMetrics,
         activeAdsetsCount: number = 0,
         conversions7d: number = 0,
-        clientTargets?: ClientTargets
+        clientTargets?: ClientTargets,
+        currency: string = "USD"
     ): EntityClassification {
 
         // Layer 1: Learning State
@@ -56,7 +57,8 @@ export class DecisionEngine {
             rolling,
             snap,
             config,
-            clientTargets
+            clientTargets,
+            currency
         );
 
         // Impact Score Calculation
@@ -149,7 +151,7 @@ export class DecisionEngine {
         // Adjust frequency threshold based on fatigue tolerance
         const toleranceMultiplier = clientTargets?.fatigueTolerance === "high" ? 1.5
             : clientTargets?.fatigueTolerance === "low" ? 0.75
-            : 1.0;
+                : 1.0;
         const adjustedFreqThreshold = f.frequencyThreshold * toleranceMultiplier;
 
         // Validation for significance
@@ -214,7 +216,8 @@ export class DecisionEngine {
         rolling: EntityRollingMetrics,
         snap: DailyEntitySnapshot,
         config: EngineConfig,
-        clientTargets?: ClientTargets
+        clientTargets?: ClientTargets,
+        currency: string = "USD"
     ): { decision: FinalDecision, confidence: number, facts: string[] } {
         const facts: string[] = [];
 
@@ -230,18 +233,37 @@ export class DecisionEngine {
         const budgetChange = rolling.rolling.budget_change_3d_pct || 0;
 
         const businessType = config.businessType || 'ecommerce';
-        const metricName = businessType === 'ecommerce' ? 'Ventas' :
+        const objective = snap.meta?.objective;
+        const isEngagement = objective === 'OUTCOME_ENGAGEMENT' || objective === 'MESSAGES' || objective === 'ENGAGEMENT';
+        const isTraffic = objective === 'OUTCOME_TRAFFIC' || objective === 'TRAFFIC';
+        const isAwareness = objective === 'OUTCOME_AWARENESS' || objective === 'AWARENESS';
+
+        let effectiveMetricName = businessType === 'ecommerce' ? 'Ventas' :
             businessType === 'leads' ? 'Leads' :
                 businessType === 'whatsapp' ? 'WhatsApp' : 'Installs';
 
-        if (spend7d > 0) facts.push(`Gasto 7d: $${spend7d.toFixed(2)}`);
-        if (cpa7d > 0) facts.push(`CPA 7d: $${cpa7d.toFixed(2)}`);
-        if (roas7d > 0 && businessType === 'ecommerce') facts.push(`ROAS 7d: ${roas7d.toFixed(2)}`);
-        if (velocity7d > 0) facts.push(`${metricName}/día: ${velocity7d.toFixed(2)}`);
+        // Objective Override: If it's an engagement/messaging campaign, use WhatsApp as primary
+        if (isEngagement) {
+            effectiveMetricName = 'Mensajes';
+        }
+
+        const formatVal = (v: number, decimals: number = 2) => {
+            if (currency !== "USD" && v > 100) return Math.round(v).toLocaleString();
+            return v.toFixed(decimals).toLocaleString();
+        };
+
+        if (spend7d > 0) facts.push(`Gasto 7d: $${formatVal(spend7d)}`);
+        if (cpa7d > 0) facts.push(`CPA 7d: $${formatVal(cpa7d)}`);
+        if (roas7d > 0 && businessType === 'ecommerce' && !isEngagement) facts.push(`ROAS 7d: ${roas7d.toFixed(2)}`);
+        if (velocity7d > 0) facts.push(`${effectiveMetricName}/día: ${formatVal(velocity7d, 2)}`);
         if (freq7d > 0) facts.push(`Frecuencia 7d: ${freq7d.toFixed(1)}`);
-        if (Math.abs(roasDelta) > 5 && businessType === 'ecommerce') facts.push(`Delta ROAS: ${roasDelta.toFixed(1)}%`);
+        if (Math.abs(roasDelta) > 5 && businessType === 'ecommerce' && !isEngagement) facts.push(`Delta ROAS: ${roasDelta.toFixed(1)}%`);
         if (Math.abs(hookDelta) > 5) facts.push(`Delta Gancho: ${hookDelta.toFixed(1)}%`);
         if (Math.abs(budgetChange) > 10) facts.push(`Δ Budget 3d: ${budgetChange.toFixed(1)}%`);
+
+        if (isTraffic || isAwareness) {
+            facts.push(`Campaña de ${isTraffic ? 'Tráfico' : 'Reconocimiento'}: objetivo no orientado a conversión directa.`);
+        }
 
         const targetCpa = clientTargets?.targetCpa;
         const targetRoas = clientTargets?.targetRoas || 2.0;
@@ -305,7 +327,7 @@ export class DecisionEngine {
                 // Adjust confidence based on growthMode
                 const scaleConfidence = growthMode === "aggressive" ? 0.75
                     : growthMode === "conservative" ? 0.95
-                    : 0.88;
+                        : 0.88;
                 if (growthMode === "aggressive") facts.push("Modo crecimiento agresivo: umbral de escalamiento reducido.");
                 return { decision: "SCALE", confidence: scaleConfidence, facts };
             }

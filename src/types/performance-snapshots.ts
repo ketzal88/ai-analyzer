@@ -45,6 +45,7 @@ export interface MetaInfo {
     campaignId?: string;
     adsetId?: string;
     conceptId?: string;
+    objective?: string;
     personaType?: string;
     proofType?: string;
     formatType?: string;

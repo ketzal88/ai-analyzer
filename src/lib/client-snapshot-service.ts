@@ -304,7 +304,7 @@ export class ClientSnapshotService {
             if (!snap) {
                 snap = {
                     clientId,
-                    date,
+                    date: latestDate,
                     level: rolling.level,
                     entityId: rolling.entityId,
                     name: rolling.name,
@@ -316,12 +316,45 @@ export class ClientSnapshotService {
                 };
             }
 
+            const entityName = rolling.name || rolling.entityId;
+            const lowerName = entityName.toLowerCase();
+            const entityMeta = snap?.meta || {};
+            const objective = entityMeta.objective;
+
+            const isNonConversion = objective === 'OUTCOME_TRAFFIC' ||
+                objective === 'OUTCOME_AWARENESS' ||
+                objective === 'TRAFFIC' ||
+                objective === 'AWARENESS' ||
+                lowerName.includes("trafico") ||
+                lowerName.includes("traffic") ||
+                lowerName.includes("awareness") ||
+                lowerName.includes("reconocimiento");
+
+            const isMessagingObjective = objective === 'OUTCOME_ENGAGEMENT' ||
+                objective === 'MESSAGES' ||
+                lowerName.includes("mensaje") ||
+                lowerName.includes("message");
+
+            // Structural insight: only count adsets that share same goal (conversion vs non-conversion)
+            const peerAdsetsCount = activeAdsets.filter(a => {
+                const aName = (a.name || "").toLowerCase();
+                const aMeta = rollingMetrics.find(rm => rm.entityId === a.entityId)?.rolling as any;
+                // Note: we might not have objectives for all active adsets in memory easily, 
+                // so we use name-based fallback for peers
+                const aIsNonConv = aName.includes("trafico") ||
+                    aName.includes("traffic") ||
+                    aName.includes("awareness") ||
+                    aName.includes("reconocimiento");
+                return aIsNonConv === isNonConversion;
+            }).length;
+
             const conceptId = snap.meta?.conceptId || rolling.entityId.split(/[|_-]/)[0];
             const concept = conceptId ? conceptMetrics.find(c => c.conceptId === conceptId) : undefined;
 
             const decision = DecisionEngine.compute(
                 snap, rolling, percentiles, config, concept,
-                activeAdsets.length, conversions7d, clientTargets
+                peerAdsetsCount, conversions7d, clientTargets,
+                clientData?.currency || "USD"
             );
 
             classifications.push({
@@ -405,19 +438,70 @@ export class ClientSnapshotService {
             return msg;
         };
 
+        // Cache for deduplication
+        const campaignsWithScaling = new Set<string>();
+        const adsetsWithScaling = new Set<string>();
+
         const latestDate = dailySnapshots.length > 0 ? dailySnapshots.sort((a, b) => b.date.localeCompare(a.date))[0].date : '';
         const latestSnaps = dailySnapshots.filter(s => s.date === latestDate);
 
-        for (const rolling of rollingMetrics) {
+        // Pre-calculate Meta Map and Names (Merge with existing nameMap)
+        const metaMap: Record<string, any> = {};
+        const currency = clientData?.currency || "USD";
+        const curSuffix = currency !== "USD" ? ` ${currency}` : "";
+
+        const formatCcy = (v: number) => {
+            if (currency !== "USD" && Math.abs(v) > 100) return Math.round(v).toLocaleString();
+            return v.toFixed(2).toLocaleString();
+        };
+
+        for (const s of latestSnaps) {
+            if (s.name) nameMap[s.entityId] = s.name;
+        }
+        for (const s of dailySnapshots) {
+            if (!metaMap[s.entityId] && s.meta && Object.keys(s.meta).length > 0) {
+                metaMap[s.entityId] = s.meta;
+            }
+            if (!nameMap[s.entityId] && s.name) {
+                nameMap[s.entityId] = s.name;
+            }
+        }
+
+        // Sort metrics: Campaigns -> Adsets -> Ads -> Account
+        // This ensures Campaign alerts are processed first for deduplication
+        const sortedMetrics = [...rollingMetrics].sort((a, b) => {
+            const levelMap: Record<string, number> = { campaign: 0, adset: 1, ad: 2, account: 3 };
+            return (levelMap[a.level] || 99) - (levelMap[b.level] || 99);
+        });
+
+        for (const rolling of sortedMetrics) {
             const r = rolling.rolling;
             const snap = latestSnaps.find(s => s.entityId === rolling.entityId && s.level === rolling.level);
             const classif = classifications.find(c => c.entityId === rolling.entityId && c.level === rolling.level);
+            const entityMeta = metaMap[rolling.entityId] || snap?.meta || {};
 
             const entityName = rolling.name || rolling.entityId;
-            const contextName = rolling.level === 'ad' && snap?.meta.adsetId && snap?.meta.campaignId
-                ? `${nameMap[snap.meta.campaignId] || 'Camp.'} > ${nameMap[snap.meta.adsetId] || 'Set'} > ${entityName}`
-                : rolling.level === 'adset' && snap?.meta.campaignId
-                    ? `${nameMap[snap.meta.campaignId] || 'Camp.'} > ${entityName}`
+            const lowerName = entityName.toLowerCase();
+            const objective = entityMeta.objective;
+
+            const isNonConversionCampaign = objective === 'OUTCOME_TRAFFIC' ||
+                objective === 'OUTCOME_AWARENESS' ||
+                objective === 'TRAFFIC' ||
+                objective === 'AWARENESS' ||
+                lowerName.includes("trafico") ||
+                lowerName.includes("traffic") ||
+                lowerName.includes("awareness") ||
+                lowerName.includes("reconocimiento");
+
+            const isMessagingCampaign = objective === 'OUTCOME_ENGAGEMENT' ||
+                objective === 'MESSAGES' ||
+                lowerName.includes("mensaje") ||
+                lowerName.includes("message");
+
+            const contextName = rolling.level === 'ad' && entityMeta.adsetId && entityMeta.campaignId
+                ? `${nameMap[entityMeta.campaignId] || 'Camp.'} > ${nameMap[entityMeta.adsetId] || 'Set'} > ${entityName}`
+                : rolling.level === 'adset' && entityMeta.campaignId
+                    ? `${nameMap[entityMeta.campaignId] || 'Camp.'} > ${entityName}`
                     : entityName;
 
             const spend_7d = r.spend_7d || 0;
@@ -425,15 +509,15 @@ export class ClientSnapshotService {
             let primaryMetric = 0;
             let metricName = "Conv.";
 
-            if (businessType === 'ecommerce') {
+            if (businessType === 'ecommerce' && !isMessagingCampaign) {
                 primaryMetric = r.purchases_7d || 0;
                 metricName = "Ventas";
             } else if (businessType === 'leads') {
                 primaryMetric = r.leads_7d || 0;
                 metricName = "Leads";
-            } else if (businessType === 'whatsapp') {
+            } else if (businessType === 'whatsapp' || isMessagingCampaign) {
                 primaryMetric = r.whatsapp_7d || 0;
-                metricName = "Conversaciones";
+                metricName = "Mensajes";
             } else if (businessType === 'apps') {
                 primaryMetric = r.installs_7d || 0;
                 metricName = "App Installs";
@@ -444,14 +528,19 @@ export class ClientSnapshotService {
             const targetCpa = clientData?.targetCpa;
             const targetRoas = clientData?.targetRoas || 2.0;
 
+            const currency = clientData?.currency || "USD";
+            const curSuffix = currency !== "USD" ? ` ${currency}` : "";
+
             const commonVars = {
                 entityName: contextName,
-                spend_7d: `$${spend_7d.toFixed(2)}`,
-                cpa_7d: primaryCpa ? `$${primaryCpa.toFixed(2)}` : 'N/A',
-                targetCpa: targetCpa ? `$${targetCpa.toFixed(2)}` : 'N/A',
+                spend_7d: `$${formatCcy(spend_7d)}${curSuffix}`,
+                cpa_7d: primaryCpa ? `$${formatCcy(primaryCpa)}${curSuffix}` : 'N/A',
+                targetCpa: targetCpa ? `$${formatCcy(targetCpa)}${curSuffix}` : 'N/A',
                 frequency_7d: (r.frequency_7d || 0).toFixed(1),
                 budget_change_3d_pct: (r.budget_change_3d_pct || 0).toFixed(0),
-                cpa_delta_pct: (r.cpa_delta_pct || 0).toFixed(0)
+                cpa_delta_pct: (r.cpa_delta_pct || 0).toFixed(0),
+                primaryMetric: primaryMetric.toFixed(0),
+                metricName
             };
 
             const defaultConfig = getDefaultEngineConfig(clientId, businessType);
@@ -466,8 +555,32 @@ export class ClientSnapshotService {
             const daysStable = snap ? snap.stability.daysSinceLastEdit >= 3 : true;
 
             if ((cpaMeetsTarget || (isEcommerce && roasMeetsTarget)) && velocityStable && freqSafe && daysStable) {
+                // Deduplication logic: skip sub-entities if parent already scales
+                let redundant = false;
+                const campaignId = (entityMeta.campaignId || snap?.meta.campaignId)?.toString();
+                const adsetId = (entityMeta.adsetId || snap?.meta.adsetId)?.toString();
+
+                if (rolling.level === 'adset') {
+                    if (campaignId && campaignsWithScaling.has(campaignId.toString())) redundant = true;
+                }
+                if (rolling.level === 'ad') {
+                    if (adsetId && adsetsWithScaling.has(adsetId.toString())) redundant = true;
+                    if (campaignId && campaignsWithScaling.has(campaignId.toString())) redundant = true;
+                }
+
+                // Extra check: name-based dedup if IDs fail (fallback)
+                if (!redundant && (rolling.level === 'adset' || rolling.level === 'ad')) {
+                    for (const campId of campaignsWithScaling) {
+                        const campName = nameMap[campId]?.toLowerCase();
+                        if (campName && lowerName.startsWith(campName)) {
+                            redundant = true;
+                            break;
+                        }
+                    }
+                }
+
                 // Conservative mode: skip SCALING_OPPORTUNITY alerts entirely
-                if (growthMode !== "conservative") {
+                if (growthMode !== "conservative" && !redundant) {
                     const type = "SCALING_OPPORTUNITY";
                     const template = config.alertTemplates[type] || defaultConfig.alertTemplates[type];
                     const evidence = [
@@ -486,6 +599,10 @@ export class ClientSnapshotService {
                         evidence,
                         createdAt: new Date().toISOString()
                     });
+
+                    // Mark for dedup (Ensure string keys)
+                    if (rolling.level === 'campaign') campaignsWithScaling.add(rolling.entityId.toString());
+                    if (rolling.level === 'adset') adsetsWithScaling.add(rolling.entityId.toString());
                 }
             }
 
@@ -512,7 +629,7 @@ export class ClientSnapshotService {
 
             // CPA SPIKE
             const cpaDelta = r.cpa_delta_pct || 0;
-            if (cpaDelta > (config.findings.cpaSpikeThreshold * 100)) {
+            if (cpaDelta > (config.findings.cpaSpikeThreshold * 100) && !isNonConversionCampaign) {
                 const type = "CPA_SPIKE";
                 const template = config.alertTemplates[type] || defaultConfig.alertTemplates[type];
                 alerts.push({
@@ -522,13 +639,17 @@ export class ClientSnapshotService {
                     title: formatMessage(template.title, commonVars),
                     description: formatMessage(template.description, commonVars),
                     impactScore: 80,
-                    evidence: [`CPA 7d: ${commonVars.cpa_7d}`, `CPA 14d: $${(r.cpa_14d || 0).toFixed(2)}`, `Delta: ${cpaDelta.toFixed(1)}%`],
+                    evidence: [
+                        `CPA Actual (7d): $${commonVars.cpa_7d}${curSuffix}`,
+                        `CPA Anterior (14d): $${formatCcy(r.cpa_14d || 0)}${curSuffix}`,
+                        `Incremento: ${cpaDelta.toFixed(1)}%`
+                    ],
                     createdAt: new Date().toISOString()
                 });
             }
 
             // BUDGET BLEED
-            if (primaryMetric === 0 && targetCpa && spend_7d > (targetCpa * 2)) {
+            if (primaryMetric === 0 && targetCpa && spend_7d > (targetCpa * 2) && !isNonConversionCampaign) {
                 const type = "BUDGET_BLEED";
                 const template = config.alertTemplates[type] || defaultConfig.alertTemplates[type];
                 alerts.push({
@@ -538,7 +659,7 @@ export class ClientSnapshotService {
                     title: formatMessage(template.title, commonVars),
                     description: formatMessage(template.description, commonVars),
                     impactScore: 90,
-                    evidence: [`Gasto 7d: ${commonVars.spend_7d}`, `Conversiones: 0`, `Target CPA: ${commonVars.targetCpa}`],
+                    evidence: [`Gasto 7d: $${commonVars.spend_7d}${curSuffix}`, `Conversiones: 0`, `Target CPA: $${formatCcy(targetCpa)}${curSuffix}`],
                     createdAt: new Date().toISOString()
                 });
             }
@@ -557,7 +678,11 @@ export class ClientSnapshotService {
                     title: formatMessage(template.title, commonVars),
                     description: formatMessage(template.description, commonVars),
                     impactScore: 40,
-                    evidence: [`Δ Budget 3d: ${budgetChange.toFixed(1)}%`, `Threshold: ${volatilityThreshold}%`],
+                    evidence: [
+                        `Δ Budget 3d: ${budgetChange.toFixed(1)}%`,
+                        `Inestabilidad detectada por cambio brusco en inversión (${budgetChange > 0 ? 'Aumento' : 'Caída'}).`,
+                        `Umbral Permitido: ${volatilityThreshold}%`
+                    ],
                     createdAt: new Date().toISOString()
                 });
             }
@@ -590,23 +715,29 @@ export class ClientSnapshotService {
                 // STRUCTURE
                 if (classif.structuralState === "FRAGMENTED" || classif.structuralState === "OVERCONCENTRATED") {
                     const type = "CONSOLIDATE";
+                    const isFragmented = classif.structuralState === "FRAGMENTED";
                     const template = config.alertTemplates[type] || defaultConfig.alertTemplates[type];
-                    alerts.push({
-                        id: `STRUCT_${rolling.entityId}_${Date.now()}`,
-                        clientId, level: rolling.level, entityId: rolling.entityId, entityName: contextName, type,
-                        severity: "WARNING",
-                        title: formatMessage(template.title, commonVars),
-                        description: formatMessage(template.description, {
-                            ...commonVars,
-                            structuralState: classif.structuralState === "FRAGMENTED" ? "Fragmentada" : "Sobreconcentrada"
-                        }),
-                        impactScore: classif.impactScore,
-                        evidence: classif.evidence,
-                        createdAt: new Date().toISOString()
-                    });
+
+                    const structuralDescription = isFragmented
+                        ? `Tu estructura está FRAGMENTADA (${classif.evidence.find(e => e.includes('adsets')) || 'muchos conjuntos'}). Se recomienda agrupar para consolidar el aprendizaje en menos entidades.`
+                        : `Tu presupuesto está SOBRECONCENTRADO. Un solo anuncio absorbe el ${commonVars.budget_change_3d_pct}%. Considera diversificar si el rendimiento baja.`;
+
+                    // Inhibit if explicitly different objectives (heuristic: name tags)
+                    if (!isNonConversionCampaign) {
+                        alerts.push({
+                            id: `STRUCT_${rolling.entityId}_${Date.now()}`,
+                            clientId, level: rolling.level, entityId: rolling.entityId, entityName: contextName, type,
+                            severity: "WARNING",
+                            title: formatMessage(template.title, commonVars),
+                            description: structuralDescription,
+                            impactScore: classif.impactScore,
+                            evidence: classif.evidence,
+                            createdAt: new Date().toISOString()
+                        });
+                    }
                 }
 
-                if (classif.finalDecision === "KILL_RETRY") {
+                if (classif.finalDecision === "KILL_RETRY" && !isNonConversionCampaign) {
                     const type = "KILL_RETRY";
                     const template = config.alertTemplates[type] || defaultConfig.alertTemplates[type];
                     alerts.push({

@@ -80,7 +80,8 @@ export class ClassificationService {
                 concept,
                 activeAdsets.length,
                 conversions7d,
-                clientTargets
+                clientTargets,
+                clientData?.currency || "USD"
             );
 
             const docId = `${clientId}__${rolling.level}__${rolling.entityId.replace(/\//g, '_')}`;
