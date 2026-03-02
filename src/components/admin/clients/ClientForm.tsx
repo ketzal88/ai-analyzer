@@ -25,6 +25,7 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
         isGoogle: initialData?.isGoogle ?? false,
         metaAdAccountId: initialData?.metaAdAccountId || "",
         googleAdsId: initialData?.googleAdsId || "",
+        currency: initialData?.currency || "USD",
         slackPublicChannel: initialData?.slackPublicChannel || "",
         slackInternalChannel: initialData?.slackInternalChannel || "",
 
@@ -107,7 +108,7 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
 
         try {
             const url = isEditing
-                ? `/api/clients/by-slug/${initialData?.slug}`
+                ? `/api/clients/${initialData?.id}`
                 : "/api/clients";
             const method = isEditing ? "PATCH" : "POST";
 
@@ -637,6 +638,39 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
                             className="w-full font-mono"
                         />
                         <p className="mt-1 text-small text-text-muted">Required to fetch Meta Graph API insights.</p>
+                    </div>
+
+                    <div>
+                        <label className="block text-small font-bold text-text-muted uppercase mb-2">Meta Account Currency</label>
+                        <select
+                            value={formData.currency}
+                            onChange={(e) => {
+                                const newCurr = e.target.value as any;
+                                setFormData({
+                                    ...formData,
+                                    currency: newCurr,
+                                    conversionSchema: formData.conversionSchema ? {
+                                        ...formData.conversionSchema,
+                                        value: formData.conversionSchema.value ? {
+                                            ...formData.conversionSchema.value,
+                                            currency: newCurr
+                                        } : { actionType: "", currency: newCurr, isNet: true }
+                                    } : undefined
+                                });
+                            }}
+                            className="w-full bg-stellar border border-argent rounded-lg px-3 py-2 text-text-primary focus:border-classic outline-none font-bold"
+                        >
+                            <option value="USD">USD - US Dollar</option>
+                            <option value="COP">COP - Colombian Peso</option>
+                            <option value="ARS">ARS - Argentine Peso</option>
+                            <option value="EUR">EUR - Euro</option>
+                            <option value="BRL">BRL - Brazilian Real</option>
+                            <option value="MXN">MXN - Mexican Peso</option>
+                            <option value="GBP">GBP - British Pound</option>
+                            <option value="CAD">CAD - Canadian Dollar</option>
+                            <option value="AUD">AUD - Australian Dollar</option>
+                        </select>
+                        <p className="mt-1 text-small text-text-muted">Primary currency for Meta insights & financial metrics.</p>
                     </div>
 
                     {formData.isGoogle && (

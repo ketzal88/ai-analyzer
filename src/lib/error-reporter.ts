@@ -70,7 +70,7 @@ export async function reportError(
  */
 type RouteHandler = (
     req: NextRequest,
-    ctx?: { params: Promise<Record<string, string>> }
+    ctx?: any
 ) => Promise<NextResponse>;
 
 export function withErrorReporting(source: string, handler: RouteHandler): RouteHandler {
