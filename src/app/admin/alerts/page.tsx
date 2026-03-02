@@ -12,6 +12,9 @@ export default function AdminAlertsPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+    const [globalAlertsEnabled, setGlobalAlertsEnabled] = useState<boolean>(true);
+    const [globalEnabledTypes, setGlobalEnabledTypes] = useState<string[]>([]);
+    const [isUpdatingGlobal, setIsUpdatingGlobal] = useState(false);
 
     // Load clients
     useEffect(() => {
@@ -32,6 +35,15 @@ export default function AdminAlertsPage() {
             }
         };
         fetchClients();
+
+        // Load global settings
+        fetch("/api/admin/system-settings")
+            .then(res => res.json())
+            .then(data => {
+                setGlobalAlertsEnabled(data.alertsEnabled);
+                setGlobalEnabledTypes(data.enabledAlertTypes || []);
+            })
+            .catch(err => console.error("Failed to load global settings:", err));
     }, []);
 
     // Load config when client changes
@@ -90,6 +102,56 @@ export default function AdminAlertsPage() {
         }
     };
 
+    const handleToggleGlobal = async () => {
+        setIsUpdatingGlobal(true);
+        const newValue = !globalAlertsEnabled;
+        try {
+            const res = await fetch("/api/admin/system-settings", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ alertsEnabled: newValue })
+            });
+
+            if (!res.ok) throw new Error("Failed to update global settings");
+
+            setGlobalAlertsEnabled(newValue);
+            setMessage({
+                type: 'success',
+                text: `Alertas globales ${newValue ? 'activadas' : 'desactivadas'} correctamente.`
+            });
+            setTimeout(() => setMessage(null), 3000);
+        } catch (err: any) {
+            setMessage({ type: 'error', text: err.message });
+        } finally {
+            setIsUpdatingGlobal(false);
+        }
+    };
+
+    const handleToggleGlobalType = async (type: string) => {
+        setIsUpdatingGlobal(true);
+        const next = globalEnabledTypes.includes(type)
+            ? globalEnabledTypes.filter(t => t !== type)
+            : [...globalEnabledTypes, type];
+
+        try {
+            const res = await fetch("/api/admin/system-settings", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ enabledAlertTypes: next })
+            });
+
+            if (!res.ok) throw new Error("Failed to update global alert types");
+
+            setGlobalEnabledTypes(next);
+            setMessage({ type: 'success', text: `Preferencia global de "${type}" actualizada.` });
+            setTimeout(() => setMessage(null), 2000);
+        } catch (err: any) {
+            setMessage({ type: 'error', text: err.message });
+        } finally {
+            setIsUpdatingGlobal(false);
+        }
+    };
+
     if (isLoading) return <AppLayout><div className="flex items-center justify-center min-h-[400px]"><div className="w-8 h-8 border-2 border-classic border-t-transparent rounded-full animate-spin"></div></div></AppLayout>;
 
     return (
@@ -112,6 +174,94 @@ export default function AdminAlertsPage() {
                                 <option key={c.id} value={c.id}>{c.name}</option>
                             ))}
                         </select>
+                    </div>
+                </div>
+
+                {/* Master Switch Banner */}
+                <div className={`p-6 border rounded-2xl transition-all duration-500 shadow-md flex items-center justify-between ${globalAlertsEnabled
+                    ? 'bg-emerald-500/5 border-emerald-500/20'
+                    : 'bg-red-500/5 border-red-500/20'
+                    }`}>
+                    <div className="flex items-center gap-4">
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center border-2 ${globalAlertsEnabled
+                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500'
+                            : 'bg-red-500/10 border-red-500/30 text-red-500'
+                            }`}>
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                {globalAlertsEnabled ? (
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                ) : (
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.36 18.36A9 9 0 015.64 5.64m12.72 12.72L5.64 5.64" />
+                                )}
+                            </svg>
+                        </div>
+                        <div>
+                            <h2 className={`text-small font-black uppercase tracking-widest ${globalAlertsEnabled ? 'text-emerald-500' : 'text-red-500'}`}>
+                                Master Switch: Alertas {globalAlertsEnabled ? 'ACTIVADAS' : 'DESACTIVADAS'}
+                            </h2>
+                            <p className="text-tiny text-text-secondary mt-1 max-w-lg">
+                                Este interruptor afecta a todas las alertas de Slack y reportes diarios para todos los clientes de la agencia.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-6">
+                        <div className="text-right">
+                            <span className={`text-[10px] font-black uppercase tracking-tighter ${globalAlertsEnabled ? 'text-emerald-500' : 'text-red-500'}`}>
+                                {globalAlertsEnabled ? 'SISTEMA ONLINE' : 'SISTEMA PAUSADO'}
+                            </span>
+                        </div>
+                        <button
+                            onClick={handleToggleGlobal}
+                            disabled={isUpdatingGlobal}
+                            className={`relative inline-flex h-8 w-14 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${globalAlertsEnabled ? 'bg-emerald-500 shadow-lg shadow-emerald-500/20' : 'bg-argent'
+                                }`}
+                        >
+                            <span className={`pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${globalAlertsEnabled ? 'translate-x-6' : 'translate-x-0'
+                                }`}>
+                                {isUpdatingGlobal && (
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <div className="w-4 h-4 border-2 border-argent border-t-transparent rounded-full animate-spin" />
+                                    </div>
+                                )}
+                            </span>
+                        </button>
+                    </div>
+                </div>
+
+                {/* Per-Alert Global Switches (Nested inside a card) */}
+                <div className="p-6 bg-stellar border border-argent rounded-2xl shadow-sm">
+                    <div className="flex items-center justify-between mb-6">
+                        <div>
+                            <h3 className="text-tiny font-black text-text-muted uppercase tracking-widest">Controles por Tipo de Alerta (Global)</h3>
+                            <p className="text-[10px] text-text-muted italic">Apaga un tipo de alerta aquí y se desactivará para TODOS tus clientes automáticamente.</p>
+                        </div>
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                        {globalEnabledTypes.length > 0 ? ([
+                            "SCALING_OPPORTUNITY", "LEARNING_RESET_RISK", "CPA_SPIKE",
+                            "BUDGET_BLEED", "CPA_VOLATILITY", "ROTATE_CONCEPT",
+                            "CONSOLIDATE", "KILL_RETRY", "INTRODUCE_BOFU_VARIANTS"
+                        ]).map(type => {
+                            const isGloballyOn = globalEnabledTypes.includes(type);
+                            return (
+                                <button
+                                    key={type}
+                                    onClick={() => handleToggleGlobalType(type)}
+                                    disabled={isUpdatingGlobal}
+                                    className={`px-3 py-2 rounded-lg border text-[10px] font-bold text-center transition-all ${isGloballyOn
+                                        ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-500'
+                                        : 'bg-red-500/5 border-red-500/20 text-red-500 opacity-50'
+                                        }`}
+                                >
+                                    {type.replace(/_/g, ' ')}
+                                </button>
+                            );
+                        }) : (
+                            <div className="col-span-full py-4 text-center text-tiny text-text-muted">Cargando tipos de alerta...</div>
+                        )}
                     </div>
                 </div>
 
@@ -158,8 +308,8 @@ export default function AdminAlertsPage() {
                                     const isEnabled = (config.enabledAlerts || []).includes(type);
                                     return (
                                         <div key={type} className={`p-6 bg-stellar border rounded-2xl transition-all duration-300 shadow-sm ${!isEnabled
-                                                ? 'border-argent/30 bg-stellar/20 grayscale-[0.5] opacity-60'
-                                                : 'border-argent hover:border-classic/40 shadow-classic/5'
+                                            ? 'border-argent/30 bg-stellar/20 grayscale-[0.5] opacity-60'
+                                            : 'border-argent hover:border-classic/40 shadow-classic/5'
                                             }`}>
                                             <div className="flex items-center justify-between mb-5 pb-4 border-b border-argent/50">
                                                 <div className="flex items-center gap-3">

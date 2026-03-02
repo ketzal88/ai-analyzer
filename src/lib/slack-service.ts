@@ -3,6 +3,7 @@ import { Alert, Client } from "@/types";
 import { EntityRollingMetrics } from "@/types/performance-snapshots";
 import { MTDAggregation } from "@/types/client-snapshot";
 import { AccountHealth } from "@/types/system-events";
+import { SystemSettingsService } from "@/lib/system-settings-service";
 
 interface DailySnapshotKPIs {
     // Gastos y Tráfico
@@ -55,6 +56,14 @@ export class SlackService {
 
     private static async postMessage(botToken: string | null, webhook: string | null, channel: string | null, blocks: any[], fallbackText: string) {
         try {
+            // Master Switch Check
+            const sysSettings = await SystemSettingsService.getSettings();
+            const errorChannel = process.env.SLACK_ERROR_CHANNEL_ID || process.env.SLACK_ERROR_CHANNEL;
+            if (!sysSettings.alertsEnabled && channel !== errorChannel) {
+                console.log(`[SlackService] Alerts are GLOBALLY DISABLED. Skipping delivery to channel: ${channel}`);
+                return;
+            }
+
             if (botToken && channel) {
                 const res = await fetch("https://slack.com/api/chat.postMessage", {
                     method: "POST",
@@ -150,7 +159,6 @@ export class SlackService {
         text += `\n💬 *Mensaje:*\n\`\`\`${opts.message}\`\`\`\n`;
 
         if (opts.stack) {
-            // Truncate stack to avoid Slack's 3000 char limit
             const shortStack = opts.stack.length > 800 ? opts.stack.substring(0, 800) + "\n..." : opts.stack;
             text += `\n📋 *Stack Trace:*\n\`\`\`${shortStack}\`\`\`\n`;
         }
@@ -188,7 +196,6 @@ export class SlackService {
                 })
             });
         } catch (e) {
-            // Last resort: don't throw from the error logger itself
             console.error("[SlackError] Failed to send error to Slack:", e);
         }
     }
@@ -204,6 +211,8 @@ export class SlackService {
         kpis: DailySnapshotKPIs,
         titleTemplate?: string
     ) {
+
+
         const { client, channel, botToken, webhook } = await this.resolveChannel(clientId);
 
         if (!botToken && !webhook) {
@@ -304,6 +313,13 @@ export class SlackService {
     // ═════════════════════════════════════════════════════════
 
     static async sendCriticalAlert(clientId: string, clientName: string, alert: Alert) {
+        // Global Check
+        const sysSettings = await SystemSettingsService.getSettings();
+        if (!sysSettings.enabledAlertTypes.includes(alert.type)) {
+            console.log(`[SlackService] Alert Type ${alert.type} is GLOBALLY DISABLED. Skipping delivery.`);
+            return;
+        }
+
         const { channel, botToken, webhook } = await this.resolveChannel(clientId);
 
         if (!botToken && !webhook) return;
@@ -614,7 +630,7 @@ export class SlackService {
             purchaseValue: (r.roas_7d || 0) * spend,
             costPerPurchase: r.cpa_7d || 0,
             roas: r.roas_7d || 0,
-            addToCart: 0, // Will be populated from daily snapshots if available
+            addToCart: 0,
             addToCartValue: 0,
             costPerAddToCart: 0,
             checkout: 0,
@@ -627,9 +643,6 @@ export class SlackService {
         };
     }
 
-    /**
-     * Build snapshot KPIs from aggregated daily entity snapshots (more detailed data)
-     */
     static buildSnapshotFromDailyAggregation(
         snapshots: Array<{ performance: any }>,
         spend: number
@@ -663,10 +676,10 @@ export class SlackService {
             costPerPurchase: totalPurchases > 0 ? spend / totalPurchases : 0,
             roas: spend > 0 ? totalRevenue / spend : 0,
             addToCart: totalATC,
-            addToCartValue: 0, // Requires extended data
+            addToCartValue: 0,
             costPerAddToCart: totalATC > 0 ? spend / totalATC : 0,
             checkout: totalCheckout,
-            checkoutValue: 0, // Requires extended data
+            checkoutValue: 0,
             costPerCheckout: totalCheckout > 0 ? spend / totalCheckout : 0,
             leads: totalLeads,
             costPerLead: totalLeads > 0 ? spend / totalLeads : 0,
@@ -677,10 +690,6 @@ export class SlackService {
         } as any;
     }
 
-    /**
-     * Build snapshot KPIs from pre-computed client snapshot's accountSummary.
-     * Uses MTD data when available, falls back to rolling 7d metrics.
-     */
     static buildSnapshotFromClientSnapshot(accountSummary: {
         rolling: EntityRollingMetrics["rolling"];
         mtd: MTDAggregation | null;
@@ -688,7 +697,6 @@ export class SlackService {
         const r = accountSummary.rolling;
         const mtd = accountSummary.mtd;
 
-        // Prefer MTD aggregation when available (more detailed)
         if (mtd && mtd.spend > 0) {
             const spend = mtd.spend;
             return {
@@ -714,7 +722,6 @@ export class SlackService {
             };
         }
 
-        // Fallback to rolling 7d
         const spend = r.spend_7d || 0;
         const clicks = r.clicks_7d || 0;
         const purchases = r.purchases_7d || 0;

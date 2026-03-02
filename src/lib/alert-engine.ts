@@ -4,9 +4,26 @@ import { EntityRollingMetrics, DailyEntitySnapshot } from "@/types/performance-s
 import { EntityClassification } from "@/types/classifications";
 import { EngineConfigService } from "@/lib/engine-config-service";
 import { getDefaultEngineConfig } from "@/types/engine-config";
+import { SystemSettingsService } from "@/lib/system-settings-service";
 
 export class AlertEngine {
     static async run(clientId: string) {
+        // 0. Global Switch Check
+        const sysSettings = await SystemSettingsService.getSettings();
+        if (!sysSettings.alertsEnabled) {
+            console.log(`[AlertEngine] Alerts are GLOBALLY DISABLED. Skipping for client: ${clientId}`);
+            // Clear existing alerts for this client to be safe
+            const oldAlerts = await db.collection("alerts")
+                .where("clientId", "==", clientId)
+                .get();
+            if (!oldAlerts.empty) {
+                const batch = db.batch();
+                for (const d of oldAlerts.docs) batch.delete(d.ref);
+                await batch.commit();
+            }
+            return [];
+        }
+
         const alerts: Alert[] = [];
         const today = new Date().toISOString().split("T")[0];
 
@@ -378,9 +395,14 @@ export class AlertEngine {
         }
         deduped.push(...seen.values());
 
-        // 6. Final Filter: Only keep enabled alerts
-        const activeAlertIds = config.enabledAlerts || Object.keys(config.alertTemplates);
-        const filteredAlerts = deduped.filter(a => activeAlertIds.includes(a.type));
+        // 6. Final Filter: Only keep enabled alerts (Master Switch + Client Switch + Global Alert Type Switch)
+        const clientActiveIds = config.enabledAlerts || Object.keys(config.alertTemplates);
+        const globalActiveIds = sysSettings.enabledAlertTypes || Object.keys(config.alertTemplates);
+
+        const filteredAlerts = deduped.filter(a =>
+            clientActiveIds.includes(a.type) &&
+            globalActiveIds.includes(a.type)
+        );
 
         // Save alerts to Firestore (clear old + write new)
         const oldAlerts = await db.collection("alerts")
