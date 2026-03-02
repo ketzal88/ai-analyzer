@@ -162,19 +162,6 @@ export default function AdminAlertsPage() {
                         <h1 className="text-hero text-text-primary mb-1">Configuración de Alertas</h1>
                         <p className="text-body text-text-secondary">Gestiona qué alertas están activas y personaliza sus mensajes de Slack.</p>
                     </div>
-
-                    <div className="flex items-center gap-3 bg-special p-3 rounded-lg border border-argent shadow-sm">
-                        <span className="text-tiny font-bold text-text-muted uppercase">Cliente:</span>
-                        <select
-                            value={selectedClientId}
-                            onChange={(e) => setSelectedClientId(e.target.value)}
-                            className="bg-stellar border border-argent p-1 text-small rounded outline-none focus:border-classic font-bold min-w-[200px]"
-                        >
-                            {clients.map(c => (
-                                <option key={c.id} value={c.id}>{c.name}</option>
-                            ))}
-                        </select>
-                    </div>
                 </div>
 
                 {/* Master Switch Banner */}
@@ -262,6 +249,33 @@ export default function AdminAlertsPage() {
                         }) : (
                             <div className="col-span-full py-4 text-center text-tiny text-text-muted">Cargando tipos de alerta...</div>
                         )}
+                    </div>
+                </div>
+
+                {/* Cliente Selector (Moved here for better hierarchy) */}
+                <div className="flex items-center justify-between pt-4 border-t border-argent/30">
+                    <div className="flex items-center gap-4 bg-special p-4 rounded-xl border border-argent shadow-sm">
+                        <div className="flex flex-col">
+                            <span className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-1">Configuración por Cliente</span>
+                            <div className="flex items-center gap-3">
+                                <span className="text-tiny font-bold text-text-primary uppercase">Cliente:</span>
+                                <select
+                                    value={selectedClientId}
+                                    onChange={(e) => setSelectedClientId(e.target.value)}
+                                    className="bg-stellar border border-argent p-2 text-small rounded-lg outline-none focus:border-classic font-bold min-w-[240px] shadow-sm"
+                                >
+                                    {clients.map(c => (
+                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="text-right hidden md:block">
+                        <p className="text-[10px] text-text-muted leading-tight">
+                            Personaliza los mensajes y activadores <br />
+                            específicos para el cliente seleccionado.
+                        </p>
                     </div>
                 </div>
 
