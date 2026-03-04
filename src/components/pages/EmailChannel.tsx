@@ -128,25 +128,48 @@ export default function EmailChannel() {
     const bounceRate = totals.sent > 0 ? (totals.bounces / totals.sent) * 100 : 0;
     const conversionRate = totals.opens > 0 ? (totals.conversions / totals.opens) * 1000 : 0;
 
+    // Detect source from rawData
+    const source: 'perfit' | 'klaviyo' | null = snapshots[0]?.rawData?.source === 'klaviyo' ? 'klaviyo'
+        : snapshots[0]?.rawData?.source === 'perfit' ? 'perfit' : null;
+
     // Collect all campaigns from all snapshots (dedupe by id)
     const allCampaigns: any[] = [];
-    const seenIds = new Set<number>();
+    const seenIds = new Set<string>();
     for (const s of snapshots) {
         const campaigns = (s.rawData?.campaigns as any[]) || [];
         for (const c of campaigns) {
-            if (!seenIds.has(c.id)) {
-                seenIds.add(c.id);
+            const key = String(c.id || c.campaignId);
+            if (!seenIds.has(key)) {
+                seenIds.add(key);
                 allCampaigns.push(c);
             }
         }
     }
-    // Sort by launchDate desc
-    allCampaigns.sort((a, b) => (b.launchDate || "").localeCompare(a.launchDate || ""));
+    // Sort by launchDate/sendTime desc
+    allCampaigns.sort((a, b) => (b.launchDate || b.sendTime || "").localeCompare(a.launchDate || a.sendTime || ""));
 
-    // Automations from most recent snapshot
+    // Automations/Flows — deduplicate flows by flowId (aggregate stats)
     const automations = (snapshots[0]?.rawData?.automations as any[]) || [];
+    const rawFlows = (snapshots[0]?.rawData?.flows as any[]) || [];
+    const flowMap = new Map<string, any>();
+    for (const f of rawFlows) {
+        const existing = flowMap.get(f.flowId);
+        if (existing) {
+            existing.recipients += f.recipients || 0;
+            existing.opens += f.opens || 0;
+            existing.clicks += f.clicks || 0;
+            existing.revenue += f.revenue || 0;
+            existing.conversions += f.conversions || 0;
+        } else {
+            flowMap.set(f.flowId, { ...f });
+        }
+    }
+    const flows = Array.from(flowMap.values());
     const automationTotals = (snapshots[0]?.rawData?.automationTotals as any) || {};
+    const flowTotals = (snapshots[0]?.rawData?.flowTotals as any) || {};
     const accountInfo = (snapshots[0]?.rawData?.account as any) || null;
+
+    const sourceName = source === 'klaviyo' ? 'Klaviyo' : 'Perfit';
 
     return (
         <AppLayout>
@@ -157,7 +180,7 @@ export default function EmailChannel() {
                             Email Marketing
                         </h1>
                         <p className="text-small text-text-muted font-bold uppercase tracking-widest mt-1">
-                            Perfit • {periodLabel}
+                            {sourceName} • {periodLabel}
                         </p>
                     </div>
                     <div className="flex items-center gap-4">
@@ -249,6 +272,7 @@ export default function EmailChannel() {
                                 value={`${conversionRate.toFixed(2)}‰`}
                                 subtitle="ventas / 1000 aperturas"
                             />
+                            {/* Perfit automation totals */}
                             {automationTotals.totalConverted !== undefined && (
                                 <KPICard
                                     label="Revenue Automations"
@@ -262,6 +286,21 @@ export default function EmailChannel() {
                                     label="Automations Triggered"
                                     value={formatNumber(automationTotals.totalTriggered)}
                                     subtitle={`${formatNumber(automationTotals.totalCompleted)} completados`}
+                                />
+                            )}
+                            {/* Klaviyo flow totals */}
+                            {flowTotals.totalRevenue !== undefined && flowTotals.totalRevenue > 0 && (
+                                <KPICard
+                                    label="Revenue Flows"
+                                    value={formatCurrency(flowTotals.totalRevenue)}
+                                    subtitle={`${formatNumber(flowTotals.totalConversions)} conversiones`}
+                                    color="text-classic"
+                                />
+                            )}
+                            {flowTotals.totalRecipients !== undefined && flowTotals.totalRecipients > 0 && (
+                                <KPICard
+                                    label="Flows Enviados"
+                                    value={formatNumber(flowTotals.totalRecipients)}
                                 />
                             )}
                         </div>
@@ -306,6 +345,45 @@ export default function EmailChannel() {
                             </div>
                         )}
 
+                        {/* Klaviyo Flows */}
+                        {flows.length > 0 && (
+                            <div className="card p-6">
+                                <h2 className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4">
+                                    Flows ({flows.length})
+                                </h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                    {flows.map((f: any) => (
+                                        <div key={f.flowId} className="card p-4 border-classic/10">
+                                            <div className="flex items-start justify-between mb-2">
+                                                <p className="text-[11px] font-bold text-text-primary truncate max-w-[200px]">
+                                                    {f.flowName}
+                                                </p>
+                                                <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
+                                                    f.status === "live" ? "bg-synced/20 text-synced" : "bg-argent/20 text-text-muted"
+                                                }`}>
+                                                    {f.status}
+                                                </span>
+                                            </div>
+                                            <div className="grid grid-cols-3 gap-2 text-center">
+                                                <div>
+                                                    <p className="text-[16px] font-black font-mono text-text-primary">{formatNumber(f.recipients)}</p>
+                                                    <p className="text-[9px] text-text-muted">enviados</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-[16px] font-black font-mono text-synced">{formatNumber(f.conversions)}</p>
+                                                    <p className="text-[9px] text-text-muted">ventas</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-[16px] font-black font-mono text-classic">{formatCurrency(f.revenue)}</p>
+                                                    <p className="text-[9px] text-text-muted">revenue</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         {/* Campaign Table */}
                         {allCampaigns.length > 0 && (
                             <div className="card p-6">
@@ -326,38 +404,48 @@ export default function EmailChannel() {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {allCampaigns.map((c: any) => (
-                                                <tr key={c.id} className="border-b border-argent/10 hover:bg-classic/[0.03]">
+                                            {allCampaigns.map((c: any) => {
+                                                const name = c.name || c.campaignName || "";
+                                                const date = c.launchDate || c.sendTime || "";
+                                                const sent = c.sent || c.recipients || 0;
+                                                const or_ = c.openRate || 0;
+                                                const cr_ = c.clickRate || 0;
+                                                const br_ = c.bounceRate || 0;
+                                                const rev = c.conversionsAmount || c.revenue || 0;
+                                                const conv = c.conversions || 0;
+                                                return (
+                                                <tr key={c.id || c.campaignId} className="border-b border-argent/10 hover:bg-classic/[0.03]">
                                                     <td className="p-3 max-w-[280px]">
-                                                        <p className="text-[11px] text-text-primary font-medium truncate">{c.name}</p>
-                                                        {c.subject && c.subject !== c.name && (
+                                                        <p className="text-[11px] text-text-primary font-medium truncate">{name}</p>
+                                                        {c.subject && c.subject !== name && (
                                                             <p className="text-[10px] text-text-muted truncate">{c.subject}</p>
                                                         )}
                                                     </td>
                                                     <td className="p-3 text-[11px] text-text-muted font-mono whitespace-nowrap">
-                                                        {c.launchDate ? formatDate(c.launchDate.split("T")[0]) : "—"}
+                                                        {date ? formatDate(date.split("T")[0]) : "—"}
                                                     </td>
-                                                    <td className="p-3 text-[11px] text-text-secondary font-mono text-right">{formatNumber(c.sent)}</td>
+                                                    <td className="p-3 text-[11px] text-text-secondary font-mono text-right">{formatNumber(sent)}</td>
                                                     <td className="p-3 text-[11px] font-mono text-right">
-                                                        <span className="text-text-secondary">{formatPct(c.openRate)}</span>
-                                                    </td>
-                                                    <td className="p-3 text-[11px] font-mono text-right">
-                                                        <span className="text-text-secondary">{formatPct(c.clickRate)}</span>
+                                                        <span className="text-text-secondary">{formatPct(or_)}</span>
                                                     </td>
                                                     <td className="p-3 text-[11px] font-mono text-right">
-                                                        <span className={c.bounceRate > 2 ? "text-red-400" : "text-text-muted"}>
-                                                            {formatPct(c.bounceRate)}
+                                                        <span className="text-text-secondary">{formatPct(cr_)}</span>
+                                                    </td>
+                                                    <td className="p-3 text-[11px] font-mono text-right">
+                                                        <span className={br_ > 2 ? "text-red-400" : "text-text-muted"}>
+                                                            {formatPct(br_)}
                                                         </span>
                                                     </td>
                                                     <td className="p-3 text-[11px] font-mono text-right">
-                                                        {c.conversions > 0 ? (
-                                                            <span className="text-synced">{formatCurrency(c.conversionsAmount)}</span>
+                                                        {conv > 0 ? (
+                                                            <span className="text-synced">{formatCurrency(rev)}</span>
                                                         ) : (
                                                             <span className="text-text-muted">—</span>
                                                         )}
                                                     </td>
                                                 </tr>
-                                            ))}
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>

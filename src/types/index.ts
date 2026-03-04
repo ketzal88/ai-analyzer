@@ -274,8 +274,12 @@ export interface Client {
     metaAdAccountId?: string;
     googleAdsId?: string;
     perfitApiKey?: string;
+    klaviyoApiKey?: string;       // Private API Key (pk_...)
+    klaviyoPublicKey?: string;    // Public API Key / Site ID (6 chars)
     tiendanubeStoreId?: string;
     tiendanubeAccessToken?: string;
+    shopifyStoreDomain?: string;    // e.g. "mi-tienda.myshopify.com"
+    shopifyAccessToken?: string;    // OAuth token from app install
     currency?: Currency;
     slackPublicChannel?: string;
     slackInternalChannel?: string;

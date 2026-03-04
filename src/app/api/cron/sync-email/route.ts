@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebase-admin";
 import { PerfitService } from "@/lib/perfit-service";
+import { KlaviyoService } from "@/lib/klaviyo-service";
 import { EventService } from "@/lib/event-service";
 import { reportError } from "@/lib/error-reporter";
 import { Client } from "@/types";
@@ -51,9 +52,21 @@ export async function GET(request: NextRequest) {
                         endDate
                     );
                     results.push({ clientId, clientName: client.name, status: "success", daysWritten, totalSent });
+                } else if (client.integraciones.email === 'klaviyo') {
+                    const apiKey = client.klaviyoApiKey;
+                    if (!apiKey) {
+                        results.push({ clientId, clientName: client.name, status: "skipped", error: "No klaviyoApiKey configured" });
+                        continue;
+                    }
+                    const { daysWritten, totalSent } = await KlaviyoService.syncToChannelSnapshots(
+                        clientId,
+                        apiKey,
+                        startDate,
+                        endDate
+                    );
+                    results.push({ clientId, clientName: client.name, status: "success", daysWritten, totalSent });
                 } else {
-                    // klaviyo — future
-                    results.push({ clientId, clientName: client.name, status: "skipped" });
+                    results.push({ clientId, clientName: client.name, status: "skipped", error: `Unknown email provider: ${client.integraciones.email}` });
                 }
             } catch (e: any) {
                 await reportError("Cron Sync Email (Client)", e, { clientId, clientName: client.name });

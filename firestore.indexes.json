@@ -313,8 +313,40 @@
                     "order": "ASCENDING"
                 },
                 {
+                    "fieldPath": "channel",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "date",
+                    "order": "ASCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "channel_snapshots",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "clientId",
+                    "order": "ASCENDING"
+                },
+                {
                     "fieldPath": "date",
                     "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "channel_snapshots",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "clientId",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "date",
+                    "order": "ASCENDING"
                 }
             ]
         },

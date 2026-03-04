@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebase-admin";
 import { TiendaNubeService } from "@/lib/tiendanube-service";
+import { ShopifyService } from "@/lib/shopify-service";
 import { EventService } from "@/lib/event-service";
 import { reportError } from "@/lib/error-reporter";
 import { Client } from "@/types";
@@ -53,8 +54,22 @@ export async function GET(request: NextRequest) {
                         endDate
                     );
                     results.push({ clientId, clientName: client.name, status: "success", daysWritten, totalOrders });
+                } else if (client.integraciones.ecommerce === 'shopify') {
+                    const storeDomain = client.shopifyStoreDomain;
+                    const accessToken = client.shopifyAccessToken;
+                    if (!storeDomain || !accessToken) {
+                        results.push({ clientId, clientName: client.name, status: "skipped", error: "No shopifyStoreDomain or shopifyAccessToken configured" });
+                        continue;
+                    }
+                    const { daysWritten, totalOrders, totalRevenue } = await ShopifyService.syncToChannelSnapshots(
+                        clientId,
+                        storeDomain,
+                        accessToken,
+                        startDate,
+                        endDate
+                    );
+                    results.push({ clientId, clientName: client.name, status: "success", daysWritten, totalOrders });
                 } else {
-                    // shopify — future
                     results.push({ clientId, clientName: client.name, status: "skipped" });
                 }
             } catch (e: any) {

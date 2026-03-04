@@ -34,6 +34,12 @@ GEMINI_API_KEY=...
 GEMINI_MODEL=gemini-2.0-flash
 META_ACCESS_TOKEN=...
 CRON_SECRET=...
+# Shopify OAuth (Partners App)
+SHOPIFY_CLIENT_ID=...
+SHOPIFY_CLIENT_SECRET=...
+# Tienda Nube OAuth (Marketplace App)
+TIENDANUBE_APP_ID=...
+TIENDANUBE_CLIENT_SECRET=...
 # Slack
 SLACK_BOT_TOKEN=...
 ```
@@ -58,6 +64,8 @@ SLACK_BOT_TOKEN=...
 | `client_snapshots` | Pre-computed client snapshots with alerts (ID: `clientId`) |
 | `creative_dna` | AI-analyzed creative attributes (ID: `clientId__adId`) |
 | `creative_diversity_scores` | Per-client creative diversity scores (ID: `clientId`) |
+| `channel_snapshots` | Unified daily metrics per channel (ID: `clientId__CHANNEL__YYYY-MM-DD`) |
+| `tiendanube_auth_tokens` | Temporary OAuth tokens for unlinked TiendaNube stores |
 
 ---
 
@@ -182,6 +190,54 @@ Centralized hub for ALL AI logic. 4 tabs:
 - **Pattern**: `systemPrompt = baseSystem + (dbCriticalInstructions || defaultForKey)`. Backward-compatible: if no `criticalInstructions` in DB, uses the original hardcoded defaults.
 - **Prompt Keys**: `report`, `creative-audit`, `creative-variations`, `recommendations_v1`, `concept_briefs_v1`.
 
+### Ecommerce Integration (Shopify + Tienda Nube)
+Multi-platform ecommerce data sync. Both platforms write to the same `channel_snapshots` collection with `channel: 'ECOMMERCE'`.
+
+**Shopify** — OAuth Partners App:
+- **App**: "Worker Brain" in Shopify Partners (Custom Distribution).
+- **OAuth Flow**: `/api/integrations/shopify/auth` (Step 1: redirect to Shopify) → `/api/integrations/shopify/callback` (Step 2: HMAC verify, code→token exchange, save to Firestore).
+- **Scopes**: `read_orders`, `read_products`, `read_analytics`, `read_customers`, `read_checkouts`.
+- **Service**: `src/lib/shopify-service.ts` — REST Admin API v2024-01, cursor-based pagination (Link header), rate limit handling.
+- **Client Fields**: `shopifyStoreDomain`, `shopifyAccessToken`, `integraciones.ecommerce: 'shopify'`.
+- **Expanded Metrics**: Financial (grossRevenue, netRevenue, totalDiscounts, discountRate, totalTax, totalShipping), Customer (newCustomers, returningCustomers, repeatPurchaseRate), Operations (fulfilledOrders, cancelledOrders, fulfillmentRate, itemsPerOrder), Abandoned Carts (abandonedCheckouts, abandonedCheckoutValue, cartAbandonmentRate).
+- **Attribution**: UTM parsing from `landing_site` + `referring_site` → classifies into meta_ads, google_ads, email, direct, google_organic, etc.
+- **Raw Data**: Top products, discount codes, attribution breakdown, customer segmentation.
+
+**Tienda Nube** — OAuth Marketplace App:
+- **OAuth Flow**: `/api/tiendanube/auth` (receives `?code=XXX` from marketplace install) → exchanges for token via `POST https://www.tiendanube.com/apps/authorize/token`.
+- **Auto-linking**: Searches existing clients by `tiendanubeStoreId`. If not found, stores token in `tiendanube_auth_tokens` for manual linking.
+- **Service**: `src/lib/tiendanube-service.ts` — REST API `https://api.tiendanube.com/v1/{storeId}`, page-based pagination.
+- **Client Fields**: `tiendanubeStoreId`, `tiendanubeAccessToken`, `integraciones.ecommerce: 'tiendanube'`.
+- **Metrics**: orders, revenue, avgOrderValue, refunds, grossRevenue, totalDiscounts, totalShipping, fulfilledOrders, cancelledOrders, itemsPerOrder.
+- **Raw Data**: Breakdown by storefront (store, meli, api, form, pos), top products, unique customers.
+
+**Cron**: `/api/cron/sync-ecommerce` — Daily. Iterates all active clients, dispatches to ShopifyService or TiendaNubeService based on `integraciones.ecommerce`.
+**UI**: `src/components/pages/EcommerceChannel.tsx` — Auto-detects platform from `rawData.source`. Period filters (MTD / last month / 2 months ago). 4 KPI rows, attribution bars, top products table, discount codes.
+
+### Email Marketing Integration (Klaviyo + Perfit)
+Multi-platform email marketing data sync. Both platforms write to `channel_snapshots` with `channel: 'EMAIL'`.
+
+**Klaviyo** — API Key Auth:
+- **Auth**: Direct API key (`Klaviyo-API-Key {pk_...}`), no OAuth. Manual entry in ClientForm.
+- **Service**: `src/lib/klaviyo-service.ts` — Reporting API v2025-04-15. Base URL: `https://a.klaviyo.com/api`.
+- **Client Fields**: `klaviyoApiKey` (pk_...), `klaviyoPublicKey` (6 chars), `integraciones.email: 'klaviyo'`.
+- **Data Sources**: Campaigns (`/campaigns` + `/campaign-values-reports/`) and Flows (`/flows` + `/flow-values-reports/`).
+- **Conversion Tracking**: Auto-discovers "Placed Order" metric ID via `/metrics` endpoint.
+- **Rate Limits**: Reporting API: 2/min steady, 1/s burst, 225/day. Service enforces 31s pause between reporting calls.
+- **Metrics**: sent, delivered, opens, openRate, emailClicks, clickRate, bounces, unsubscribes, emailRevenue, conversions.
+
+**Perfit** — API Key Auth:
+- **Auth**: Bearer token (`{accountId}-{secret}`), no OAuth. Account ID extracted from key prefix.
+- **Service**: `src/lib/perfit-service.ts` — REST API v2. Base URL: `https://api.myperfit.com/v2`.
+- **Client Fields**: `perfitApiKey`, `integraciones.email: 'perfit'`.
+- **Data Sources**: Campaigns (`/{accountId}/campaigns`, filtered by `state=SENT`) and Automations (`/{accountId}/automations`, lifetime aggregates).
+- **Metrics**: sent, delivered, opens, openRate, emailClicks, clickRate, bounces, emailRevenue, conversions.
+- **Raw Data**: Per-campaign breakdown, automation summaries, account info (plan, contacts, cost).
+
+**Cron**: `/api/cron/sync-email` — Daily, last 30 days. Dispatches to KlaviyoService or PerfitService based on `integraciones.email`.
+**UI**: `src/components/pages/EmailChannel.tsx` — Auto-detects platform from `rawData.source`. Period filters. KPI cards, campaign table, automation cards.
+**Backfill Scripts**: `scripts/sync-klaviyo-backfill.ts`, `scripts/sync-perfit-backfill.ts` — Sync 3-month history.
+
 ### Account Health Monitoring
 - **Service**: `src/lib/account-health-service.ts` — Monitors Meta account status via API.
 - **Checks**: `account_status` (active/disabled/unsettled), `spend_cap` proximity, `amount_spent` tracking.
@@ -227,11 +283,14 @@ Extended `ClientConfig` with business-aware fields:
 | 04 | Creative Intel | `/creative` | Inteligencia |
 | 05 | Conceptos | `/concepts` | Inteligencia |
 | 06 | AI Handbook | `/academy/alerts` | Inteligencia |
-| 07 | Cerebro de Worker | `/admin/cerebro` | Admin |
-| 08 | Administracion | `/admin/clients` | Admin |
-| 09 | Alertas | `/admin/alerts` | Admin |
-| 10 | Cron Manual | `/admin/cron` | Admin |
-| 11 | Sistema | `/admin/system` | Admin |
+| 07 | Ecommerce | `/ecommerce` | Canales |
+| 08 | Email Marketing | `/email` | Canales |
+| 09 | Google Ads | `/google-ads` | Canales |
+| 10 | Cerebro de Worker | `/admin/cerebro` | Admin |
+| 11 | Administracion | `/admin/clients` | Admin |
+| 12 | Alertas | `/admin/alerts` | Admin |
+| 13 | Cron Manual | `/admin/cron` | Admin |
+| 14 | Sistema | `/admin/system` | Admin |
 
 ---
 
@@ -246,6 +305,8 @@ Extended `ClientConfig` with business-aware fields:
 | Daily Digest | `/api/cron/daily-digest` | Daily 9 AM | Slack MTD report + CRITICAL/scaling alerts |
 | Weekly Alerts | `/api/cron/weekly-alerts` | Weekly (Monday) | Slack WoW summary + WARNING alerts |
 | Account Health | `/api/cron/account-health` | Every 2h | Meta account status & spend cap checks |
+| Ecommerce Sync | `/api/cron/sync-ecommerce` | Daily | Fetch orders from Shopify/TiendaNube → channel_snapshots |
+| Email Sync | `/api/cron/sync-email` | Daily | Fetch campaigns from Klaviyo/Perfit → channel_snapshots |
 
 - **Manual Trigger**: `GET` with `Authorization: Bearer <CRON_SECRET>` (data-sync, daily-digest, weekly-alerts, account-health, creative-dna) or `POST` with `x-cron-secret` header (sync-creatives, classify-entities).
 - **Cleaning Cache**: Delete documents from `entity_rolling_metrics` or `daily_entity_snapshots` to force data refresh.
@@ -306,3 +367,4 @@ All engines (alerts, classification, performance, reporting) resolve the campaig
   - Phase 3: Creative DNA — Gemini Vision analysis of ad creatives. `creative-dna-service.ts`, diversity scoring, `/api/cron/creative-dna`.
   - Phase 4: Format Diagnostics — IMAGE_INVISIBLE, IMAGE_NO_CONVERT alerts. CREATIVE_MIX_IMBALANCE aggregate alert. Classifier enriched with DNA insights.
   - Phase 5: Consolidation — `AlertEngine.evaluate()` extracted as pure function. ~340 lines of duplicate alert logic removed from `ClientSnapshotService`. `AlertChannel` routing. Weekly digest cron. All thresholds in EngineConfig.
+- **Multi-Channel Expansion**: Shopify OAuth Partners App + Tienda Nube marketplace OAuth + Klaviyo API + Perfit API. Unified `channel_snapshots` collection. Expanded ecommerce metrics (financial, customer segmentation, abandoned carts, UTM attribution, top products, discount codes). Multi-platform dashboards with period filters (`EcommerceChannel.tsx`, `EmailChannel.tsx`).

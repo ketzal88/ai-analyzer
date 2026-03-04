@@ -22,12 +22,16 @@ export interface TiendaNubeOrder {
     id: number;
     number: number;
     status: "open" | "closed" | "cancelled";
-    payment_status: "pending" | "authorized" | "paid" | "abandoned" | "refunded" | "voided" | "partially_refunded" | "partially_paid";
+    payment_status: string;
     total: string;
+    subtotal: string;
+    discount: string;
+    shipping_cost_customer: string;
     total_usd: string;
     currency: string;
     created_at: string;
     storefront: string; // "store", "meli", "api", "form", "pos"
+    shipping_status: string; // "unpacked", "unfulfilled", "fulfilled", "delivered"
     products: Array<{
         id: number;
         product_id: number;
@@ -35,6 +39,7 @@ export interface TiendaNubeOrder {
         price: string;
         quantity: number;
     }>;
+    customer?: { id: number };
 }
 
 export interface TiendaNubeDailyAggregate {
@@ -43,6 +48,8 @@ export interface TiendaNubeDailyAggregate {
     breakdown: {
         byStorefront: Record<string, { orders: number; revenue: number }>;
         totalProducts: number;
+        topProducts?: Array<{ productId: number; title: string; unitsSold: number; revenue: number; orders: number }>;
+        uniqueCustomers?: number;
     };
 }
 
@@ -166,20 +173,62 @@ export class TiendaNubeService {
 
         for (const [date, orders] of byDate) {
             const totalRevenue = orders.reduce((sum, o) => sum + parseFloat(o.total || "0"), 0);
+            const totalSubtotal = orders.reduce((sum, o) => sum + parseFloat(o.subtotal || "0"), 0);
+            const totalDiscount = orders.reduce((sum, o) => sum + parseFloat(o.discount || "0"), 0);
+            const totalShipping = orders.reduce((sum, o) => sum + parseFloat(o.shipping_cost_customer || "0"), 0);
             const orderCount = orders.length;
             const avgOrderValue = orderCount > 0 ? totalRevenue / orderCount : 0;
             const refundCount = refundsByDate.get(date) || 0;
 
+            // Fulfillment
+            const fulfilledOrders = orders.filter(o =>
+                o.shipping_status === "fulfilled" || o.shipping_status === "delivered"
+            ).length;
+            const cancelledOrders = orders.filter(o => o.status === "cancelled").length;
+
+            // Items count
+            let totalItems = 0;
+            const productSales = new Map<number, { name: string; quantity: number; revenue: number; orders: number }>();
+
+            // Customer tracking
+            const customerIds = new Set<number>();
+
             // Attribution by storefront
             const byStorefront: Record<string, { orders: number; revenue: number }> = {};
-            let totalProducts = 0;
+
             for (const order of orders) {
                 const sf = order.storefront || "unknown";
                 if (!byStorefront[sf]) byStorefront[sf] = { orders: 0, revenue: 0 };
                 byStorefront[sf].orders++;
                 byStorefront[sf].revenue += parseFloat(order.total || "0");
-                totalProducts += order.products?.reduce((s, p) => s + p.quantity, 0) || 0;
+
+                // Products
+                for (const p of (order.products || [])) {
+                    totalItems += p.quantity || 0;
+                    const existing = productSales.get(p.product_id);
+                    if (existing) {
+                        existing.quantity += p.quantity || 0;
+                        existing.revenue += parseFloat(p.price || "0") * (p.quantity || 0);
+                        existing.orders++;
+                    } else {
+                        productSales.set(p.product_id, {
+                            name: p.name,
+                            quantity: p.quantity || 0,
+                            revenue: parseFloat(p.price || "0") * (p.quantity || 0),
+                            orders: 1,
+                        });
+                    }
+                }
+
+                // Customer
+                if (order.customer?.id) customerIds.add(order.customer.id);
             }
+
+            // Top products
+            const topProducts = Array.from(productSales.entries())
+                .map(([productId, data]) => ({ productId, title: data.name, unitsSold: data.quantity, revenue: data.revenue, orders: data.orders }))
+                .sort((a, b) => b.revenue - a.revenue)
+                .slice(0, 10);
 
             aggregates.push({
                 date,
@@ -188,8 +237,19 @@ export class TiendaNubeService {
                     revenue: totalRevenue,
                     avgOrderValue,
                     refunds: refundCount,
+                    grossRevenue: totalSubtotal,
+                    totalDiscounts: totalDiscount,
+                    totalShipping: totalShipping,
+                    fulfilledOrders,
+                    cancelledOrders,
+                    itemsPerOrder: orderCount > 0 ? totalItems / orderCount : 0,
                 },
-                breakdown: { byStorefront, totalProducts },
+                breakdown: {
+                    byStorefront,
+                    totalProducts: totalItems,
+                    topProducts,
+                    uniqueCustomers: customerIds.size,
+                },
             });
         }
 
@@ -233,7 +293,12 @@ export class TiendaNubeService {
                 metrics: agg.metrics,
                 rawData: {
                     byStorefront: agg.breakdown.byStorefront,
+                    byAttribution: Object.entries(agg.breakdown.byStorefront).map(
+                        ([source, data]) => ({ source, orders: data.orders, revenue: data.revenue })
+                    ),
+                    topProducts: agg.breakdown.topProducts,
                     totalProducts: agg.breakdown.totalProducts,
+                    uniqueCustomers: agg.breakdown.uniqueCustomers,
                     source: 'tiendanube',
                 },
                 syncedAt: new Date().toISOString(),

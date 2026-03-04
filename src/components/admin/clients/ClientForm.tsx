@@ -26,6 +26,8 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
         metaAdAccountId: initialData?.metaAdAccountId || "",
         googleAdsId: initialData?.googleAdsId || "",
         perfitApiKey: initialData?.perfitApiKey || "",
+        klaviyoApiKey: initialData?.klaviyoApiKey || "",
+        klaviyoPublicKey: initialData?.klaviyoPublicKey || "",
         tiendanubeStoreId: initialData?.tiendanubeStoreId || "",
         tiendanubeAccessToken: initialData?.tiendanubeAccessToken || "",
         currency: initialData?.currency || "USD",
@@ -752,31 +754,53 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
                             >
                                 <option value="">Disabled</option>
                                 <option value="tiendanube">Tienda Nube</option>
-                                <option value="shopify">Shopify (future)</option>
+                                <option value="shopify">Shopify</option>
                             </select>
                         </div>
+                        {formData.integraciones?.ecommerce === 'shopify' && (
+                            <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                                {initialData?.shopifyAccessToken ? (
+                                    <div className="flex items-center gap-2 p-2 bg-synced/10 border border-synced/30 rounded">
+                                        <div className="w-2 h-2 bg-synced rounded-full" />
+                                        <span className="text-small font-bold text-synced">Connected</span>
+                                        <span className="text-tiny text-text-muted font-mono">{initialData.shopifyStoreDomain}</span>
+                                    </div>
+                                ) : isEditing && initialData?.id ? (
+                                    <a
+                                        href={`/api/integrations/shopify/auth?shop=&clientId=${initialData.id}`}
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            const shop = prompt("Ingresá el dominio de Shopify del cliente:", "mi-tienda.myshopify.com");
+                                            if (shop) {
+                                                window.location.href = `/api/integrations/shopify/auth?shop=${encodeURIComponent(shop)}&clientId=${initialData.id}`;
+                                            }
+                                        }}
+                                        className="block text-center py-2 px-4 bg-classic/20 text-classic font-bold text-small rounded hover:bg-classic/30 transition-colors cursor-pointer"
+                                    >
+                                        CONECTAR SHOPIFY
+                                    </a>
+                                ) : (
+                                    <p className="text-tiny text-yellow-500">Guardá el cliente primero, luego conectá Shopify.</p>
+                                )}
+                            </div>
+                        )}
                         {formData.integraciones?.ecommerce === 'tiendanube' && (
                             <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
-                                <div>
-                                    <label className="block text-tiny text-text-muted mb-1 font-bold">STORE ID (user_id)</label>
-                                    <input
-                                        type="text"
-                                        value={formData.tiendanubeStoreId || ""}
-                                        onChange={(e) => setFormData({ ...formData, tiendanubeStoreId: e.target.value })}
-                                        placeholder="e.g. 6048839"
-                                        className="w-full text-small font-mono"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-tiny text-text-muted mb-1 font-bold">ACCESS TOKEN</label>
-                                    <input
-                                        type="password"
-                                        value={formData.tiendanubeAccessToken || ""}
-                                        onChange={(e) => setFormData({ ...formData, tiendanubeAccessToken: e.target.value })}
-                                        placeholder="Token from app install"
-                                        className="w-full text-small font-mono"
-                                    />
-                                </div>
+                                {initialData?.tiendanubeAccessToken ? (
+                                    <div className="flex items-center gap-2 p-2 bg-synced/10 border border-synced/30 rounded">
+                                        <div className="w-2 h-2 bg-synced rounded-full" />
+                                        <span className="text-small font-bold text-synced">Connected</span>
+                                        <span className="text-tiny text-text-muted font-mono">Store #{initialData.tiendanubeStoreId}</span>
+                                    </div>
+                                ) : (
+                                    <div className="p-2 bg-yellow-500/10 border border-yellow-500/30 rounded">
+                                        <p className="text-small text-yellow-400 font-bold">Pendiente de instalacion</p>
+                                        <p className="text-tiny text-text-muted mt-1">
+                                            El cliente debe instalar la app &quot;Worker Brain&quot; desde el marketplace de Tienda Nube.
+                                            Las credenciales se configuran automaticamente via OAuth.
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
@@ -795,7 +819,7 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
                             >
                                 <option value="">Disabled</option>
                                 <option value="perfit">Perfit</option>
-                                <option value="klaviyo">Klaviyo (future)</option>
+                                <option value="klaviyo">Klaviyo</option>
                             </select>
                         </div>
                         {formData.integraciones?.email === 'perfit' && (
@@ -810,6 +834,32 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
                                         className="w-full text-small font-mono"
                                     />
                                     <p className="text-[10px] text-text-muted mt-1">Format: {"{accountId}-{secret}"}. Account ID is extracted automatically.</p>
+                                </div>
+                            </div>
+                        )}
+                        {formData.integraciones?.email === 'klaviyo' && (
+                            <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                                <div>
+                                    <label className="block text-tiny text-text-muted mb-1 font-bold">PRIVATE API KEY</label>
+                                    <input
+                                        type="password"
+                                        value={formData.klaviyoApiKey || ""}
+                                        onChange={(e) => setFormData({ ...formData, klaviyoApiKey: e.target.value })}
+                                        placeholder="pk_xxxxxxxxxxxx"
+                                        className="w-full text-small font-mono"
+                                    />
+                                    <p className="text-[10px] text-text-muted mt-1">Private API Key from Klaviyo Settings → API Keys. Server-side, para traer métricas.</p>
+                                </div>
+                                <div>
+                                    <label className="block text-tiny text-text-muted mb-1 font-bold">PUBLIC API KEY / SITE ID</label>
+                                    <input
+                                        type="text"
+                                        value={formData.klaviyoPublicKey || ""}
+                                        onChange={(e) => setFormData({ ...formData, klaviyoPublicKey: e.target.value })}
+                                        placeholder="AbCdEf"
+                                        className="w-full text-small font-mono"
+                                    />
+                                    <p className="text-[10px] text-text-muted mt-1">Public API Key (6 caracteres). Identifica la cuenta.</p>
                                 </div>
                             </div>
                         )}

@@ -46,6 +46,22 @@ export interface UnifiedChannelMetrics {
     orders?: number;
     avgOrderValue?: number;
     refunds?: number;
+    grossRevenue?: number;         // Before discounts
+    netRevenue?: number;           // After discounts & refunds
+    totalDiscounts?: number;       // Sum of all discounts
+    discountRate?: number;         // discounts / grossRevenue %
+    totalTax?: number;
+    totalShipping?: number;        // Shipping charged to customer
+    itemsPerOrder?: number;        // Avg items per order
+    cancelledOrders?: number;
+    fulfilledOrders?: number;
+    fulfillmentRate?: number;      // fulfilled / total %
+    newCustomers?: number;         // First-time buyers
+    returningCustomers?: number;   // Repeat buyers
+    repeatPurchaseRate?: number;   // returning / total %
+    abandonedCheckouts?: number;
+    abandonedCheckoutValue?: number;
+    cartAbandonmentRate?: number;  // abandoned / (abandoned + orders) %
 
     // ── Email (Perfit / Klaviyo) ──────────────────
     sent?: number;

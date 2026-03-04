@@ -56,16 +56,24 @@ export class GoogleAdsService {
         });
     }
 
+    /** Strip dashes from customer ID (e.g. "835-183-5862" → "8351835862") */
+    private static normalizeCustomerId(id: string): string {
+        return id.replace(/-/g, "");
+    }
+
     private static getCustomer(customerId?: string) {
         const client = this.getClient();
-        const id = customerId || DEFAULT_CUSTOMER_ID;
-        if (!id) throw new Error("Google Ads customer ID not configured");
+        const rawId = customerId || DEFAULT_CUSTOMER_ID;
+        if (!rawId) throw new Error("Google Ads customer ID not configured");
         if (!REFRESH_TOKEN) throw new Error("Google Ads refresh token not configured");
+
+        const id = this.normalizeCustomerId(rawId);
+        const loginId = LOGIN_CUSTOMER_ID ? this.normalizeCustomerId(LOGIN_CUSTOMER_ID) : undefined;
 
         return client.Customer({
             customer_id: id,
             refresh_token: REFRESH_TOKEN,
-            login_customer_id: LOGIN_CUSTOMER_ID || undefined,
+            login_customer_id: loginId,
         });
     }
 
@@ -79,22 +87,28 @@ export class GoogleAdsService {
     ): Promise<GoogleAdsCampaignRow[]> {
         const customer = this.getCustomer(customerId);
 
-        const results = await customer.query(`
-            SELECT
-                campaign.id,
-                campaign.name,
-                campaign.status,
-                metrics.cost_micros,
-                metrics.impressions,
-                metrics.clicks,
-                metrics.conversions,
-                metrics.conversions_value,
-                segments.date
-            FROM campaign
-            WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
-              AND campaign.status != 'REMOVED'
-            ORDER BY segments.date DESC
-        `);
+        let results: any[];
+        try {
+            results = await customer.query(`
+                SELECT
+                    campaign.id,
+                    campaign.name,
+                    campaign.status,
+                    metrics.cost_micros,
+                    metrics.impressions,
+                    metrics.clicks,
+                    metrics.conversions,
+                    metrics.conversions_value,
+                    segments.date
+                FROM campaign
+                WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
+                  AND campaign.status != 'REMOVED'
+                ORDER BY segments.date DESC
+            `);
+        } catch (err: any) {
+            const detail = err?.errors?.[0]?.message || err?.message || String(err);
+            throw new Error(`Google Ads GAQL query failed: ${detail}`);
+        }
 
         return results.map((row: any) => {
             const spend = (row.metrics?.cost_micros || 0) / 1_000_000;
@@ -197,8 +211,14 @@ export class GoogleAdsService {
                         name: c.campaignName,
                         status: c.campaignStatus,
                         spend: c.spend,
+                        impressions: c.impressions,
+                        clicks: c.clicks,
                         conversions: c.conversions,
+                        conversionsValue: c.conversionsValue,
                         roas: c.spend > 0 ? c.conversionsValue / c.spend : 0,
+                        ctr: c.ctr,
+                        cpc: c.cpc,
+                        cpa: c.costPerConversion,
                     })),
                 },
                 syncedAt: new Date().toISOString(),
