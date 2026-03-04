@@ -3,6 +3,7 @@ import { Alert, Client } from "@/types";
 import { EntityRollingMetrics } from "@/types/performance-snapshots";
 import { MTDAggregation } from "@/types/client-snapshot";
 import { AccountHealth } from "@/types/system-events";
+import { SemaforoSnapshot, MetricSemaforo } from "@/types/semaforo";
 import { SystemSettingsService } from "@/lib/system-settings-service";
 import {
     businessTypeToObjective,
@@ -751,6 +752,60 @@ export class SlackService {
             costPerInstall: totalApps > 0 ? spend / totalApps : 0,
         } as any;
     }
+
+    // ═════════════════════════════════════════════════════════
+    //  7. SEMÁFORO DIGEST — Traffic light summary for daily digest
+    // ═════════════════════════════════════════════════════════
+
+    static async sendSemaforoDigest(clientId: string, clientName: string, snapshot: SemaforoSnapshot) {
+        const { channel, botToken, webhook } = await this.resolveChannel(clientId);
+        if (!botToken && !webhook) return;
+
+        const statusEmoji: Record<string, string> = { green: '🟢', yellow: '🟡', red: '🔴' };
+        const qRef = snapshot.quarterRef.replace('_', ' ');
+        const daysRemaining = snapshot.quarterProgress.daysTotal - snapshot.quarterProgress.daysElapsed;
+        const weekLabel = `Semana ${snapshot.quarterProgress.currentWeek}/${snapshot.quarterProgress.weeksTotal}`;
+
+        let text = `🚦 *SEMÁFORO ${qRef}* — ${weekLabel}\n`;
+        text += `${statusEmoji[snapshot.general.status]} Estado general: *${snapshot.general.score}/100*  ·  ${daysRemaining} días restantes\n\n`;
+
+        // Per-metric lines
+        const metricEntries = Object.values(snapshot.metrics);
+        for (const m of metricEntries) {
+            const emoji = statusEmoji[m.status] || '⚪';
+            const pctLabel = m.isInverse
+                ? `${this.fmtNum(m.current)} vs objetivo ${this.fmtNum(m.target)}`
+                : `${this.fmtNum(m.current)} / ${this.fmtNum(m.target)} (${m.pctAchieved.toFixed(0)}%)`;
+
+            text += `${emoji} *${m.metric}*: ${pctLabel}`;
+
+            // If behind pace, show required weekly rate
+            if (m.status !== 'green' && !m.isInverse) {
+                text += ` — requiere ${this.fmtNum(m.requiredWeeklyRate)}/sem, actual ${this.fmtNum(m.weeklyRate)}/sem`;
+            }
+            text += '\n';
+        }
+
+        text += `\n_${snapshot.general.summary}_`;
+
+        const blocks: any[] = [
+            { type: "section", text: { type: "mrkdwn", text } },
+            { type: "divider" },
+            {
+                type: "context",
+                elements: [{
+                    type: "mrkdwn",
+                    text: `<https://ai-analyzer.vercel.app/semaforo|🚦 Ver Semáforo> · <https://ai-analyzer.vercel.app/overview|📊 Overview>`
+                }]
+            }
+        ];
+
+        await this.postMessage(botToken, webhook, channel, blocks, `Semáforo ${qRef} — ${clientName}`);
+    }
+
+    // ═════════════════════════════════════════════════════════
+    //  BUILD SNAPSHOT KPIs from Rolling Metrics
+    // ═════════════════════════════════════════════════════════
 
     static buildSnapshotFromClientSnapshot(accountSummary: {
         rolling: EntityRollingMetrics["rolling"];

@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Banner 5 - Cerebro AI</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    background: #0F0F10;
+    font-family: 'JetBrains Mono', monospace;
+    color: #FAFAFA;
+  }
+
+  .canvas {
+    width: 1920px;
+    height: 1080px;
+    position: relative;
+    display: flex;
+  }
+
+  /* Left panel - hero message */
+  .left-panel {
+    width: 680px;
+    height: 100%;
+    background: #18181B;
+    padding: 80px 60px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .left-panel::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 1px;
+    height: 100%;
+    background: linear-gradient(to bottom, transparent, #FACC1540, transparent);
+  }
+
+  .eyebrow {
+    font-size: 12px;
+    letter-spacing: 3px;
+    color: #FACC15;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+  }
+
+  h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 48px;
+    font-weight: 700;
+    line-height: 1.15;
+    margin-bottom: 28px;
+  }
+
+  h1 .highlight { color: #FACC15; }
+
+  .subtitle {
+    font-size: 15px;
+    color: #71717A;
+    line-height: 1.7;
+    margin-bottom: 48px;
+    max-width: 480px;
+  }
+
+  .ai-features {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .ai-feature {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+  }
+
+  .ai-feature-num {
+    width: 32px;
+    height: 32px;
+    background: #FACC15;
+    color: #0F0F10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  .ai-feature-text {
+    font-size: 14px;
+    color: #FAFAFA;
+    line-height: 1.5;
+  }
+
+  .ai-feature-desc {
+    font-size: 11px;
+    color: #52525B;
+    margin-top: 4px;
+  }
+
+  /* Right panel - AI interface mock */
+  .right-panel {
+    flex: 1;
+    padding: 48px 60px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .tab-bar {
+    display: flex;
+    gap: 0;
+    margin-bottom: 12px;
+  }
+
+  .tab {
+    padding: 12px 24px;
+    font-size: 12px;
+    letter-spacing: 1px;
+    color: #52525B;
+    border-bottom: 2px solid transparent;
+    cursor: default;
+  }
+
+  .tab.active {
+    color: #FACC15;
+    border-bottom-color: #FACC15;
+    background: #18181B;
+  }
+
+  /* AI output mock */
+  .ai-output {
+    background: #18181B;
+    border: 1px solid #27272A;
+    padding: 32px;
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .ai-output-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #27272A;
+  }
+
+  .ai-output-title {
+    font-size: 14px;
+    color: #FACC15;
+    letter-spacing: 1px;
+  }
+
+  .ai-model-badge {
+    font-size: 10px;
+    color: #71717A;
+    background: #27272A;
+    padding: 4px 12px;
+    letter-spacing: 1px;
+  }
+
+  .ai-section {
+    margin-bottom: 24px;
+  }
+
+  .ai-section-title {
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: #52525B;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .ai-insight {
+    background: #0F0F10;
+    border-left: 3px solid #FACC15;
+    padding: 16px 20px;
+    margin-bottom: 12px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #FAFAFA;
+  }
+
+  .ai-insight.green { border-left-color: #22C55E; }
+  .ai-insight.red { border-left-color: #EF4444; }
+  .ai-insight.blue { border-left-color: #4F46E5; }
+
+  .ai-recommendation {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 12px 0;
+    border-bottom: 1px solid #27272A;
+  }
+
+  .ai-recommendation:last-child { border-bottom: none; }
+
+  .ai-rec-priority {
+    font-size: 10px;
+    letter-spacing: 1px;
+    padding: 3px 8px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .ai-rec-priority.high { background: #EF444420; color: #EF4444; }
+  .ai-rec-priority.medium { background: #FACC1520; color: #FACC15; }
+  .ai-rec-priority.low { background: #22C55E20; color: #22C55E; }
+
+  .ai-rec-text {
+    font-size: 13px;
+    color: #FAFAFA;
+    line-height: 1.5;
+  }
+
+  /* Config panel mock */
+  .config-sidebar {
+    background: #18181B;
+    border: 1px solid #27272A;
+    padding: 24px;
+    width: 100%;
+  }
+
+  .config-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid #27272A;
+  }
+
+  .config-row:last-child { border-bottom: none; }
+
+  .config-label {
+    font-size: 12px;
+    color: #71717A;
+  }
+
+  .config-value {
+    font-size: 12px;
+    color: #FACC15;
+    background: #FACC1510;
+    padding: 4px 12px;
+  }
+
+  .config-slider {
+    width: 100px;
+    height: 4px;
+    background: #27272A;
+    position: relative;
+  }
+
+  .config-slider-fill {
+    height: 100%;
+    background: #FACC15;
+    position: absolute;
+    left: 0;
+    top: 0;
+  }
+
+  .config-slider-dot {
+    width: 12px;
+    height: 12px;
+    background: #FACC15;
+    position: absolute;
+    top: -4px;
+  }
+
+  /* Promo */
+  .promo-badge {
+    position: absolute;
+    bottom: 32px;
+    right: 48px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .promo-badge .tagline {
+    font-size: 13px;
+    color: #52525B;
+    letter-spacing: 1px;
+  }
+
+  .promo-badge .logo-text {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    color: #FACC15;
+    letter-spacing: 2px;
+  }
+
+  .tiendanube-tag {
+    position: absolute;
+    top: 32px;
+    right: 48px;
+    background: #FACC15;
+    color: #0F0F10;
+    padding: 6px 14px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  /* Glowing accent */
+  .glow-accent {
+    position: absolute;
+    top: 50%;
+    left: 678px;
+    transform: translateY(-50%);
+    width: 200px;
+    height: 400px;
+    background: radial-gradient(ellipse, #FACC1508, transparent);
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+<div class="canvas">
+  <div class="tiendanube-tag">TIENDANUBE APP</div>
+  <div class="glow-accent"></div>
+
+  <div class="left-panel">
+    <div class="eyebrow">Cerebro de Worker</div>
+    <h1>Tu estratega de ads <span class="highlight">con IA</span></h1>
+    <p class="subtitle">Gemini 2.0 analiza tus creativos, genera reportes, audita performance y sugiere optimizaciones. Todo configurable y transparente.</p>
+
+    <div class="ai-features">
+      <div class="ai-feature">
+        <div class="ai-feature-num">1</div>
+        <div>
+          <div class="ai-feature-text">Reportes automaticos de performance</div>
+          <div class="ai-feature-desc">Analisis MTD con contexto de negocio</div>
+        </div>
+      </div>
+      <div class="ai-feature">
+        <div class="ai-feature-num">2</div>
+        <div>
+          <div class="ai-feature-text">Auditoria creativa con vision AI</div>
+          <div class="ai-feature-desc">Gemini Vision analiza tus imagenes y videos</div>
+        </div>
+      </div>
+      <div class="ai-feature">
+        <div class="ai-feature-num">3</div>
+        <div>
+          <div class="ai-feature-text">Variaciones y conceptos nuevos</div>
+          <div class="ai-feature-desc">Genera briefs basados en patrones ganadores</div>
+        </div>
+      </div>
+      <div class="ai-feature">
+        <div class="ai-feature-num">4</div>
+        <div>
+          <div class="ai-feature-text">Recomendaciones priorizadas</div>
+          <div class="ai-feature-desc">Acciones concretas ordenadas por impacto</div>
+        </div>
+      </div>
+      <div class="ai-feature">
+        <div class="ai-feature-num">5</div>
+        <div>
+          <div class="ai-feature-text">Motor de decisiones configurable</div>
+          <div class="ai-feature-desc">Thresholds personalizados por cliente</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="right-panel">
+    <div class="tab-bar">
+      <div class="tab active">GENERADORES IA</div>
+      <div class="tab">MOTOR DE DECISIONES</div>
+      <div class="tab">CLASIFICADOR</div>
+      <div class="tab">CONSOLA</div>
+    </div>
+
+    <div class="ai-output">
+      <div class="ai-output-header">
+        <div class="ai-output-title">Reporte de Performance - Marzo 2026</div>
+        <div class="ai-model-badge">GEMINI 2.0 FLASH</div>
+      </div>
+
+      <div class="ai-section">
+        <div class="ai-section-title">Hallazgos Clave</div>
+        <div class="ai-insight">La cuenta muestra una tendencia positiva con ROAS creciente (+15%) impulsado por 4 creativos dominantes que concentran el 67% del spend.</div>
+        <div class="ai-insight green">Oportunidad detectada: 2 creativos Hidden BOFU con CPA 40% inferior al target estan sub-invertidos. Potencial de scaling inmediato.</div>
+        <div class="ai-insight red">Riesgo: 3 creativos muestran fatiga avanzada (frecuencia >4.5). Sin rotacion, el CPA promedio subira ~20% en 7 dias.</div>
+      </div>
+
+      <div class="ai-section">
+        <div class="ai-section-title">Recomendaciones Priorizadas</div>
+        <div class="ai-recommendation">
+          <div class="ai-rec-priority high">P1</div>
+          <div class="ai-rec-text">Aumentar budget 25% en "UGC Testimonial" y "Product Demo v2" — ambos con CPA estable bajo target y frecuencia &lt;2.</div>
+        </div>
+        <div class="ai-recommendation">
+          <div class="ai-rec-priority high">P1</div>
+          <div class="ai-rec-text">Pausar "Summer Sale v1" — frecuencia 5.2, CPA 180% sobre target. Reemplazar con variacion UGC.</div>
+        </div>
+        <div class="ai-recommendation">
+          <div class="ai-rec-priority medium">P2</div>
+          <div class="ai-rec-text">Crear 3 variaciones de "Carousel Best Sellers" — formato con mejor CTR historico para esta cuenta.</div>
+        </div>
+        <div class="ai-recommendation">
+          <div class="ai-rec-priority low">P3</div>
+          <div class="ai-rec-text">Testear hook alternativo en videos — hook rate promedio 18% esta por debajo del benchmark (25%).</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="config-sidebar">
+      <div class="ai-section-title" style="margin-bottom:16px">Configuracion del Motor</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+        <div class="config-row">
+          <span class="config-label">Growth Mode</span>
+          <span class="config-value">Balanced</span>
+        </div>
+        <div class="config-row">
+          <span class="config-label">Fatigue Tolerance</span>
+          <span class="config-value">Medium</span>
+        </div>
+        <div class="config-row">
+          <span class="config-label">Scaling Speed</span>
+          <span class="config-value">Moderate</span>
+        </div>
+        <div class="config-row">
+          <span class="config-label">Target CPA</span>
+          <span class="config-value">$22.00</span>
+        </div>
+        <div class="config-row">
+          <span class="config-label">Funnel Priority</span>
+          <span class="config-value">BOFU</span>
+        </div>
+        <div class="config-row">
+          <span class="config-label">Alert Channel</span>
+          <span class="config-value">Slack</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="promo-badge">
+    <span class="tagline">Inteligencia artificial para tu negocio</span>
+    <span class="logo-text">WORKER BRAIN</span>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Banner 2 - Alertas Inteligentes</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    background: #18181B;
+    font-family: 'JetBrains Mono', monospace;
+    color: #FAFAFA;
+  }
+
+  .canvas {
+    width: 1920px;
+    height: 1080px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 80px;
+    padding: 60px 80px;
+  }
+
+  /* Left side - text */
+  .left {
+    flex: 1;
+    max-width: 700px;
+  }
+
+  .eyebrow {
+    font-size: 12px;
+    letter-spacing: 3px;
+    color: #FACC15;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+  }
+
+  h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 52px;
+    font-weight: 700;
+    line-height: 1.1;
+    margin-bottom: 24px;
+  }
+
+  h1 .highlight {
+    color: #FACC15;
+  }
+
+  .subtitle {
+    font-size: 16px;
+    color: #71717A;
+    line-height: 1.6;
+    max-width: 500px;
+    margin-bottom: 48px;
+  }
+
+  .features {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .feature {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .feature-icon {
+    width: 40px;
+    height: 40px;
+    background: #27272A;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .feature-text {
+    font-size: 14px;
+    color: #FAFAFA;
+  }
+
+  .feature-desc {
+    font-size: 11px;
+    color: #52525B;
+    margin-top: 2px;
+  }
+
+  /* Right side - alert cards */
+  .right {
+    flex: 1;
+    max-width: 680px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .alert-card {
+    background: #0F0F10;
+    border: 1px solid #27272A;
+    padding: 24px 28px;
+    display: flex;
+    gap: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .alert-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+  }
+
+  .alert-card.critical::before { background: #EF4444; }
+  .alert-card.warning::before { background: #FACC15; }
+  .alert-card.success::before { background: #22C55E; }
+  .alert-card.info::before { background: #4F46E5; }
+
+  .alert-badge {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    align-self: flex-start;
+    margin-top: 2px;
+    flex-shrink: 0;
+  }
+
+  .alert-card.critical .alert-badge { background: #EF444420; color: #EF4444; }
+  .alert-card.warning .alert-badge { background: #FACC1520; color: #FACC15; }
+  .alert-card.success .alert-badge { background: #22C55E20; color: #22C55E; }
+  .alert-card.info .alert-badge { background: #4F46E520; color: #4F46E5; }
+
+  .alert-content { flex: 1; }
+
+  .alert-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+
+  .alert-detail {
+    font-size: 12px;
+    color: #71717A;
+    line-height: 1.5;
+  }
+
+  .alert-time {
+    font-size: 10px;
+    color: #52525B;
+    margin-top: 8px;
+  }
+
+  .alert-action {
+    font-size: 11px;
+    color: #FACC15;
+    margin-top: 8px;
+    letter-spacing: 1px;
+  }
+
+  /* Slack mock notification */
+  .slack-notif {
+    background: #0F0F10;
+    border: 1px solid #27272A;
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .slack-icon {
+    width: 36px;
+    height: 36px;
+    background: #4A154B;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+
+  .slack-text {
+    font-size: 12px;
+    color: #71717A;
+  }
+
+  .slack-text strong {
+    color: #FAFAFA;
+  }
+
+  /* Promo */
+  .promo-badge {
+    position: absolute;
+    bottom: 32px;
+    right: 48px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .promo-badge .tagline {
+    font-size: 13px;
+    color: #52525B;
+    letter-spacing: 1px;
+  }
+
+  .promo-badge .logo-text {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    color: #FACC15;
+    letter-spacing: 2px;
+  }
+
+  .tiendanube-tag {
+    position: absolute;
+    top: 32px;
+    right: 48px;
+    background: #FACC15;
+    color: #0F0F10;
+    padding: 6px 14px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .corner-line {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 200px;
+    height: 4px;
+    background: linear-gradient(to right, #FACC15, transparent);
+  }
+</style>
+</head>
+<body>
+<div class="canvas">
+  <div class="corner-line"></div>
+  <div class="tiendanube-tag">TIENDANUBE APP</div>
+
+  <div class="left">
+    <div class="eyebrow">Motor de Alertas</div>
+    <h1>16 alertas <span class="highlight">inteligentes</span> que protegen tu inversion</h1>
+    <p class="subtitle">Detecta automaticamente spikes de CPA, oportunidades de scaling, fatiga creativa y mas. Recibilas en Slack o en tu dashboard.</p>
+
+    <div class="features">
+      <div class="feature">
+        <div class="feature-icon" style="color:#EF4444">!</div>
+        <div>
+          <div class="feature-text">Alertas criticas en tiempo real</div>
+          <div class="feature-desc">CPA spike, budget bleed, hook kill</div>
+        </div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon" style="color:#FACC15">~</div>
+        <div>
+          <div class="feature-text">Warnings semanales</div>
+          <div class="feature-desc">Volatilidad, fatiga, consolidacion</div>
+        </div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon" style="color:#22C55E">+</div>
+        <div>
+          <div class="feature-text">Oportunidades de scaling</div>
+          <div class="feature-desc">CPA bajo target + frecuencia estable</div>
+        </div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon" style="color:#4F46E5">#</div>
+        <div>
+          <div class="feature-text">Diagnostico de video</div>
+          <div class="feature-desc">Hook rate, hold rate, drop-off point</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="alert-card critical">
+      <div class="alert-badge">CRITICAL</div>
+      <div class="alert-content">
+        <div class="alert-title">CPA Spike detectado</div>
+        <div class="alert-detail">"Summer Sale v3" - CPA subio 45% en las ultimas 24h. De $18.50 a $26.82. Frecuencia: 3.2</div>
+        <div class="alert-action">ACCION: Revisar audiencia y pausar si persiste</div>
+        <div class="alert-time">Hace 1h &bull; Adset: Retargeting 30D</div>
+      </div>
+    </div>
+
+    <div class="alert-card success">
+      <div class="alert-badge">SCALING</div>
+      <div class="alert-content">
+        <div class="alert-title">Oportunidad de scaling</div>
+        <div class="alert-detail">"UGC Testimonial" - CPA $12.40 (target: $22). Frecuencia estable en 1.4. Velocity positiva.</div>
+        <div class="alert-action">ACCION: Incrementar presupuesto 20-30%</div>
+        <div class="alert-time">Hace 3h &bull; Campaign: Conversiones Q1</div>
+      </div>
+    </div>
+
+    <div class="alert-card warning">
+      <div class="alert-badge">WARNING</div>
+      <div class="alert-content">
+        <div class="alert-title">Fatiga creativa detectada</div>
+        <div class="alert-detail">"Promo Banner Static" - Frecuencia 4.8 (+0.6/dia). CTR cayo 35% en 7 dias.</div>
+        <div class="alert-action">ACCION: Rotar concepto creativo</div>
+        <div class="alert-time">Hace 5h &bull; Adset: Prospecting Broad</div>
+      </div>
+    </div>
+
+    <div class="alert-card info">
+      <div class="alert-badge">VIDEO</div>
+      <div class="alert-content">
+        <div class="alert-title">Hook debil en video</div>
+        <div class="alert-detail">"Brand Story 60s" - Hook rate: 15% (min: 20%). $120 gastados. El 85% abandona antes de 3 seg.</div>
+        <div class="alert-action">ACCION: Cambiar los primeros 3 segundos</div>
+        <div class="alert-time">Hoy &bull; Campaign: Awareness Mar</div>
+      </div>
+    </div>
+
+    <div class="slack-notif">
+      <div class="slack-icon">S</div>
+      <div class="slack-text"><strong>#worker-alerts</strong> &mdash; Notificaciones automaticas via Slack. Digest diario + alertas criticas inmediatas.</div>
+    </div>
+  </div>
+
+  <div class="promo-badge">
+    <span class="tagline">Protege tu inversion publicitaria</span>
+    <span class="logo-text">WORKER BRAIN</span>
+  </div>
+</div>
+</body>
+</html>

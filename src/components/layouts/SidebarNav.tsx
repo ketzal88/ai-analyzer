@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { navConfig } from "@/configs/navConfig";
+import { useClient } from "@/contexts/ClientContext";
 
 interface SidebarNavProps {
     isAdmin: boolean;
@@ -11,14 +12,38 @@ interface SidebarNavProps {
 
 const sectionLabels: Record<string, string> = {
     operativo: "OPERATIVO",
+    canales: "CANALES",
     inteligencia: "INTELIGENCIA",
     admin: "ADMIN",
 };
 
 export default function SidebarNav({ isAdmin }: SidebarNavProps) {
     const pathname = usePathname();
+    const { selectedClientId, activeClients } = useClient();
 
-    const visibleItems = navConfig.filter(item => !item.adminOnly || isAdmin);
+    // Find the currently selected client object
+    const selectedClient = activeClients.find(c => c.id === selectedClientId) || null;
+
+    // Build a set of active integrations for the current client
+    const activeIntegrations = new Set<string>();
+    if (selectedClient) {
+        const integ = selectedClient.integraciones;
+        if (integ) {
+            if (selectedClient.metaAdAccountId || integ.meta) activeIntegrations.add('meta');
+            if (integ.google) activeIntegrations.add('google');
+            if (integ.ecommerce) activeIntegrations.add('ecommerce');
+            if (integ.email) activeIntegrations.add('email');
+        }
+        if (selectedClient.metaAdAccountId) activeIntegrations.add('meta');
+    }
+
+    const visibleItems = navConfig.filter(item => {
+        if (item.adminOnly && !isAdmin) return false;
+        // If item requires an integration, check if the client has it
+        if (item.requiresIntegration && !activeIntegrations.has(item.requiresIntegration)) return false;
+        return true;
+    });
+
     let lastSection = "";
 
     return (

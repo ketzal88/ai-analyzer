@@ -25,7 +25,17 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
         isGoogle: initialData?.isGoogle ?? false,
         metaAdAccountId: initialData?.metaAdAccountId || "",
         googleAdsId: initialData?.googleAdsId || "",
+        perfitApiKey: initialData?.perfitApiKey || "",
+        tiendanubeStoreId: initialData?.tiendanubeStoreId || "",
+        tiendanubeAccessToken: initialData?.tiendanubeAccessToken || "",
         currency: initialData?.currency || "USD",
+        integraciones: initialData?.integraciones || {
+            meta: false,
+            google: false,
+            ga4: false,
+            ecommerce: null,
+            email: null,
+        },
         slackPublicChannel: initialData?.slackPublicChannel || "",
         slackInternalChannel: initialData?.slackInternalChannel || "",
 
@@ -685,6 +695,125 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
                             />
                         </div>
                     )}
+                </div>
+            </div>
+
+            {/* Channel Integrations */}
+            <div className="col-span-1 md:col-span-2 p-6 bg-stellar border border-argent rounded-lg space-y-6">
+                <h2 className="text-subheader text-text-primary">Channel Integrations</h2>
+                <p className="text-small text-text-muted -mt-4">Enable channels and configure per-client API credentials.</p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Meta */}
+                    <div className="p-4 border border-argent rounded-lg space-y-3">
+                        <label className="flex items-center gap-3 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={formData.integraciones?.meta || !!formData.metaAdAccountId}
+                                onChange={(e) => setFormData({
+                                    ...formData,
+                                    integraciones: { ...formData.integraciones!, meta: e.target.checked }
+                                })}
+                                className="w-4 h-4 rounded border-argent text-classic focus:ring-0"
+                            />
+                            <span className="text-body font-bold text-text-primary">Meta Ads</span>
+                        </label>
+                        <p className="text-tiny text-text-muted">Uses global META_ACCESS_TOKEN. Account ID set above.</p>
+                    </div>
+
+                    {/* Google Ads */}
+                    <div className="p-4 border border-argent rounded-lg space-y-3">
+                        <label className="flex items-center gap-3 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={formData.integraciones?.google || false}
+                                onChange={(e) => setFormData({
+                                    ...formData,
+                                    integraciones: { ...formData.integraciones!, google: e.target.checked }
+                                })}
+                                className="w-4 h-4 rounded border-argent text-classic focus:ring-0"
+                            />
+                            <span className="text-body font-bold text-text-primary">Google Ads</span>
+                        </label>
+                        <p className="text-tiny text-text-muted">Customer ID set above. Uses global OAuth credentials.</p>
+                    </div>
+
+                    {/* Ecommerce / Tienda Nube */}
+                    <div className="p-4 border border-argent rounded-lg space-y-3">
+                        <div className="flex items-center gap-3">
+                            <span className="text-body font-bold text-text-primary">Ecommerce</span>
+                            <select
+                                value={formData.integraciones?.ecommerce || ""}
+                                onChange={(e) => setFormData({
+                                    ...formData,
+                                    integraciones: { ...formData.integraciones!, ecommerce: (e.target.value || null) as any }
+                                })}
+                                className="bg-stellar border border-argent rounded px-2 py-1 text-small text-text-primary focus:border-classic outline-none"
+                            >
+                                <option value="">Disabled</option>
+                                <option value="tiendanube">Tienda Nube</option>
+                                <option value="shopify">Shopify (future)</option>
+                            </select>
+                        </div>
+                        {formData.integraciones?.ecommerce === 'tiendanube' && (
+                            <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                                <div>
+                                    <label className="block text-tiny text-text-muted mb-1 font-bold">STORE ID (user_id)</label>
+                                    <input
+                                        type="text"
+                                        value={formData.tiendanubeStoreId || ""}
+                                        onChange={(e) => setFormData({ ...formData, tiendanubeStoreId: e.target.value })}
+                                        placeholder="e.g. 6048839"
+                                        className="w-full text-small font-mono"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-tiny text-text-muted mb-1 font-bold">ACCESS TOKEN</label>
+                                    <input
+                                        type="password"
+                                        value={formData.tiendanubeAccessToken || ""}
+                                        onChange={(e) => setFormData({ ...formData, tiendanubeAccessToken: e.target.value })}
+                                        placeholder="Token from app install"
+                                        className="w-full text-small font-mono"
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Email / Perfit */}
+                    <div className="p-4 border border-argent rounded-lg space-y-3">
+                        <div className="flex items-center gap-3">
+                            <span className="text-body font-bold text-text-primary">Email Marketing</span>
+                            <select
+                                value={formData.integraciones?.email || ""}
+                                onChange={(e) => setFormData({
+                                    ...formData,
+                                    integraciones: { ...formData.integraciones!, email: (e.target.value || null) as any }
+                                })}
+                                className="bg-stellar border border-argent rounded px-2 py-1 text-small text-text-primary focus:border-classic outline-none"
+                            >
+                                <option value="">Disabled</option>
+                                <option value="perfit">Perfit</option>
+                                <option value="klaviyo">Klaviyo (future)</option>
+                            </select>
+                        </div>
+                        {formData.integraciones?.email === 'perfit' && (
+                            <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                                <div>
+                                    <label className="block text-tiny text-text-muted mb-1 font-bold">API KEY</label>
+                                    <input
+                                        type="password"
+                                        value={formData.perfitApiKey || ""}
+                                        onChange={(e) => setFormData({ ...formData, perfitApiKey: e.target.value })}
+                                        placeholder="accountId-secret"
+                                        className="w-full text-small font-mono"
+                                    />
+                                    <p className="text-[10px] text-text-muted mt-1">Format: {"{accountId}-{secret}"}. Account ID is extracted automatically.</p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 

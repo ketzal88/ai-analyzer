@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Banner 1 - Dashboard Principal</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    background: #0F0F10;
+    font-family: 'JetBrains Mono', monospace;
+    color: #FAFAFA;
+  }
+
+  .canvas {
+    width: 1920px;
+    height: 1080px;
+    position: relative;
+    display: flex;
+  }
+
+  /* Sidebar mock */
+  .sidebar {
+    width: 260px;
+    height: 100%;
+    background: #0F0F10;
+    border-right: 1px solid #27272A;
+    padding: 32px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .sidebar-logo {
+    margin-bottom: 32px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .sidebar-logo .logo-icon {
+    width: 36px;
+    height: 36px;
+    background: #FACC15;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    color: #0F0F10;
+    font-size: 18px;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+
+  .sidebar-logo span {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: 1px;
+  }
+
+  .nav-section {
+    margin-top: 16px;
+    margin-bottom: 8px;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: #52525B;
+    text-transform: uppercase;
+  }
+
+  .nav-item {
+    padding: 10px 14px;
+    font-size: 13px;
+    color: #71717A;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: default;
+  }
+
+  .nav-item.active {
+    background: #18181B;
+    color: #FACC15;
+    border-left: 2px solid #FACC15;
+  }
+
+  .nav-item .dot {
+    width: 6px;
+    height: 6px;
+    background: currentColor;
+    opacity: 0.5;
+  }
+
+  /* Main content */
+  .main {
+    flex: 1;
+    background: #18181B;
+    padding: 40px 48px;
+    overflow: hidden;
+  }
+
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 36px;
+  }
+
+  .header h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+
+  .header-right {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .client-badge {
+    background: #27272A;
+    padding: 8px 16px;
+    font-size: 12px;
+    color: #FACC15;
+    letter-spacing: 1px;
+  }
+
+  .date-badge {
+    background: #27272A;
+    padding: 8px 16px;
+    font-size: 12px;
+    color: #71717A;
+  }
+
+  /* Metric cards row */
+  .metrics-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+
+  .metric-card {
+    background: #0F0F10;
+    border: 1px solid #27272A;
+    padding: 24px;
+  }
+
+  .metric-label {
+    font-size: 11px;
+    color: #52525B;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 12px;
+  }
+
+  .metric-value {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 32px;
+    font-weight: 700;
+    color: #FAFAFA;
+  }
+
+  .metric-delta {
+    font-size: 12px;
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .metric-delta.up { color: #22C55E; }
+  .metric-delta.down { color: #EF4444; }
+
+  /* Chart area */
+  .charts-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .chart-card {
+    background: #0F0F10;
+    border: 1px solid #27272A;
+    padding: 24px;
+  }
+
+  .chart-title {
+    font-size: 13px;
+    color: #71717A;
+    letter-spacing: 1px;
+    margin-bottom: 20px;
+    text-transform: uppercase;
+  }
+
+  /* Simulated chart bars */
+  .chart-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    height: 180px;
+    padding-top: 20px;
+  }
+
+  .bar {
+    flex: 1;
+    background: linear-gradient(to top, #FACC15, #FACC1580);
+    min-width: 24px;
+    position: relative;
+  }
+
+  .bar:nth-child(even) {
+    background: linear-gradient(to top, #4F46E5, #4F46E580);
+  }
+
+  /* Donut chart mock */
+  .donut-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 180px;
+    position: relative;
+  }
+
+  .donut {
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    background: conic-gradient(
+      #FACC15 0% 35%,
+      #4F46E5 35% 55%,
+      #22C55E 55% 75%,
+      #EF4444 75% 88%,
+      #71717A 88% 100%
+    );
+    position: relative;
+  }
+
+  .donut::after {
+    content: '';
+    position: absolute;
+    top: 35px;
+    left: 35px;
+    width: 90px;
+    height: 90px;
+    background: #0F0F10;
+    border-radius: 50%;
+  }
+
+  .donut-legend {
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: #71717A;
+  }
+
+  .legend-dot {
+    width: 8px;
+    height: 8px;
+  }
+
+  /* Bottom row */
+  .bottom-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+  }
+
+  .alert-item {
+    background: #0F0F10;
+    border: 1px solid #27272A;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .alert-severity {
+    width: 4px;
+    height: 40px;
+  }
+
+  .alert-severity.critical { background: #EF4444; }
+  .alert-severity.warning { background: #FACC15; }
+  .alert-severity.info { background: #4F46E5; }
+
+  .alert-text {
+    font-size: 12px;
+    color: #FAFAFA;
+  }
+
+  .alert-meta {
+    font-size: 10px;
+    color: #52525B;
+    margin-top: 4px;
+  }
+
+  /* Promo overlay */
+  .promo-badge {
+    position: absolute;
+    bottom: 32px;
+    right: 48px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .promo-badge .tagline {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 14px;
+    color: #52525B;
+    letter-spacing: 1px;
+  }
+
+  .promo-badge .logo-text {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    color: #FACC15;
+    letter-spacing: 2px;
+  }
+
+  .tiendanube-tag {
+    position: absolute;
+    top: 32px;
+    right: 48px;
+    background: #FACC15;
+    color: #0F0F10;
+    padding: 6px 14px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+<div class="canvas">
+  <div class="tiendanube-tag">TIENDANUBE APP</div>
+
+  <div class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">W</div>
+      <span>WORKER</span>
+    </div>
+    <div class="nav-section">Operativo</div>
+    <div class="nav-item active"><div class="dot"></div> Command Center</div>
+    <div class="nav-item"><div class="dot"></div> Ads Manager</div>
+    <div class="nav-item"><div class="dot"></div> Decision Board</div>
+    <div class="nav-section">Inteligencia</div>
+    <div class="nav-item"><div class="dot"></div> Creative Intel</div>
+    <div class="nav-item"><div class="dot"></div> Conceptos</div>
+    <div class="nav-section">Canales</div>
+    <div class="nav-item"><div class="dot"></div> E-commerce</div>
+    <div class="nav-item"><div class="dot"></div> Google Ads</div>
+    <div class="nav-item"><div class="dot"></div> Email Mktg</div>
+    <div class="nav-section">Admin</div>
+    <div class="nav-item"><div class="dot"></div> Cerebro AI</div>
+    <div class="nav-item"><div class="dot"></div> Configuracion</div>
+  </div>
+
+  <div class="main">
+    <div class="header">
+      <h1>Command Center</h1>
+      <div class="header-right">
+        <div class="client-badge">MI TIENDA</div>
+        <div class="date-badge">Mar 2026 &bull; MTD</div>
+      </div>
+    </div>
+
+    <div class="metrics-row">
+      <div class="metric-card">
+        <div class="metric-label">Spend</div>
+        <div class="metric-value">$4,280</div>
+        <div class="metric-delta up">+12% vs prev</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Conversiones</div>
+        <div class="metric-value">187</div>
+        <div class="metric-delta up">+23% vs prev</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">CPA</div>
+        <div class="metric-value">$22.89</div>
+        <div class="metric-delta up">-8% vs prev</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">ROAS</div>
+        <div class="metric-value">3.4x</div>
+        <div class="metric-delta up">+15% vs prev</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">CTR</div>
+        <div class="metric-value">2.1%</div>
+        <div class="metric-delta down">-3% vs prev</div>
+      </div>
+    </div>
+
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-title">Performance Semanal</div>
+        <div class="chart-bars">
+          <div class="bar" style="height:60%"></div>
+          <div class="bar" style="height:75%"></div>
+          <div class="bar" style="height:45%"></div>
+          <div class="bar" style="height:90%"></div>
+          <div class="bar" style="height:55%"></div>
+          <div class="bar" style="height:80%"></div>
+          <div class="bar" style="height:70%"></div>
+          <div class="bar" style="height:95%"></div>
+          <div class="bar" style="height:50%"></div>
+          <div class="bar" style="height:85%"></div>
+          <div class="bar" style="height:65%"></div>
+          <div class="bar" style="height:100%"></div>
+          <div class="bar" style="height:40%"></div>
+          <div class="bar" style="height:72%"></div>
+          <div class="bar" style="height:88%"></div>
+          <div class="bar" style="height:55%"></div>
+          <div class="bar" style="height:78%"></div>
+          <div class="bar" style="height:62%"></div>
+          <div class="bar" style="height:92%"></div>
+          <div class="bar" style="height:48%"></div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Mix de Formatos</div>
+        <div class="donut-container">
+          <div class="donut"></div>
+          <div class="donut-legend">
+            <div class="legend-item"><div class="legend-dot" style="background:#FACC15"></div> Video 35%</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#4F46E5"></div> Imagen 20%</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#22C55E"></div> Carousel 20%</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#EF4444"></div> Catalogo 13%</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#71717A"></div> Otros 12%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bottom-row">
+      <div class="alert-item">
+        <div class="alert-severity critical"></div>
+        <div>
+          <div class="alert-text">CPA Spike detectado en "Summer Sale"</div>
+          <div class="alert-meta">Hace 2h &bull; CRITICAL</div>
+        </div>
+      </div>
+      <div class="alert-item">
+        <div class="alert-severity warning"></div>
+        <div>
+          <div class="alert-text">Oportunidad de scaling en "Retargeting Q1"</div>
+          <div class="alert-meta">Hace 5h &bull; SCALING</div>
+        </div>
+      </div>
+      <div class="alert-item">
+        <div class="alert-severity info"></div>
+        <div>
+          <div class="alert-text">Creative mix balanceado esta semana</div>
+          <div class="alert-meta">Hoy &bull; INFO</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="promo-badge">
+    <span class="tagline">AI-Powered Meta Ads Analytics</span>
+    <span class="logo-text">WORKER BRAIN</span>
+  </div>
+</div>
+</body>
+</html>

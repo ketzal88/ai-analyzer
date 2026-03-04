@@ -17,7 +17,7 @@ import { Client } from "@/types";
 /**
  * Channel type identifier
  */
-export type ChannelType = 'META' | 'GOOGLE' | 'GA4' | 'ECOMMERCE';
+export type ChannelType = 'META' | 'GOOGLE' | 'GA4' | 'ECOMMERCE' | 'EMAIL';
 
 /**
  * Data quality assessment for a channel's snapshot

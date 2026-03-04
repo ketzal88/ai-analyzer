@@ -50,7 +50,8 @@ export async function GET(request: NextRequest) {
         meta: true,
         google: true,
         ga4: true,
-        ecommerce: 'tiendanube' as const
+        ecommerce: 'tiendanube' as const,
+        email: 'perfit' as const
       }
     };
 

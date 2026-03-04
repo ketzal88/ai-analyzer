@@ -5,6 +5,7 @@ import { EngineConfigService } from "@/lib/engine-config-service";
 import { EventService } from "@/lib/event-service";
 import { Client, Alert } from "@/types";
 import { ClientSnapshot } from "@/types/client-snapshot";
+import { SemaforoSnapshot } from "@/types/semaforo";
 import { reportError } from "@/lib/error-reporter";
 import { getAlertChannel } from "@/lib/alert-engine";
 
@@ -42,6 +43,7 @@ export async function GET(request: NextRequest) {
             snapshotSent: boolean;
             alertDigestSent: boolean;
             criticalAlertsSent: number;
+            semaforoSent: boolean;
             error?: string;
         }> = [];
 
@@ -57,10 +59,11 @@ export async function GET(request: NextRequest) {
                 let snapshotSent = false;
                 let alertDigestSent = false;
                 let criticalAlertsSent = 0;
+                let semaforoSent = false;
 
                 if (!snapshotDoc.exists) {
                     console.warn(`[Daily Digest] No snapshot found for ${clientId}, skipping.`);
-                    results.push({ clientId, clientName: client.name, snapshotSent: false, alertDigestSent: false, criticalAlertsSent: 0 });
+                    results.push({ clientId, clientName: client.name, snapshotSent: false, alertDigestSent: false, criticalAlertsSent: 0, semaforoSent: false });
                     continue;
                 }
 
@@ -97,12 +100,27 @@ export async function GET(request: NextRequest) {
                     }
                 }
 
+                // 3. SEMÁFORO — Send traffic light summary if available
+                try {
+                    const semaforoDoc = await db.collection("semaforo_snapshots").doc(clientId).get();
+                    if (semaforoDoc.exists) {
+                        const semaforoSnapshot = semaforoDoc.data() as SemaforoSnapshot;
+                        if (Object.keys(semaforoSnapshot.metrics).length > 0) {
+                            await SlackService.sendSemaforoDigest(clientId, client.name, semaforoSnapshot);
+                            semaforoSent = true;
+                        }
+                    }
+                } catch (semaforoError: any) {
+                    console.warn(`[Daily Digest] Semáforo digest failed for ${clientId}:`, semaforoError.message);
+                }
+
                 results.push({
                     clientId,
                     clientName: client.name,
                     snapshotSent,
                     alertDigestSent,
-                    criticalAlertsSent
+                    criticalAlertsSent,
+                    semaforoSent,
                 });
 
             } catch (clientError: any) {
@@ -113,6 +131,7 @@ export async function GET(request: NextRequest) {
                     snapshotSent: false,
                     alertDigestSent: false,
                     criticalAlertsSent: 0,
+                    semaforoSent: false,
                     error: clientError.message
                 });
             }

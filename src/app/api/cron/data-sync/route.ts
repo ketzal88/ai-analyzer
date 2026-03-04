@@ -6,6 +6,7 @@ import { BackfillService } from "@/lib/backfill-service";
 import { EventService } from "@/lib/event-service";
 import { reportError } from "@/lib/error-reporter";
 import { Client } from "@/types";
+import { buildChannelSnapshotId, ChannelDailySnapshot } from "@/types/channel-snapshots";
 
 export const maxDuration = 300; // Allow 5 minutes
 
@@ -69,6 +70,41 @@ export async function GET(request: NextRequest) {
                         clientName: client.name,
                         metadata: { stage: "slack_digest" }
                     });
+                }
+
+                // 3. Backfill Meta data into channel_snapshots (unified format)
+                try {
+                    const todayStr = new Date().toISOString().split("T")[0];
+                    const accountRolling = main.accountSummary?.rolling;
+                    if (accountRolling && (accountRolling.spend_7d || 0) > 0) {
+                        const conversions = accountRolling.purchases_7d
+                            ?? accountRolling.leads_7d
+                            ?? accountRolling.whatsapp_7d
+                            ?? 0;
+                        const spend = accountRolling.spend_7d ?? 0;
+                        const revenue = (accountRolling.roas_7d ?? 0) * spend;
+
+                        const metaSnapshot: ChannelDailySnapshot = {
+                            clientId,
+                            channel: 'META',
+                            date: todayStr,
+                            metrics: {
+                                spend,
+                                revenue,
+                                conversions,
+                                roas: accountRolling.roas_7d,
+                                cpa: accountRolling.cpa_7d,
+                                impressions: accountRolling.impressions_7d,
+                                clicks: accountRolling.clicks_7d,
+                                ctr: accountRolling.ctr_7d,
+                            },
+                            syncedAt: new Date().toISOString(),
+                        };
+                        const docId = buildChannelSnapshotId(clientId, 'META', todayStr);
+                        await db.collection('channel_snapshots').doc(docId).set(metaSnapshot, { merge: true });
+                    }
+                } catch (metaBackfillErr: any) {
+                    console.warn(`[Cron Data Sync] Meta→channel_snapshots backfill failed for ${clientId}:`, metaBackfillErr.message);
                 }
 
                 results.push({ clientId, clientName: client.name, status: "success" });

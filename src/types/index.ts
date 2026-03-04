@@ -4,6 +4,7 @@
 export * from "./gem-report";
 export * from "./meta-creative";
 export * from "./creative-kpi";
+export * from "./channel-snapshots";
 
 export type BusinessType = 'ecommerce' | 'leads' | 'whatsapp' | 'apps';
 
@@ -272,6 +273,9 @@ export interface Client {
     isGoogle: boolean;
     metaAdAccountId?: string;
     googleAdsId?: string;
+    perfitApiKey?: string;
+    tiendanubeStoreId?: string;
+    tiendanubeAccessToken?: string;
     currency?: Currency;
     slackPublicChannel?: string;
     slackInternalChannel?: string;

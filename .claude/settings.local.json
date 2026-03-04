@@ -23,7 +23,12 @@
       "Bash(git ls-tree:*)",
       "Bash(npx next build:*)",
       "Bash(npx tsx scripts/update-clients-from-csv.ts:*)",
-      "Bash(npx tsx:*)"
+      "Bash(npx tsx:*)",
+      "WebFetch(domain:tiendanube.github.io)",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(gh api:*)",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ]
   }
 }

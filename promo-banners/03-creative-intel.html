@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Banner 3 - Creative Intelligence</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    background: #18181B;
+    font-family: 'JetBrains Mono', monospace;
+    color: #FAFAFA;
+  }
+
+  .canvas {
+    width: 1920px;
+    height: 1080px;
+    position: relative;
+    padding: 60px 80px;
+  }
+
+  .top-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 48px;
+  }
+
+  .eyebrow {
+    font-size: 12px;
+    letter-spacing: 3px;
+    color: #FACC15;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 44px;
+    font-weight: 700;
+    line-height: 1.15;
+    max-width: 600px;
+  }
+
+  h1 .highlight { color: #FACC15; }
+
+  .top-right {
+    text-align: right;
+  }
+
+  .diversity-score {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 72px;
+    font-weight: 700;
+    color: #22C55E;
+    line-height: 1;
+  }
+
+  .diversity-label {
+    font-size: 12px;
+    color: #52525B;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-top: 8px;
+  }
+
+  /* Classification grid */
+  .class-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 40px;
+  }
+
+  .class-card {
+    background: #0F0F10;
+    border: 1px solid #27272A;
+    padding: 28px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .class-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 3px;
+  }
+
+  .class-card.dominant::after { background: #22C55E; }
+  .class-card.saturating::after { background: #FACC15; }
+  .class-card.hidden::after { background: #4F46E5; }
+  .class-card.inefficient::after { background: #EF4444; }
+  .class-card.zombie::after { background: #71717A; }
+  .class-card.new::after { background: #06B6D4; }
+
+  .class-name {
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .class-card.dominant .class-name { color: #22C55E; }
+  .class-card.saturating .class-name { color: #FACC15; }
+  .class-card.hidden .class-name { color: #4F46E5; }
+  .class-card.inefficient .class-name { color: #EF4444; }
+  .class-card.zombie .class-name { color: #71717A; }
+  .class-card.new .class-name { color: #06B6D4; }
+
+  .class-count {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 36px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .class-label {
+    font-size: 11px;
+    color: #52525B;
+  }
+
+  .class-spend {
+    font-size: 13px;
+    color: #71717A;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #27272A;
+  }
+
+  .class-action {
+    font-size: 11px;
+    margin-top: 8px;
+    letter-spacing: 0.5px;
+  }
+
+  .class-card.dominant .class-action { color: #22C55E; }
+  .class-card.saturating .class-action { color: #FACC15; }
+  .class-card.hidden .class-action { color: #4F46E5; }
+  .class-card.inefficient .class-action { color: #EF4444; }
+  .class-card.zombie .class-action { color: #71717A; }
+  .class-card.new .class-action { color: #06B6D4; }
+
+  /* DNA traits row */
+  .dna-section {
+    display: flex;
+    gap: 16px;
+    align-items: stretch;
+  }
+
+  .dna-card {
+    background: #0F0F10;
+    border: 1px solid #27272A;
+    padding: 24px;
+    flex: 1;
+  }
+
+  .dna-title {
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: #52525B;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  .dna-trait {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #27272A;
+  }
+
+  .dna-trait:last-child { border-bottom: none; }
+
+  .trait-name {
+    font-size: 12px;
+    color: #FAFAFA;
+  }
+
+  .trait-bar-container {
+    width: 120px;
+    height: 6px;
+    background: #27272A;
+    position: relative;
+  }
+
+  .trait-bar {
+    height: 100%;
+    position: absolute;
+    left: 0;
+    top: 0;
+  }
+
+  .winning-pattern {
+    background: #0F0F10;
+    border: 1px solid #FACC1540;
+    padding: 24px;
+    flex: 1.2;
+  }
+
+  .pattern-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid #27272A;
+    font-size: 13px;
+  }
+
+  .pattern-item:last-child { border-bottom: none; }
+
+  .pattern-icon {
+    color: #FACC15;
+    font-size: 16px;
+    width: 20px;
+    text-align: center;
+  }
+
+  .pattern-label { color: #FAFAFA; }
+  .pattern-value { color: #22C55E; margin-left: auto; font-size: 12px; }
+
+  /* Promo */
+  .promo-badge {
+    position: absolute;
+    bottom: 32px;
+    right: 48px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .promo-badge .tagline {
+    font-size: 13px;
+    color: #52525B;
+    letter-spacing: 1px;
+  }
+
+  .promo-badge .logo-text {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    color: #FACC15;
+    letter-spacing: 2px;
+  }
+
+  .tiendanube-tag {
+    position: absolute;
+    top: 32px;
+    right: 48px;
+    background: #FACC15;
+    color: #0F0F10;
+    padding: 6px 14px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+<div class="canvas">
+  <div class="tiendanube-tag">TIENDANUBE APP</div>
+
+  <div class="top-section">
+    <div>
+      <div class="eyebrow">Creative Intelligence</div>
+      <h1>Clasifica tus creativos con <span class="highlight">IA</span> y descubri que escalar</h1>
+    </div>
+    <div class="top-right">
+      <div class="diversity-score">78%</div>
+      <div class="diversity-label">Diversity Score</div>
+    </div>
+  </div>
+
+  <div class="class-grid">
+    <div class="class-card dominant">
+      <div class="class-name">Dominant Scalable</div>
+      <div class="class-count">4</div>
+      <div class="class-label">creativos activos</div>
+      <div class="class-spend">67% del spend total</div>
+      <div class="class-action">Escalar agresivamente</div>
+    </div>
+    <div class="class-card saturating">
+      <div class="class-name">Winner Saturating</div>
+      <div class="class-count">3</div>
+      <div class="class-label">creativos activos</div>
+      <div class="class-spend">18% del spend total</div>
+      <div class="class-action">Rotar concepto</div>
+    </div>
+    <div class="class-card hidden">
+      <div class="class-name">Hidden BOFU</div>
+      <div class="class-count">2</div>
+      <div class="class-label">creativos activos</div>
+      <div class="class-spend">3% del spend total</div>
+      <div class="class-action">Aumentar presupuesto</div>
+    </div>
+    <div class="class-card inefficient">
+      <div class="class-name">Inefficient TOFU</div>
+      <div class="class-count">5</div>
+      <div class="class-label">creativos activos</div>
+      <div class="class-spend">8% del spend total</div>
+      <div class="class-action">Cortar o reestructurar</div>
+    </div>
+    <div class="class-card zombie">
+      <div class="class-name">Zombie</div>
+      <div class="class-count">7</div>
+      <div class="class-label">creativos activos</div>
+      <div class="class-spend">2% del spend total</div>
+      <div class="class-action">Pausar o refrescar</div>
+    </div>
+    <div class="class-card new">
+      <div class="class-name">New / Insufficient Data</div>
+      <div class="class-count">3</div>
+      <div class="class-label">creativos activos</div>
+      <div class="class-spend">2% del spend total</div>
+      <div class="class-action">Monitorear 4+ dias</div>
+    </div>
+  </div>
+
+  <div class="dna-section">
+    <div class="dna-card">
+      <div class="dna-title">Creative DNA - Visual</div>
+      <div class="dna-trait">
+        <span class="trait-name">UGC / Lo-fi</span>
+        <div class="trait-bar-container"><div class="trait-bar" style="width:85%;background:#22C55E"></div></div>
+      </div>
+      <div class="dna-trait">
+        <span class="trait-name">Product Shot</span>
+        <div class="trait-bar-container"><div class="trait-bar" style="width:60%;background:#4F46E5"></div></div>
+      </div>
+      <div class="dna-trait">
+        <span class="trait-name">Lifestyle</span>
+        <div class="trait-bar-container"><div class="trait-bar" style="width:45%;background:#FACC15"></div></div>
+      </div>
+      <div class="dna-trait">
+        <span class="trait-name">Graphic / Flat</span>
+        <div class="trait-bar-container"><div class="trait-bar" style="width:30%;background:#EF4444"></div></div>
+      </div>
+    </div>
+
+    <div class="dna-card">
+      <div class="dna-title">Creative DNA - Copy</div>
+      <div class="dna-trait">
+        <span class="trait-name">Offer / Discount</span>
+        <div class="trait-bar-container"><div class="trait-bar" style="width:72%;background:#22C55E"></div></div>
+      </div>
+      <div class="dna-trait">
+        <span class="trait-name">Social Proof</span>
+        <div class="trait-bar-container"><div class="trait-bar" style="width:55%;background:#4F46E5"></div></div>
+      </div>
+      <div class="dna-trait">
+        <span class="trait-name">Urgency</span>
+        <div class="trait-bar-container"><div class="trait-bar" style="width:40%;background:#FACC15"></div></div>
+      </div>
+      <div class="dna-trait">
+        <span class="trait-name">Educational</span>
+        <div class="trait-bar-container"><div class="trait-bar" style="width:25%;background:#71717A"></div></div>
+      </div>
+    </div>
+
+    <div class="winning-pattern">
+      <div class="dna-title" style="color:#FACC15">Patrones Ganadores</div>
+      <div class="pattern-item">
+        <span class="pattern-icon">*</span>
+        <span class="pattern-label">Video UGC + Offer copy</span>
+        <span class="pattern-value">CPA -38%</span>
+      </div>
+      <div class="pattern-item">
+        <span class="pattern-icon">*</span>
+        <span class="pattern-label">Carousel + Social Proof</span>
+        <span class="pattern-value">CTR +52%</span>
+      </div>
+      <div class="pattern-item">
+        <span class="pattern-icon">*</span>
+        <span class="pattern-label">Faces + Curiosity Hook</span>
+        <span class="pattern-value">Hook +28%</span>
+      </div>
+      <div class="pattern-item">
+        <span class="pattern-icon">*</span>
+        <span class="pattern-label">Image + Emoji + CTA</span>
+        <span class="pattern-value">ROAS +19%</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="promo-badge">
+    <span class="tagline">Gemini Vision + NLP Analysis</span>
+    <span class="logo-text">WORKER BRAIN</span>
+  </div>
+</div>
+</body>
+</html>

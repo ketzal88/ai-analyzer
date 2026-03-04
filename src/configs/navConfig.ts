@@ -4,8 +4,10 @@ export interface NavItem {
     href: string;
     icon?: string;
     adminOnly?: boolean;
-    section?: 'operativo' | 'inteligencia' | 'admin';
+    section?: 'operativo' | 'canales' | 'inteligencia' | 'admin';
     number: string;
+    /** If set, only show this item when the client has this integration key */
+    requiresIntegration?: string;
 }
 
 export const navConfig: NavItem[] = [
@@ -34,12 +36,65 @@ export const navConfig: NavItem[] = [
         icon: "M9 17v-2a4 4 0 00-4-4H3m18 0h-2a4 4 0 00-4 4v2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z",
         section: 'operativo',
     },
+    // ── CANALES ──────────────────────────────
+    {
+        title: "Overview",
+        subtitle: "Vista unificada multi-canal",
+        href: "/overview",
+        number: "04",
+        icon: "M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z",
+        section: 'canales',
+    },
+    {
+        title: "Semáforo",
+        subtitle: "Objetivos y pacing trimestral",
+        href: "/semaforo",
+        number: "05",
+        icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z",
+        section: 'canales',
+    },
+    {
+        title: "Meta Ads",
+        subtitle: "Facebook & Instagram",
+        href: "/channels/meta",
+        number: "06",
+        icon: "M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z",
+        section: 'canales',
+        requiresIntegration: 'meta',
+    },
+    {
+        title: "Google Ads",
+        subtitle: "Search, Display & Shopping",
+        href: "/channels/google",
+        number: "07",
+        icon: "M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z",
+        section: 'canales',
+        requiresIntegration: 'google',
+    },
+    {
+        title: "Ecommerce",
+        subtitle: "Tienda Nube / Shopify",
+        href: "/channels/ecommerce",
+        number: "08",
+        icon: "M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z",
+        section: 'canales',
+        requiresIntegration: 'ecommerce',
+    },
+    {
+        title: "Email",
+        subtitle: "Perfit / Klaviyo",
+        href: "/channels/email",
+        number: "09",
+        icon: "M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
+        section: 'canales',
+        requiresIntegration: 'email',
+    },
     // ── INTELIGENCIA ─────────────────────────
     {
         title: "Creative Intel",
         subtitle: "Análisis y librería de activos",
         href: "/creative",
-        number: "04",
+        number: "10",
         icon: "M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z",
         section: 'inteligencia',
     },
@@ -47,7 +102,7 @@ export const navConfig: NavItem[] = [
         title: "Conceptos",
         subtitle: "Librería de conceptos y briefs",
         href: "/concepts",
-        number: "05",
+        number: "11",
         icon: "M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.675.337a4 4 0 00-1.547 5.47l.337.675a6 6 0 005.47 1.547l.675-.337a4 4 0 001.547-5.47l-.337-.675z",
         section: 'inteligencia',
     },
@@ -55,7 +110,7 @@ export const navConfig: NavItem[] = [
         title: "AI Handbook",
         subtitle: "Guía de alertas y lógica",
         href: "/academy/alerts",
-        number: "06",
+        number: "12",
         icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253",
         section: 'inteligencia',
     },
@@ -64,7 +119,7 @@ export const navConfig: NavItem[] = [
         title: "Cerebro de Worker",
         subtitle: "IA, motor de decisiones y logica",
         href: "/admin/cerebro",
-        number: "07",
+        number: "13",
         icon: "M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z",
         adminOnly: true,
         section: 'admin',
@@ -73,7 +128,7 @@ export const navConfig: NavItem[] = [
         title: "Administración",
         subtitle: "Gestión de clientes y accesos",
         href: "/admin/clients",
-        number: "08",
+        number: "14",
         icon: "M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z",
         adminOnly: true,
         section: 'admin',
@@ -82,7 +137,7 @@ export const navConfig: NavItem[] = [
         title: "Alertas",
         subtitle: "Switches y plantillas de Slack",
         href: "/admin/alerts",
-        number: "09",
+        number: "15",
         icon: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9",
         adminOnly: true,
         section: 'admin',
@@ -91,7 +146,7 @@ export const navConfig: NavItem[] = [
         title: "Cron Manual",
         subtitle: "Ejecutar pipelines manualmente",
         href: "/admin/cron",
-        number: "10",
+        number: "16",
         icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15",
         adminOnly: true,
         section: 'admin',
@@ -100,7 +155,7 @@ export const navConfig: NavItem[] = [
         title: "Sistema",
         subtitle: "Eventos, cron history y health",
         href: "/admin/system",
-        number: "11",
+        number: "17",
         icon: "M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z",
         adminOnly: true,
         section: 'admin',
