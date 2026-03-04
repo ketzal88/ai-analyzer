@@ -19,7 +19,11 @@
       "mcp__claude_ai_Dashbo__dashbo_list_client_available_fields",
       "Bash(node -e:*)",
       "Bash(npm run dev:*)",
-      "mcp__claude_ai_Dashbo__dashbo_query_data"
+      "mcp__claude_ai_Dashbo__dashbo_query_data",
+      "Bash(git ls-tree:*)",
+      "Bash(npx next build:*)",
+      "Bash(npx tsx scripts/update-clients-from-csv.ts:*)",
+      "Bash(npx tsx:*)"
     ]
   }
 }

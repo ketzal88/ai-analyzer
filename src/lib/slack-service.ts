@@ -3,6 +3,14 @@ import { Alert, Client } from "@/types";
 import { EntityRollingMetrics } from "@/types/performance-snapshots";
 import { MTDAggregation } from "@/types/client-snapshot";
 import { AccountHealth } from "@/types/system-events";
+import { SystemSettingsService } from "@/lib/system-settings-service";
+import {
+    businessTypeToObjective,
+    getPrimaryMetric,
+    isRoasRelevant,
+    isCpaRelevant,
+    CampaignObjectiveType,
+} from "@/lib/objective-utils";
 
 interface DailySnapshotKPIs {
     // Gastos y Tráfico
@@ -55,6 +63,14 @@ export class SlackService {
 
     private static async postMessage(botToken: string | null, webhook: string | null, channel: string | null, blocks: any[], fallbackText: string) {
         try {
+            // Master Switch Check
+            const sysSettings = await SystemSettingsService.getSettings();
+            const errorChannel = process.env.SLACK_ERROR_CHANNEL_ID || process.env.SLACK_ERROR_CHANNEL;
+            if (!sysSettings.alertsEnabled && channel !== errorChannel) {
+                console.log(`[SlackService] Alerts are GLOBALLY DISABLED. Skipping delivery to channel: ${channel}`);
+                return;
+            }
+
             if (botToken && channel) {
                 const res = await fetch("https://slack.com/api/chat.postMessage", {
                     method: "POST",
@@ -88,7 +104,10 @@ export class SlackService {
         return n % 1 === 0 ? n.toLocaleString("es-AR") : n.toFixed(2);
     }
 
-    private static fmtCurrency(n: number): string {
+    private static fmtCurrency(n: number, currency?: string): string {
+        if (currency && currency !== "USD") {
+            return `$${this.fmtNum(n)} ${currency}`;
+        }
         return `$${this.fmtNum(n)}`;
     }
 
@@ -150,7 +169,6 @@ export class SlackService {
         text += `\n💬 *Mensaje:*\n\`\`\`${opts.message}\`\`\`\n`;
 
         if (opts.stack) {
-            // Truncate stack to avoid Slack's 3000 char limit
             const shortStack = opts.stack.length > 800 ? opts.stack.substring(0, 800) + "\n..." : opts.stack;
             text += `\n📋 *Stack Trace:*\n\`\`\`${shortStack}\`\`\`\n`;
         }
@@ -188,7 +206,6 @@ export class SlackService {
                 })
             });
         } catch (e) {
-            // Last resort: don't throw from the error logger itself
             console.error("[SlackError] Failed to send error to Slack:", e);
         }
     }
@@ -204,6 +221,8 @@ export class SlackService {
         kpis: DailySnapshotKPIs,
         titleTemplate?: string
     ) {
+
+
         const { client, channel, botToken, webhook } = await this.resolveChannel(clientId);
 
         if (!botToken && !webhook) {
@@ -212,10 +231,10 @@ export class SlackService {
         }
 
         const businessType = client?.businessType || "ecommerce";
-        const isEcommerce = businessType === "ecommerce";
-        const isLeadGen = businessType === "leads";
-        const isWhatsApp = businessType === "whatsapp";
-        const isApps = businessType === "apps";
+        const objective = businessTypeToObjective(businessType);
+        const primaryMetric = getPrimaryMetric(objective);
+        const showRoas = isRoasRelevant(objective);
+        const showCpa = isCpaRelevant(objective);
 
         // ── Build mrkdwn text (simpler, like the user's example) ──
         let title = titleTemplate || `📊 *Reporte Acumulado Mes — {clientName}* (del {startDate} al {endDate})`;
@@ -226,42 +245,49 @@ export class SlackService {
 
         let text = `${title}\n\n`;
 
+        const currency = client?.currency || "USD";
+
         // Gastos y Tráfico
         text += `💰 *Gastos y Tráfico*\n`;
-        text += `• Inversión: ${this.fmtCurrency(kpis.spend)}\n`;
+        text += `• Inversión: ${this.fmtCurrency(kpis.spend, currency)}\n`;
         text += `• Clicks: ${this.fmtNum(kpis.clicks)}\n`;
-        text += `• CPC: ${this.fmtCurrency(kpis.cpc)}\n`;
+        text += `• CPC: ${this.fmtCurrency(kpis.cpc, currency)}\n`;
         text += `• CTR: ${this.fmtPct(kpis.ctr)}\n`;
         text += `• Impresiones: ${this.fmtNum(kpis.impressions)}\n\n`;
 
-        // Conversiones (ecommerce)
-        if (isEcommerce) {
+        // Primary conversions section — driven by objective
+        if (objective === 'sales') {
             text += `🛒 *Conversiones*\n`;
-            text += `• Purchases: ${kpis.purchases}\n`;
-            text += `• Valor de compra: ${this.fmtCurrency(kpis.purchaseValue)}\n`;
-            text += `• Coste por compra: ${this.fmtCurrency(kpis.costPerPurchase)}\n`;
+            text += `• ${primaryMetric.labelEs}: ${kpis.purchases}\n`;
+            text += `• Valor de compra: ${this.fmtCurrency(kpis.purchaseValue, currency)}\n`;
+            text += `• Coste por compra: ${this.fmtCurrency(kpis.costPerPurchase, currency)}\n`;
             text += `• ROAS: ${kpis.roas.toFixed(2)}\n\n`;
+        } else if (objective === 'leads') {
+            text += `📋 *${primaryMetric.labelEs}*\n`;
+            text += `• ${primaryMetric.labelEs}: ${kpis.leads}\n`;
+            text += `• Coste por ${primaryMetric.labelEs}: ${this.fmtCurrency(kpis.costPerLead, currency)}\n\n`;
+        } else if (objective === 'messaging') {
+            text += `💬 *${primaryMetric.labelEs}*\n`;
+            text += `• ${primaryMetric.labelEs}: ${kpis.whatsapp}\n`;
+            text += `• Coste por conversación: ${this.fmtCurrency(kpis.costPerWhatsapp, currency)}\n\n`;
+        } else if (objective === 'app_installs') {
+            text += `📱 *${primaryMetric.labelEs}*\n`;
+            text += `• ${primaryMetric.labelEs}: ${(kpis as any).installs || 0}\n`;
+            text += `• Coste por ${primaryMetric.labelEs}: ${this.fmtCurrency((kpis as any).costPerInstall || 0, currency)}\n\n`;
         }
 
-        // Leads
-        if (isLeadGen) {
-            text += `📋 *Generación de Leads*\n`;
-            text += `• Leads: ${kpis.leads}\n`;
-            text += `• Coste por Lead: ${this.fmtCurrency(kpis.costPerLead)}\n\n`;
-        }
-
-        // WhatsApp
-        if (isWhatsApp || kpis.whatsapp > 0) {
+        // Show secondary WhatsApp data if not primary but has data
+        if (objective !== 'messaging' && kpis.whatsapp > 0) {
             text += `💬 *WhatsApp*\n`;
             text += `• Conversaciones: ${kpis.whatsapp}\n`;
-            text += `• Coste por conversación: ${this.fmtCurrency(kpis.costPerWhatsapp)}\n\n`;
+            text += `• Coste por conversación: ${this.fmtCurrency(kpis.costPerWhatsapp, currency)}\n\n`;
         }
 
-        // App Installs
-        if (isApps || (kpis as any).installs > 0) {
+        // Show secondary App Installs if not primary but has data
+        if (objective !== 'app_installs' && (kpis as any).installs > 0) {
             text += `📱 *App Installs*\n`;
             text += `• Installs: ${(kpis as any).installs || 0}\n`;
-            text += `• Coste por Install: ${this.fmtCurrency((kpis as any).costPerInstall || 0)}\n\n`;
+            text += `• Coste por Install: ${this.fmtCurrency((kpis as any).costPerInstall || 0, currency)}\n\n`;
         }
 
         // Eventos de intención
@@ -269,13 +295,13 @@ export class SlackService {
             text += `🧺 *Eventos de intención*\n`;
             if (kpis.addToCart > 0) {
                 text += `• Add to Cart: ${kpis.addToCart}\n`;
-                if (kpis.addToCartValue > 0) text += `• Valor ATC: ${this.fmtCurrency(kpis.addToCartValue)}\n`;
-                text += `• Coste ATC: ${this.fmtCurrency(kpis.costPerAddToCart)}\n\n`;
+                if (kpis.addToCartValue > 0) text += `• Valor ATC: ${this.fmtCurrency(kpis.addToCartValue, currency)}\n`;
+                text += `• Coste ATC: ${this.fmtCurrency(kpis.costPerAddToCart, currency)}\n\n`;
             }
             if (kpis.checkout > 0) {
                 text += `• Checkout: ${kpis.checkout}\n`;
-                if (kpis.checkoutValue > 0) text += `• Valor Checkout: ${this.fmtCurrency(kpis.checkoutValue)}\n`;
-                text += `• Coste Checkout: ${this.fmtCurrency(kpis.costPerCheckout)}\n\n`;
+                if (kpis.checkoutValue > 0) text += `• Valor Checkout: ${this.fmtCurrency(kpis.checkoutValue, currency)}\n`;
+                text += `• Coste Checkout: ${this.fmtCurrency(kpis.costPerCheckout, currency)}\n\n`;
             }
         }
 
@@ -304,6 +330,13 @@ export class SlackService {
     // ═════════════════════════════════════════════════════════
 
     static async sendCriticalAlert(clientId: string, clientName: string, alert: Alert) {
+        // Global Check
+        const sysSettings = await SystemSettingsService.getSettings();
+        if (!sysSettings.enabledAlertTypes.includes(alert.type)) {
+            console.log(`[SlackService] Alert Type ${alert.type} is GLOBALLY DISABLED. Skipping delivery.`);
+            return;
+        }
+
         const { channel, botToken, webhook } = await this.resolveChannel(clientId);
 
         if (!botToken && !webhook) return;
@@ -391,6 +424,17 @@ export class SlackService {
             return acc;
         }, {} as Record<string, Alert[]>);
 
+        // Calculate Date Range for analysis (last 7 days from most recent alert)
+        const latestAlertDate = alerts.length > 0
+            ? new Date(Math.max(...alerts.map(a => new Date(a.createdAt).getTime())))
+            : new Date();
+
+        const startAnalysis = new Date(latestAlertDate);
+        startAnalysis.setDate(startAnalysis.getDate() - 7);
+
+        const formatDate = (d: Date) => `${d.getDate()}/${d.getMonth() + 1}`;
+        const dateRangeStr = `(${formatDate(startAnalysis)} al ${formatDate(latestAlertDate)})`;
+
         const blocks: any[] = [
             {
                 type: "header",
@@ -404,7 +448,7 @@ export class SlackService {
                 type: "section",
                 text: {
                     type: "mrkdwn",
-                    text: `He analizado tus campañas. Aquí están las acciones recomendadas para hoy:`
+                    text: `He analizado tus campañas entre el *${formatDate(startAnalysis)}* y el *${formatDate(latestAlertDate)}*. Aquí están las acciones recomendadas para hoy:`
                 }
             }
         ];
@@ -418,12 +462,15 @@ export class SlackService {
             });
 
             topImpact.forEach(item => {
-                const evidenceLine = item.evidence?.[0] || "Consultar dashboard";
+                const evidenceText = item.evidence?.length > 0
+                    ? item.evidence.join(" | ")
+                    : "Consultar dashboard";
+
                 blocks.push({
                     type: "section",
                     text: {
                         type: "mrkdwn",
-                        text: `• *${item.title}*\n  📊 _Evidencia:_ ${evidenceLine}\n  ✅ _Acción:_ ${item.description}`
+                        text: `• *${item.title}*\n  📊 _Evidencia:_ ${evidenceText}\n  ✅ _Acción:_ ${item.description}`
                     }
                 });
             });
@@ -450,18 +497,33 @@ export class SlackService {
             "KILL_RETRY", "UNDERFUNDED_WINNER", "LEARNING_RESET_RISK", "CPA_VOLATILITY"
         ];
 
+        const categoryExplanations: Record<string, string> = {
+            SCALING_OPPORTUNITY: "_CPA por debajo del objetivo y volumen estable. Oportunidad de invertir más._",
+            CPA_SPIKE: "_El coste por resultado subió bruscamente vs la semana anterior._",
+            BUDGET_BLEED: "_Gasto acumulado sin conversiones. Detener o revisar creativos._",
+            ROTATE_CONCEPT: "_Frecuencia alta con caída en CTR/Hook Rate. El público ya se cansó de este anuncio._",
+            CONSOLIDATE: "_Muchos conjuntos de anuncios compitiendo entre sí. Sugerimos agrupar._",
+            KILL_RETRY: "_Anuncios que no lograron traccionar después de un gasto significativo._",
+            CPA_VOLATILITY: "_Inestabilidad en los resultados causada por cambios bruscos de presupuesto._",
+            UNDERFUNDED_WINNER: "_Anuncios con excelente ROAS pero poco presupuesto asignado._"
+        };
+
         for (const type of decisionOrder) {
             const items = grouped[type]?.filter(a => !topImpact.find(ti => ti.id === a.id));
             if (items && items.length > 0) {
                 blocks.push({
                     type: "section",
-                    text: { type: "mrkdwn", text: `*${emojis[type] || type} (${items.length})*` }
+                    text: {
+                        type: "mrkdwn",
+                        text: `*${emojis[type] || type} (${items.length})* ${dateRangeStr}\n${categoryExplanations[type] || ""}`
+                    }
                 });
 
-                items.slice(0, 3).forEach(item => {
+                items.slice(0, 5).forEach(item => {
+                    const briefEvidence = item.evidence?.[0] ? ` (${item.evidence[0]})` : "";
                     blocks.push({
                         type: "section",
-                        text: { type: "mrkdwn", text: `• ${item.title}` }
+                        text: { type: "mrkdwn", text: `• ${item.title}${briefEvidence}` }
                     });
                 });
             }
@@ -492,9 +554,30 @@ export class SlackService {
         purchases: number, purchasesDelta: number,
         metricName?: string
     }) {
-        const { channel, botToken, webhook } = await this.resolveChannel(clientId);
+        const { client, channel, botToken, webhook } = await this.resolveChannel(clientId);
 
         if (!botToken && !webhook) return;
+
+        const businessType = client?.businessType || "ecommerce";
+        const objective = businessTypeToObjective(businessType);
+        const primaryMetric = getPrimaryMetric(objective);
+        const showRoas = isRoasRelevant(objective);
+        const showCpa = isCpaRelevant(objective);
+
+        // Build fields dynamically based on objective
+        const fields: any[] = [
+            { type: "mrkdwn", text: `*Gasto 7d:*\n${this.fmtCurrency(kpis.spend)} (${this.fmtDelta(kpis.spendDelta)})` },
+        ];
+
+        if (showCpa) {
+            fields.push({ type: "mrkdwn", text: `*CPA 7d:*\n${this.fmtCurrency(kpis.cpa)} (${this.fmtDelta(kpis.cpaDelta * -1)})` });
+        }
+
+        if (showRoas) {
+            fields.push({ type: "mrkdwn", text: `*ROAS 7d:*\n${kpis.roas ? kpis.roas.toFixed(2) : '0'}x (${this.fmtDelta(kpis.roasDelta)})` });
+        }
+
+        fields.push({ type: "mrkdwn", text: `*${kpis.metricName || primaryMetric.labelEs}:*\n${kpis.purchases} (${this.fmtDelta(kpis.purchasesDelta)})` });
 
         const blocks = [
             {
@@ -514,12 +597,7 @@ export class SlackService {
             },
             {
                 type: "section",
-                fields: [
-                    { type: "mrkdwn", text: `*Gasto 7d:*\n${this.fmtCurrency(kpis.spend)} (${this.fmtDelta(kpis.spendDelta)})` },
-                    { type: "mrkdwn", text: `*CPA 7d:*\n${this.fmtCurrency(kpis.cpa)} (${this.fmtDelta(kpis.cpaDelta * -1)})` },
-                    { type: "mrkdwn", text: `*ROAS 7d:*\n${kpis.roas ? kpis.roas.toFixed(2) : '0'}x (${this.fmtDelta(kpis.roasDelta)})` },
-                    { type: "mrkdwn", text: `*${kpis.metricName || 'Compras'}:*\n${kpis.purchases} (${this.fmtDelta(kpis.purchasesDelta)})` }
-                ]
+                fields
             },
             { type: "divider" },
             {
@@ -614,7 +692,7 @@ export class SlackService {
             purchaseValue: (r.roas_7d || 0) * spend,
             costPerPurchase: r.cpa_7d || 0,
             roas: r.roas_7d || 0,
-            addToCart: 0, // Will be populated from daily snapshots if available
+            addToCart: 0,
             addToCartValue: 0,
             costPerAddToCart: 0,
             checkout: 0,
@@ -627,9 +705,6 @@ export class SlackService {
         };
     }
 
-    /**
-     * Build snapshot KPIs from aggregated daily entity snapshots (more detailed data)
-     */
     static buildSnapshotFromDailyAggregation(
         snapshots: Array<{ performance: any }>,
         spend: number
@@ -663,10 +738,10 @@ export class SlackService {
             costPerPurchase: totalPurchases > 0 ? spend / totalPurchases : 0,
             roas: spend > 0 ? totalRevenue / spend : 0,
             addToCart: totalATC,
-            addToCartValue: 0, // Requires extended data
+            addToCartValue: 0,
             costPerAddToCart: totalATC > 0 ? spend / totalATC : 0,
             checkout: totalCheckout,
-            checkoutValue: 0, // Requires extended data
+            checkoutValue: 0,
             costPerCheckout: totalCheckout > 0 ? spend / totalCheckout : 0,
             leads: totalLeads,
             costPerLead: totalLeads > 0 ? spend / totalLeads : 0,
@@ -677,10 +752,6 @@ export class SlackService {
         } as any;
     }
 
-    /**
-     * Build snapshot KPIs from pre-computed client snapshot's accountSummary.
-     * Uses MTD data when available, falls back to rolling 7d metrics.
-     */
     static buildSnapshotFromClientSnapshot(accountSummary: {
         rolling: EntityRollingMetrics["rolling"];
         mtd: MTDAggregation | null;
@@ -688,7 +759,6 @@ export class SlackService {
         const r = accountSummary.rolling;
         const mtd = accountSummary.mtd;
 
-        // Prefer MTD aggregation when available (more detailed)
         if (mtd && mtd.spend > 0) {
             const spend = mtd.spend;
             return {
@@ -714,7 +784,6 @@ export class SlackService {
             };
         }
 
-        // Fallback to rolling 7d
         const spend = r.spend_7d || 0;
         const clicks = r.clicks_7d || 0;
         const purchases = r.purchases_7d || 0;

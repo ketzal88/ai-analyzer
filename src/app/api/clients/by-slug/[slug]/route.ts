@@ -1,5 +1,6 @@
 import { auth, db } from "@/lib/firebase-admin";
 import { NextRequest, NextResponse } from "next/server";
+import { withErrorReporting } from "@/lib/error-reporter";
 
 async function findClientBySlug(slug: string) {
     const snapshot = await db
@@ -15,29 +16,25 @@ async function findClientBySlug(slug: string) {
 /**
  * GET /api/clients/by-slug/[slug] - Get a single client by its slug (Admin only)
  */
-export async function GET(
+export const GET = withErrorReporting("API Client by Slug GET", async (
     request: NextRequest,
     { params }: { params: Promise<{ slug: string }> }
-) {
-    try {
-        const sessionCookie = request.cookies.get("session")?.value;
-        if (!sessionCookie) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+) => {
+    const sessionCookie = request.cookies.get("session")?.value;
+    if (!sessionCookie) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-        await auth.verifySessionCookie(sessionCookie);
+    await auth.verifySessionCookie(sessionCookie);
 
-        const { slug } = await params;
-        const doc = await findClientBySlug(slug);
+    const { slug } = await params;
+    const doc = await findClientBySlug(slug);
 
-        if (!doc) {
-            return NextResponse.json({ error: "Client not found." }, { status: 404 });
-        }
-
-        const client = { id: doc.id, ...doc.data() };
-        return NextResponse.json(client);
-    } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+    if (!doc) {
+        return NextResponse.json({ error: "Client not found." }, { status: 404 });
     }
-}
+
+    const client = { id: doc.id, ...doc.data() };
+    return NextResponse.json(client);
+});
 
 /**
  * PATCH /api/clients/by-slug/[slug] - Update a client by its slug (Admin only)

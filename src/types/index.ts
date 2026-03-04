@@ -82,7 +82,7 @@ export interface Alert {
 
 export type Severity = severity; // maintain backward compatibility
 
-export type Currency = "USD" | "EUR" | "GBP" | "CAD" | "AUD" | "BRL" | "MXN";
+export type Currency = "USD" | "EUR" | "GBP" | "CAD" | "AUD" | "BRL" | "MXN" | "COP" | "ARS";
 
 /**
  * Account Interface (Firestore Document)
@@ -272,6 +272,7 @@ export interface Client {
     isGoogle: boolean;
     metaAdAccountId?: string;
     googleAdsId?: string;
+    currency?: Currency;
     slackPublicChannel?: string;
     slackInternalChannel?: string;
 

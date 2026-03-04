@@ -1,5 +1,7 @@
 import { ClassificationEntry, EntitySnapshotEntry } from "@/types/client-snapshot";
 import { EntityRollingMetrics } from "@/types/performance-snapshots";
+import { getPrimaryMetricValue, resolveObjective, type CampaignObjectiveType } from "@/lib/objective-utils";
+import type { CreativeDNA } from "@/types/creative-dna";
 
 /**
  * Creative Category — classifies each ad into one of 6 strategic categories
@@ -17,6 +19,7 @@ export interface CreativeCategoryResult {
     entityId: string;
     category: CreativeCategory;
     reasoning: string;
+    dnaInsight?: string; // Enriched with Creative DNA when available
 }
 
 export class CreativeClassifier {
@@ -33,7 +36,8 @@ export class CreativeClassifier {
         ads: EntitySnapshotEntry[],
         classifications: ClassificationEntry[],
         accountSpend7d: number,
-        targetCpa?: number
+        targetCpa?: number,
+        dnaMap?: Map<string, CreativeDNA>
     ): CreativeCategoryResult[] {
         const results: CreativeCategoryResult[] = [];
 
@@ -47,10 +51,11 @@ export class CreativeClassifier {
             const impressions = ad.rolling.impressions_7d || 0;
             const daysActive = ad.rolling.days_active || 0;
 
-            // Get conversion metric based on what's available
+            // Get conversion metric based on what's available (all conversion types)
             const conversions7d = (ad.rolling.purchases_7d || 0)
                 + (ad.rolling.leads_7d || 0)
                 + (ad.rolling.whatsapp_7d || 0)
+                + (ad.rolling.schedule_7d || 0)
                 + (ad.rolling.installs_7d || 0);
 
             const spendPct = accountSpend7d > 0 ? (spend7d / accountSpend7d) * 100 : 0;
@@ -68,6 +73,21 @@ export class CreativeClassifier {
                 targetCpa,
                 classif,
             });
+
+            // Enrich with DNA insight if available
+            if (dnaMap) {
+                const dna = dnaMap.get(ad.entityId);
+                if (dna) {
+                    const traits = [
+                        dna.vision.visualStyle,
+                        dna.vision.hookType + ' hook',
+                        dna.vision.hasFace ? 'face' : null,
+                        dna.copy.messageType + ' copy',
+                        dna.format.toLowerCase()
+                    ].filter(Boolean).join(' + ');
+                    category.dnaInsight = traits;
+                }
+            }
 
             results.push(category);
         }
