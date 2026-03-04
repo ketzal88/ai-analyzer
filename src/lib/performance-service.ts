@@ -8,6 +8,7 @@ import {
     ConceptRollingMetrics,
     MetaInfo
 } from "@/types/performance-snapshots";
+import { resolveObjective, getPrimaryMetric } from "@/lib/objective-utils";
 
 const META_API_VERSION = process.env.META_API_VERSION || "v24.0";
 const META_ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
@@ -225,6 +226,7 @@ export class PerformanceService {
             purchases,
             leads: getAction("lead"),
             whatsapp: getAction("onsite_conversion.messaging_conversation_started_7d"),
+            schedule: getAction("onsite_conversion.lead_grouped") || getAction("schedule") || getAction("onsite_conversion.schedule_total"),
             revenue,
             roas: spend > 0 ? revenue / spend : 0,
             addToCart: getAction("add_to_cart"),
@@ -319,14 +321,12 @@ export class PerformanceService {
             const prev7d = this.sumPerformance(group.filter(s => this.isWithinDays(s.date, 14, refDate) && !this.isWithinDays(s.date, 7, refDate)));
 
             const obj = group[0]?.meta?.objective;
-            const name = (group[0]?.name || "").toLowerCase();
-            const isMessaging = obj === 'OUTCOME_ENGAGEMENT' || obj === 'MESSAGES' || name.includes("mensaje") || name.includes("message");
-            const isLeads = obj === 'OUTCOME_LEAD_GEN' || name.includes("leads") || name.includes("clientes");
+            const entityName = group[0]?.name || "";
+            const resolvedObjective = resolveObjective(obj, entityName);
+            const metricInfo = getPrimaryMetric(resolvedObjective);
 
             const getResults = (r: any) => {
-                if (isMessaging) return r.whatsapp || 0;
-                if (isLeads) return r.leads || 0;
-                return r.purchases || 0;
+                return Number(r[metricInfo.dailyField] || 0);
             };
 
             // CPA delta (uses the relevant metric)
@@ -369,11 +369,15 @@ export class PerformanceService {
                     purchases_7d: r7d.purchases,
                     leads_7d: r7d.leads,
                     whatsapp_7d: r7d.whatsapp,
+                    schedule_7d: r7d.schedule,
+                    installs_7d: r7d.installs,
+                    video_views_7d: r7d.videoPlayCount,
                     ctr_7d: r7d.impressions > 0 ? (r7d.clicks / r7d.impressions) * 100 : 0,
 
-                    cpa_3d: r3d.purchases > 0 ? r3d.spend / r3d.purchases : undefined,
-                    cpa_7d: r7d.purchases > 0 ? r7d.spend / r7d.purchases : undefined,
-                    cpa_14d: r14d.purchases > 0 ? r14d.spend / r14d.purchases : undefined,
+                    // CPA calculated using the objective-resolved primary metric
+                    cpa_3d: getResults(r3d) > 0 ? r3d.spend / getResults(r3d) : undefined,
+                    cpa_7d: getResults(r7d) > 0 ? r7d.spend / getResults(r7d) : undefined,
+                    cpa_14d: getResults(r14d) > 0 ? r14d.spend / getResults(r14d) : undefined,
                     cpa_delta_pct: cpaDeltaPct,
 
                     roas_7d: r7d.spend > 0 ? r7d.revenue / r7d.spend : undefined,
@@ -396,7 +400,15 @@ export class PerformanceService {
                         r7d.impressions > 0 ? (r7d.hookViews / r7d.impressions) * 100 : 0,
                         prev7d.impressions > 0 ? (prev7d.hookViews / prev7d.impressions) * 100 : 0
                     ),
-                    fitr_7d: r7d.clicks > 0 ? (r7d.purchases / r7d.clicks) * 100 : 0,
+                    hold_rate_7d: r7d.hookViews > 0 ? (r7d.videoP75Count / r7d.hookViews) * 100 : undefined,
+                    hold_rate_delta_pct: this.calcDelta(
+                        r7d.hookViews > 0 ? (r7d.videoP75Count / r7d.hookViews) * 100 : 0,
+                        prev7d.hookViews > 0 ? (prev7d.videoP75Count / prev7d.hookViews) * 100 : 0
+                    ),
+                    completion_rate_7d: r7d.videoPlayCount > 0 ? (r7d.videoP100Count / r7d.videoPlayCount) * 100 : undefined,
+                    drop_off_point: this.calcDropOffPoint(r7d),
+                    frequency_velocity_3d: this.calcFrequencyVelocity(r3d, prev3d),
+                    fitr_7d: r7d.clicks > 0 ? (getResults(r7d) / r7d.clicks) * 100 : 0,
                     retention_rate_7d: r7d.videoPlayCount > 0 ? (r7d.videoP50Count / r7d.videoPlayCount) * 100 : 0,
                     conversion_per_impression_delta: convPerImpDelta,
 
@@ -449,6 +461,13 @@ export class PerformanceService {
             const r7d = this.sumPerformance(group.filter(s => this.isWithinDays(s.date, 7, refDate)));
             const r14d = this.sumPerformance(group.filter(s => this.isWithinDays(s.date, 14, refDate)));
 
+            // Resolve objective from the first ad in this concept group
+            const conceptObj = group[0]?.meta?.objective;
+            const conceptName = group[0]?.name || "";
+            const conceptResolved = resolveObjective(conceptObj, conceptName);
+            const conceptMetricInfo = getPrimaryMetric(conceptResolved);
+            const getConceptResults = (r: any) => Number(r[conceptMetricInfo.dailyField] || 0);
+
             const adsInConcept = group.filter(s => this.isWithinDays(s.date, 7, refDate));
             const adSpends = adsInConcept.reduce((acc, s) => {
                 acc[s.entityId] = (acc[s.entityId] || 0) + s.performance.spend;
@@ -459,8 +478,8 @@ export class PerformanceService {
             const concentration = r7d.spend > 0 ? top1Spend / r7d.spend : 0;
 
             const rolling: ConceptRollingMetrics["rolling"] = {
-                avg_cpa_7d: r7d.purchases > 0 ? r7d.spend / r7d.purchases : 0,
-                avg_cpa_14d: r14d.purchases > 0 ? r14d.spend / r14d.purchases : 0,
+                avg_cpa_7d: getConceptResults(r7d) > 0 ? r7d.spend / getConceptResults(r7d) : 0,
+                avg_cpa_14d: getConceptResults(r14d) > 0 ? r14d.spend / getConceptResults(r14d) : 0,
                 hook_rate_delta: this.calcDelta(
                     r7d.impressions > 0 ? (r7d.clicks / r7d.impressions) * 100 : 0,
                     r14d.impressions > 0 ? (r14d.clicks / r14d.impressions) * 100 : 0
@@ -500,6 +519,8 @@ export class PerformanceService {
             acc.purchases += (s.performance.purchases || 0);
             acc.leads += (s.performance.leads || 0);
             acc.whatsapp += (s.performance.whatsapp || 0);
+            acc.schedule += (s.performance.schedule || 0);
+            acc.installs += (s.performance.installs || 0);
             acc.revenue += (s.performance.revenue || 0);
             acc.impressions += s.performance.impressions;
             acc.clicks += s.performance.clicks;
@@ -511,9 +532,39 @@ export class PerformanceService {
             acc.videoP100Count += (s.engagement?.videoP100Count || 0);
             return acc;
         }, {
-            spend: 0, purchases: 0, leads: 0, whatsapp: 0, revenue: 0, impressions: 0, clicks: 0, reach: 0,
+            spend: 0, purchases: 0, leads: 0, whatsapp: 0, schedule: 0, installs: 0,
+            revenue: 0, impressions: 0, clicks: 0, reach: 0,
             hookViews: 0, videoPlayCount: 0, videoP50Count: 0, videoP75Count: 0, videoP100Count: 0
         });
+    }
+
+    static calcDropOffPoint(r: { hookViews: number; videoPlayCount: number; videoP50Count: number; videoP75Count: number; videoP100Count: number }): string | undefined {
+        if (r.videoPlayCount === 0) return undefined;
+        const stages = [
+            { label: 'p25', count: r.hookViews },       // 3s/25%
+            { label: 'p50', count: r.videoP50Count },
+            { label: 'p75', count: r.videoP75Count },
+            { label: 'p100', count: r.videoP100Count }
+        ];
+        let maxDrop = 0;
+        let dropPoint: string | undefined;
+        let prev = r.videoPlayCount;
+        for (const stage of stages) {
+            const drop = prev > 0 ? ((prev - stage.count) / prev) * 100 : 0;
+            if (drop > maxDrop) {
+                maxDrop = drop;
+                dropPoint = stage.label;
+            }
+            prev = stage.count;
+        }
+        return dropPoint;
+    }
+
+    static calcFrequencyVelocity(r3d: { impressions: number; reach: number }, prev3d: { impressions: number; reach: number }): number | undefined {
+        const freq3d = r3d.impressions > 0 ? r3d.impressions / (r3d.reach || 1) : 0;
+        const freqPrev3d = prev3d.impressions > 0 ? prev3d.impressions / (prev3d.reach || 1) : 0;
+        if (freqPrev3d === 0) return undefined;
+        return (freq3d - freqPrev3d) / 3; // change per day
     }
 
     static calcDelta(curr: number, prev: number) {
@@ -547,12 +598,23 @@ export class PerformanceService {
         const r30d = this.sumPerformance(group.filter(s => this.isWithinDays(s.date, 30, refDate)));
         const prev7d = this.sumPerformance(group.filter(s => this.isWithinDays(s.date, 14, refDate) && !this.isWithinDays(s.date, 7, refDate)));
 
-        const cpa7d = r7d.purchases > 0 ? r7d.spend / r7d.purchases : 0;
-        const cpa14d = r14d.purchases > 0 ? r14d.spend / r14d.purchases : 0;
+        // Resolve objective for this entity group
+        const obj = group[0]?.meta?.objective;
+        const entityName = group[0]?.name || "";
+        const resolved = resolveObjective(obj, entityName);
+        const metricInfo = getPrimaryMetric(resolved);
+        const getResults = (r: any) => Number(r[metricInfo.dailyField] || 0);
+
+        const mainResults3d = getResults(r3d);
+        const mainResults7d = getResults(r7d);
+        const mainResults14d = getResults(r14d);
+
+        const cpa7d = mainResults7d > 0 ? r7d.spend / mainResults7d : 0;
+        const cpa14d = mainResults14d > 0 ? r14d.spend / mainResults14d : 0;
         const cpaDeltaPct = this.calcDelta(cpa7d, cpa14d);
 
-        const convPerImp7d = r7d.impressions > 0 ? r7d.purchases / r7d.impressions : 0;
-        const convPerImpPrev = prev7d.impressions > 0 ? prev7d.purchases / prev7d.impressions : 0;
+        const convPerImp7d = r7d.impressions > 0 ? mainResults7d / r7d.impressions : 0;
+        const convPerImpPrev = prev7d.impressions > 0 ? getResults(prev7d) / prev7d.impressions : 0;
         const convPerImpDelta = this.calcDelta(convPerImp7d, convPerImpPrev);
 
         const prev3d = this.sumPerformance(group.filter(s => this.isWithinDays(s.date, 6, refDate) && !this.isWithinDays(s.date, 3, refDate)));
@@ -574,19 +636,23 @@ export class PerformanceService {
             purchases_7d: r7d.purchases,
             leads_7d: r7d.leads,
             whatsapp_7d: r7d.whatsapp,
+            schedule_7d: r7d.schedule,
+            installs_7d: r7d.installs,
+            video_views_7d: r7d.videoPlayCount,
             ctr_7d: r7d.impressions > 0 ? (r7d.clicks / r7d.impressions) * 100 : 0,
-            cpa_3d: r3d.purchases > 0 ? r3d.spend / r3d.purchases : undefined,
-            cpa_7d: r7d.purchases > 0 ? r7d.spend / r7d.purchases : undefined,
-            cpa_14d: r14d.purchases > 0 ? r14d.spend / r14d.purchases : undefined,
+            // CPA calculated using objective-resolved primary metric
+            cpa_3d: mainResults3d > 0 ? r3d.spend / mainResults3d : undefined,
+            cpa_7d: mainResults7d > 0 ? r7d.spend / mainResults7d : undefined,
+            cpa_14d: mainResults14d > 0 ? r14d.spend / mainResults14d : undefined,
             cpa_delta_pct: cpaDeltaPct,
             roas_7d: r7d.spend > 0 ? r7d.revenue / r7d.spend : undefined,
             roas_delta_pct: this.calcDelta(
                 r7d.spend > 0 ? r7d.revenue / r7d.spend : 0,
                 prev7d.spend > 0 ? prev7d.revenue / prev7d.spend : 0
             ),
-            conversion_velocity_3d: r3d.purchases / 3,
-            conversion_velocity_7d: r7d.purchases / 7,
-            conversion_velocity_14d: r14d.purchases / 14,
+            conversion_velocity_3d: mainResults3d / 3,
+            conversion_velocity_7d: mainResults7d / 7,
+            conversion_velocity_14d: mainResults14d / 14,
             frequency_7d: r7d.impressions > 0 ? r7d.impressions / (r7d.reach || 1) : undefined,
             ctr_delta_pct: this.calcDelta(
                 r7d.impressions > 0 ? (r7d.clicks / r7d.impressions) * 100 : 0,
@@ -597,7 +663,15 @@ export class PerformanceService {
                 r7d.impressions > 0 ? (r7d.hookViews / r7d.impressions) * 100 : 0,
                 prev7d.impressions > 0 ? (prev7d.hookViews / prev7d.impressions) * 100 : 0
             ),
-            fitr_7d: r7d.clicks > 0 ? (r7d.purchases / r7d.clicks) * 100 : 0,
+            hold_rate_7d: r7d.hookViews > 0 ? (r7d.videoP75Count / r7d.hookViews) * 100 : undefined,
+            hold_rate_delta_pct: this.calcDelta(
+                r7d.hookViews > 0 ? (r7d.videoP75Count / r7d.hookViews) * 100 : 0,
+                prev7d.hookViews > 0 ? (prev7d.videoP75Count / prev7d.hookViews) * 100 : 0
+            ),
+            completion_rate_7d: r7d.videoPlayCount > 0 ? (r7d.videoP100Count / r7d.videoPlayCount) * 100 : undefined,
+            drop_off_point: this.calcDropOffPoint(r7d),
+            frequency_velocity_3d: this.calcFrequencyVelocity(r3d, prev3d),
+            fitr_7d: r7d.clicks > 0 ? (mainResults7d / r7d.clicks) * 100 : 0,
             retention_rate_7d: r7d.videoPlayCount > 0 ? (r7d.videoP50Count / r7d.videoPlayCount) * 100 : 0,
             conversion_per_impression_delta: convPerImpDelta,
             spend_top1_ad_pct: spendTop1Pct,
@@ -629,6 +703,13 @@ export class PerformanceService {
             const r7d = this.sumPerformance(group.filter(s => this.isWithinDays(s.date, 7, refDate)));
             const r14d = this.sumPerformance(group.filter(s => this.isWithinDays(s.date, 14, refDate)));
 
+            // Resolve objective for this concept group
+            const cObj = group[0]?.meta?.objective;
+            const cName = group[0]?.name || "";
+            const cResolved = resolveObjective(cObj, cName);
+            const cMetricInfo = getPrimaryMetric(cResolved);
+            const getCResults = (r: any) => Number(r[cMetricInfo.dailyField] || 0);
+
             const adsInConcept = group.filter(s => this.isWithinDays(s.date, 7, refDate));
             const adSpends = adsInConcept.reduce((acc, s) => {
                 acc[s.entityId] = (acc[s.entityId] || 0) + s.performance.spend;
@@ -641,8 +722,8 @@ export class PerformanceService {
             results.push({
                 conceptId,
                 rolling: {
-                    avg_cpa_7d: r7d.purchases > 0 ? r7d.spend / r7d.purchases : 0,
-                    avg_cpa_14d: r14d.purchases > 0 ? r14d.spend / r14d.purchases : 0,
+                    avg_cpa_7d: getCResults(r7d) > 0 ? r7d.spend / getCResults(r7d) : 0,
+                    avg_cpa_14d: getCResults(r14d) > 0 ? r14d.spend / getCResults(r14d) : 0,
                     hook_rate_delta: this.calcDelta(
                         r7d.impressions > 0 ? (r7d.clicks / r7d.impressions) * 100 : 0,
                         r14d.impressions > 0 ? (r14d.clicks / r14d.impressions) * 100 : 0

@@ -24,6 +24,10 @@ export interface EngineConfig {
     alerts: {
         learningResetBudgetChangePct: number; // default 30
         scalingFrequencyMax: number;          // default 4
+        budgetBleedMultiplier: number;        // default 2 (spend > targetCpa * this = bleed)
+        scalingStableDays: number;            // default 3 (min days since edit to scale)
+        minSpendForAlerts: number;            // default 10 (min 7d spend to generate alerts)
+        velocityMinForScaling: number;        // default 0.5 (min daily velocity for scaling)
     };
 
     // Findings Engine (findings-engine.ts / migrated to alert-engine)
@@ -48,6 +52,27 @@ export interface EngineConfig {
         mofuScoreThreshold: number; // default 0.35
         volatilityPenalty: number;  // default 0.4 (40% penalty)
         minImpressionsForPenalty: number; // default 2000
+    };
+
+    // Video Diagnostics (alert-engine.ts)
+    video: {
+        hookKillThreshold: number;        // default 20 (Hook Rate < 20% = kill)
+        hookKillMinSpend: number;         // default 50
+        bodyWeakHoldThreshold: number;    // default 30 (Hold Rate < 30% = weak body)
+        bodyWeakHookMin: number;          // default 25 (Hook > 25% to trigger)
+        ctaWeakCtrThreshold: number;      // default 0.8 (CTR < 0.8% = weak CTA)
+        dropoffDeltaThreshold: number;    // default 50 (>50% drop between stages)
+        frequencyVelocityWarn: number;    // default 0.3 (freq increase per day)
+    };
+
+    // Format-Specific Diagnostics (alert-engine.ts)
+    format: {
+        imageInvisibleCtrThreshold: number;      // default 0.5 (CTR < 0.5% = invisible)
+        imageInvisibleMinImpressions: number;     // default 2000
+        imageNoConvertCtrMin: number;             // default 1.5 (CTR > 1.5% but no conversions)
+        imageNoConvertCpaMultiplier: number;      // default 2 (CPA > 2x target)
+        creativeMixMinFormats: number;            // default 3 (min distinct formats for Andromeda)
+        creativeMixConcentrationPct: number;      // default 0.8 (>80% spend in one format = warning)
     };
 
     // Alert Templates (New)
@@ -81,7 +106,11 @@ export function getDefaultEngineConfig(clientId: string, businessType: BusinessT
         },
         alerts: {
             learningResetBudgetChangePct: 30,
-            scalingFrequencyMax: 4
+            scalingFrequencyMax: 4,
+            budgetBleedMultiplier: 2,
+            scalingStableDays: 3,
+            minSpendForAlerts: 10,
+            velocityMinForScaling: 0.5
         },
         findings: {
             cpaSpikeThreshold: 0.25,
@@ -100,6 +129,23 @@ export function getDefaultEngineConfig(clientId: string, businessType: BusinessT
             mofuScoreThreshold: 0.35,
             volatilityPenalty: 0.6, // Multiplier (so 1 - 0.4 = 0.6)
             minImpressionsForPenalty: 2000
+        },
+        format: {
+            imageInvisibleCtrThreshold: 0.5,
+            imageInvisibleMinImpressions: 2000,
+            imageNoConvertCtrMin: 1.5,
+            imageNoConvertCpaMultiplier: 2,
+            creativeMixMinFormats: 3,
+            creativeMixConcentrationPct: 0.8
+        },
+        video: {
+            hookKillThreshold: 20,
+            hookKillMinSpend: 50,
+            bodyWeakHoldThreshold: 30,
+            bodyWeakHookMin: 25,
+            ctaWeakCtrThreshold: 0.8,
+            dropoffDeltaThreshold: 50,
+            frequencyVelocityWarn: 0.3
         },
         alertTemplates: {
             SCALING_OPPORTUNITY: {
@@ -141,6 +187,34 @@ export function getDefaultEngineConfig(clientId: string, businessType: BusinessT
             INTRODUCE_BOFU_VARIANTS: {
                 title: "Refuerzo de Conversión (BOFU): {entityName}",
                 description: "Añade variantes con ofertas directas o escasez para este ganador."
+            },
+            HOOK_KILL: {
+                title: "Hook Muerto: {entityName}",
+                description: "Hook Rate de {hook_rate_7d} (< {hookThreshold}%) con gasto de {spend_7d}. El video no captura atención."
+            },
+            BODY_WEAK: {
+                title: "Cuerpo Débil: {entityName}",
+                description: "Hook Rate {hook_rate_7d} OK pero Hold Rate de {hold_rate_7d} indica que el contenido post-hook no retiene."
+            },
+            CTA_WEAK: {
+                title: "CTA Débil: {entityName}",
+                description: "Hook y retención buenos pero CTR de {ctr_7d} sugiere que el CTA o la landing no convencen."
+            },
+            VIDEO_DROPOFF: {
+                title: "Drop-off en {drop_off_point}: {entityName}",
+                description: "Caída significativa de audiencia en {drop_off_point}. Revisar el contenido en ese punto del video."
+            },
+            IMAGE_INVISIBLE: {
+                title: "Imagen Invisible: {entityName}",
+                description: "CTR de {ctr_7d} con {impressions_7d} impresiones. La imagen no genera clicks."
+            },
+            IMAGE_NO_CONVERT: {
+                title: "Imagen sin Conversión: {entityName}",
+                description: "CTR de {ctr_7d} bueno pero CPA {cpa_7d} supera el target. El problema está post-click."
+            },
+            CREATIVE_MIX_IMBALANCE: {
+                title: "Mix Creativo Desbalanceado: {entityName}",
+                description: "{mixDescription}"
             }
         },
         dailySnapshotTitle: "Reporte Acumulado Mes — {clientName}",
@@ -154,7 +228,14 @@ export function getDefaultEngineConfig(clientId: string, businessType: BusinessT
             "ROTATE_CONCEPT",
             "CONSOLIDATE",
             "KILL_RETRY",
-            "INTRODUCE_BOFU_VARIANTS"
+            "INTRODUCE_BOFU_VARIANTS",
+            "HOOK_KILL",
+            "BODY_WEAK",
+            "CTA_WEAK",
+            "VIDEO_DROPOFF",
+            "IMAGE_INVISIBLE",
+            "IMAGE_NO_CONVERT",
+            "CREATIVE_MIX_IMBALANCE"
         ]
     };
 }

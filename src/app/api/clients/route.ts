@@ -13,14 +13,15 @@ export const GET = withErrorReporting("API Clients GET", async (request: NextReq
     // TODO: In a real app, check if user has admin role
     const uid = decodedToken.uid;
 
+    const includeArchived = request.nextUrl.searchParams.get("include") === "archived";
+
     const snapshot = await db.collection("clients")
         .orderBy("createdAt", "desc")
         .get();
 
-    const clients = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-    }));
+    const clients = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter(c => includeArchived || !(c as any).archived);
 
     return NextResponse.json(clients);
 });

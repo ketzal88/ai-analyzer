@@ -14,7 +14,7 @@ import ImportClientsModal from "@/components/admin/clients/ImportClientsModal";
 export default function AdminClientsPage() {
     const [clients, setClients] = useState<Client[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
-    const [filterActive, setFilterActive] = useState<"all" | "active" | "inactive">("all");
+    const [filterActive, setFilterActive] = useState<"all" | "active" | "inactive" | "archived">("all");
     const [filterEcommerce, setFilterEcommerce] = useState(false);
     const [filterGoogle, setFilterGoogle] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
@@ -24,7 +24,7 @@ export default function AdminClientsPage() {
     const fetchClients = async () => {
         try {
             setIsLoading(true);
-            const res = await fetch("/api/clients");
+            const res = await fetch("/api/clients?include=archived");
             if (!res.ok) throw new Error("Failed to load clients");
             const data = await res.json();
             setClients(data);
@@ -63,8 +63,11 @@ export default function AdminClientsPage() {
     };
 
     const filteredClients = clients.filter(c => {
+        // Hide archived clients unless explicitly viewing them
+        if ((c as any).archived && filterActive !== "archived") return false;
         const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesActive = filterActive === "all" || (filterActive === "active" ? c.active : !c.active);
+        const matchesActive = filterActive === "all" || filterActive === "archived"
+            || (filterActive === "active" ? c.active : !c.active);
         const matchesEcommerce = !filterEcommerce || c.isEcommerce;
         const matchesGoogle = !filterGoogle || c.isGoogle;
         return matchesSearch && matchesActive && matchesEcommerce && matchesGoogle;

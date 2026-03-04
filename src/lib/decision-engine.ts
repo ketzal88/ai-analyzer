@@ -9,6 +9,7 @@ import {
 } from "@/types/classifications";
 import { DailyEntitySnapshot, EntityRollingMetrics, ConceptRollingMetrics } from "@/types/performance-snapshots";
 import { EngineConfig } from "@/types/engine-config";
+import { resolveObjective, getDailyMetricValue, getPrimaryMetric, isCpaRelevant, isRoasRelevant } from "@/lib/objective-utils";
 
 export interface ClientTargets {
     targetCpa?: number;
@@ -96,18 +97,9 @@ export class DecisionEngine {
     }
 
     private static computeIntent(snap: DailyEntitySnapshot, p: ClientPercentiles, config: EngineConfig): { score: number, stage: IntentStage } {
-        const businessType = config.businessType || 'ecommerce';
-        let convVolume = 0;
-
-        if (businessType === 'ecommerce') {
-            convVolume = snap.performance.purchases || 0;
-        } else if (businessType === 'leads') {
-            convVolume = snap.performance.leads || 0;
-        } else if (businessType === 'whatsapp') {
-            convVolume = snap.performance.whatsapp || 0;
-        } else if (businessType === 'apps') {
-            convVolume = snap.performance.installs || 0;
-        }
+        // Use campaign objective to determine the right conversion metric
+        const resolvedObj = resolveObjective(snap.meta?.objective, snap.name);
+        const convVolume = getDailyMetricValue(snap.performance, resolvedObj);
 
         const fitr = convVolume / (snap.performance.clicks || 1);
         const convRate = convVolume / (snap.performance.impressions || 1);
@@ -232,20 +224,12 @@ export class DecisionEngine {
         const freq7d = rolling.rolling.frequency_7d || 0;
         const budgetChange = rolling.rolling.budget_change_3d_pct || 0;
 
-        const businessType = config.businessType || 'ecommerce';
-        const objective = snap.meta?.objective;
-        const isEngagement = objective === 'OUTCOME_ENGAGEMENT' || objective === 'MESSAGES' || objective === 'ENGAGEMENT';
-        const isTraffic = objective === 'OUTCOME_TRAFFIC' || objective === 'TRAFFIC';
-        const isAwareness = objective === 'OUTCOME_AWARENESS' || objective === 'AWARENESS';
-
-        let effectiveMetricName = businessType === 'ecommerce' ? 'Ventas' :
-            businessType === 'leads' ? 'Leads' :
-                businessType === 'whatsapp' ? 'WhatsApp' : 'Installs';
-
-        // Objective Override: If it's an engagement/messaging campaign, use WhatsApp as primary
-        if (isEngagement) {
-            effectiveMetricName = 'Mensajes';
-        }
+        // Use objective-utils for consistent objective resolution
+        const resolvedObj = resolveObjective(snap.meta?.objective, snap.name);
+        const metricInfo = getPrimaryMetric(resolvedObj);
+        const isCpaObj = isCpaRelevant(resolvedObj);
+        const isRoasObj = isRoasRelevant(resolvedObj);
+        const effectiveMetricName = metricInfo.labelEs;
 
         const formatVal = (v: number, decimals: number = 2) => {
             if (currency !== "USD" && v > 100) return Math.round(v).toLocaleString();
@@ -253,16 +237,16 @@ export class DecisionEngine {
         };
 
         if (spend7d > 0) facts.push(`Gasto 7d: $${formatVal(spend7d)}`);
-        if (cpa7d > 0) facts.push(`CPA 7d: $${formatVal(cpa7d)}`);
-        if (roas7d > 0 && businessType === 'ecommerce' && !isEngagement) facts.push(`ROAS 7d: ${roas7d.toFixed(2)}`);
+        if (cpa7d > 0 && isCpaObj) facts.push(`CPA 7d: $${formatVal(cpa7d)}`);
+        if (roas7d > 0 && isRoasObj) facts.push(`ROAS 7d: ${roas7d.toFixed(2)}`);
         if (velocity7d > 0) facts.push(`${effectiveMetricName}/día: ${formatVal(velocity7d, 2)}`);
         if (freq7d > 0) facts.push(`Frecuencia 7d: ${freq7d.toFixed(1)}`);
-        if (Math.abs(roasDelta) > 5 && businessType === 'ecommerce' && !isEngagement) facts.push(`Delta ROAS: ${roasDelta.toFixed(1)}%`);
+        if (Math.abs(roasDelta) > 5 && isRoasObj) facts.push(`Delta ROAS: ${roasDelta.toFixed(1)}%`);
         if (Math.abs(hookDelta) > 5) facts.push(`Delta Gancho: ${hookDelta.toFixed(1)}%`);
         if (Math.abs(budgetChange) > 10) facts.push(`Δ Budget 3d: ${budgetChange.toFixed(1)}%`);
 
-        if (isTraffic || isAwareness) {
-            facts.push(`Campaña de ${isTraffic ? 'Tráfico' : 'Reconocimiento'}: objetivo no orientado a conversión directa.`);
+        if (!isCpaObj) {
+            facts.push(`Campaña de ${effectiveMetricName}: objetivo no orientado a conversión directa.`);
         }
 
         const targetCpa = clientTargets?.targetCpa;
@@ -315,7 +299,7 @@ export class DecisionEngine {
 
         if (learning === "EXPLOITATION" && intent === "BOFU") {
             const cpaMeetTarget = targetCpa ? cpa7d <= targetCpa : true;
-            const roasMeetTarget = businessType === 'ecommerce' ? roas7d >= targetRoas : true;
+            const roasMeetTarget = isRoasObj ? roas7d >= targetRoas : true;
             const velocityStable = velocity14d > 0 ? velocity7d >= velocity14d : velocity7d > 0;
             const daysStable = snap.stability.daysSinceLastEdit >= 3;
 

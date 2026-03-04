@@ -4,6 +4,13 @@ import { EntityRollingMetrics } from "@/types/performance-snapshots";
 import { MTDAggregation } from "@/types/client-snapshot";
 import { AccountHealth } from "@/types/system-events";
 import { SystemSettingsService } from "@/lib/system-settings-service";
+import {
+    businessTypeToObjective,
+    getPrimaryMetric,
+    isRoasRelevant,
+    isCpaRelevant,
+    CampaignObjectiveType,
+} from "@/lib/objective-utils";
 
 interface DailySnapshotKPIs {
     // Gastos y Tráfico
@@ -224,10 +231,10 @@ export class SlackService {
         }
 
         const businessType = client?.businessType || "ecommerce";
-        const isEcommerce = businessType === "ecommerce";
-        const isLeadGen = businessType === "leads";
-        const isWhatsApp = businessType === "whatsapp";
-        const isApps = businessType === "apps";
+        const objective = businessTypeToObjective(businessType);
+        const primaryMetric = getPrimaryMetric(objective);
+        const showRoas = isRoasRelevant(objective);
+        const showCpa = isCpaRelevant(objective);
 
         // ── Build mrkdwn text (simpler, like the user's example) ──
         let title = titleTemplate || `📊 *Reporte Acumulado Mes — {clientName}* (del {startDate} al {endDate})`;
@@ -248,30 +255,36 @@ export class SlackService {
         text += `• CTR: ${this.fmtPct(kpis.ctr)}\n`;
         text += `• Impresiones: ${this.fmtNum(kpis.impressions)}\n\n`;
 
-        if (isEcommerce) {
+        // Primary conversions section — driven by objective
+        if (objective === 'sales') {
             text += `🛒 *Conversiones*\n`;
-            text += `• Purchases: ${kpis.purchases}\n`;
+            text += `• ${primaryMetric.labelEs}: ${kpis.purchases}\n`;
             text += `• Valor de compra: ${this.fmtCurrency(kpis.purchaseValue, currency)}\n`;
             text += `• Coste por compra: ${this.fmtCurrency(kpis.costPerPurchase, currency)}\n`;
             text += `• ROAS: ${kpis.roas.toFixed(2)}\n\n`;
+        } else if (objective === 'leads') {
+            text += `📋 *${primaryMetric.labelEs}*\n`;
+            text += `• ${primaryMetric.labelEs}: ${kpis.leads}\n`;
+            text += `• Coste por ${primaryMetric.labelEs}: ${this.fmtCurrency(kpis.costPerLead, currency)}\n\n`;
+        } else if (objective === 'messaging') {
+            text += `💬 *${primaryMetric.labelEs}*\n`;
+            text += `• ${primaryMetric.labelEs}: ${kpis.whatsapp}\n`;
+            text += `• Coste por conversación: ${this.fmtCurrency(kpis.costPerWhatsapp, currency)}\n\n`;
+        } else if (objective === 'app_installs') {
+            text += `📱 *${primaryMetric.labelEs}*\n`;
+            text += `• ${primaryMetric.labelEs}: ${(kpis as any).installs || 0}\n`;
+            text += `• Coste por ${primaryMetric.labelEs}: ${this.fmtCurrency((kpis as any).costPerInstall || 0, currency)}\n\n`;
         }
 
-        // Leads
-        if (isLeadGen) {
-            text += `📋 *Generación de Leads*\n`;
-            text += `• Leads: ${kpis.leads}\n`;
-            text += `• Coste por Lead: ${this.fmtCurrency(kpis.costPerLead, currency)}\n\n`;
-        }
-
-        // WhatsApp
-        if (isWhatsApp || kpis.whatsapp > 0) {
+        // Show secondary WhatsApp data if not primary but has data
+        if (objective !== 'messaging' && kpis.whatsapp > 0) {
             text += `💬 *WhatsApp*\n`;
             text += `• Conversaciones: ${kpis.whatsapp}\n`;
             text += `• Coste por conversación: ${this.fmtCurrency(kpis.costPerWhatsapp, currency)}\n\n`;
         }
 
-        // App Installs
-        if (isApps || (kpis as any).installs > 0) {
+        // Show secondary App Installs if not primary but has data
+        if (objective !== 'app_installs' && (kpis as any).installs > 0) {
             text += `📱 *App Installs*\n`;
             text += `• Installs: ${(kpis as any).installs || 0}\n`;
             text += `• Coste por Install: ${this.fmtCurrency((kpis as any).costPerInstall || 0, currency)}\n\n`;
@@ -541,9 +554,30 @@ export class SlackService {
         purchases: number, purchasesDelta: number,
         metricName?: string
     }) {
-        const { channel, botToken, webhook } = await this.resolveChannel(clientId);
+        const { client, channel, botToken, webhook } = await this.resolveChannel(clientId);
 
         if (!botToken && !webhook) return;
+
+        const businessType = client?.businessType || "ecommerce";
+        const objective = businessTypeToObjective(businessType);
+        const primaryMetric = getPrimaryMetric(objective);
+        const showRoas = isRoasRelevant(objective);
+        const showCpa = isCpaRelevant(objective);
+
+        // Build fields dynamically based on objective
+        const fields: any[] = [
+            { type: "mrkdwn", text: `*Gasto 7d:*\n${this.fmtCurrency(kpis.spend)} (${this.fmtDelta(kpis.spendDelta)})` },
+        ];
+
+        if (showCpa) {
+            fields.push({ type: "mrkdwn", text: `*CPA 7d:*\n${this.fmtCurrency(kpis.cpa)} (${this.fmtDelta(kpis.cpaDelta * -1)})` });
+        }
+
+        if (showRoas) {
+            fields.push({ type: "mrkdwn", text: `*ROAS 7d:*\n${kpis.roas ? kpis.roas.toFixed(2) : '0'}x (${this.fmtDelta(kpis.roasDelta)})` });
+        }
+
+        fields.push({ type: "mrkdwn", text: `*${kpis.metricName || primaryMetric.labelEs}:*\n${kpis.purchases} (${this.fmtDelta(kpis.purchasesDelta)})` });
 
         const blocks = [
             {
@@ -563,12 +597,7 @@ export class SlackService {
             },
             {
                 type: "section",
-                fields: [
-                    { type: "mrkdwn", text: `*Gasto 7d:*\n${this.fmtCurrency(kpis.spend)} (${this.fmtDelta(kpis.spendDelta)})` },
-                    { type: "mrkdwn", text: `*CPA 7d:*\n${this.fmtCurrency(kpis.cpa)} (${this.fmtDelta(kpis.cpaDelta * -1)})` },
-                    { type: "mrkdwn", text: `*ROAS 7d:*\n${kpis.roas ? kpis.roas.toFixed(2) : '0'}x (${this.fmtDelta(kpis.roasDelta)})` },
-                    { type: "mrkdwn", text: `*${kpis.metricName || 'Compras'}:*\n${kpis.purchases} (${this.fmtDelta(kpis.purchasesDelta)})` }
-                ]
+                fields
             },
             { type: "divider" },
             {

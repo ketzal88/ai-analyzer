@@ -10,7 +10,10 @@
       "mcp__claude_ai_Notion__notion-fetch",
       "WebFetch(domain:prod-files-secure.s3.us-west-2.amazonaws.com)",
       "Bash(git check-ignore:*)",
-      "Bash(git ls-tree:*)"
+      "Bash(git ls-tree:*)",
+      "Bash(npx next build:*)",
+      "Bash(npx tsx scripts/update-clients-from-csv.ts:*)",
+      "Bash(npx tsx:*)"
     ]
   }
 }

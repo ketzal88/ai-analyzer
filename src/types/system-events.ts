@@ -19,7 +19,7 @@ export interface SystemEvent {
 
 export interface CronExecution {
     id?: string;
-    cronType: "data-sync" | "daily-digest" | "sync-creatives" | "weekly-alerts" | "account-health";
+    cronType: "data-sync" | "daily-digest" | "sync-creatives" | "weekly-alerts" | "account-health" | "creative-dna";
     startedAt: string;
     completedAt: string;
     durationMs: number;

@@ -6,6 +6,7 @@ import { EventService } from "@/lib/event-service";
 import { Client, Alert } from "@/types";
 import { ClientSnapshot } from "@/types/client-snapshot";
 import { reportError } from "@/lib/error-reporter";
+import { getAlertChannel } from "@/lib/alert-engine";
 
 /**
  * Daily Digest Cron
@@ -78,19 +79,20 @@ export async function GET(request: NextRequest) {
                     snapshotSent = true;
                 }
 
-                // 2. ALERTS — Only send CRITICAL alerts to Slack daily
+                // 2. ALERTS — Only send alerts routed to slack_immediate (CRITICAL + SCALING_OPPORTUNITY)
                 const alerts = snapshot.alerts;
 
                 if (alerts.length > 0) {
-                    const criticalAlerts = alerts.filter((a: Alert) => a.severity === "CRITICAL");
-                    for (const alert of criticalAlerts) {
-                        await SlackService.sendCriticalAlert(clientId, client.name, alert);
+                    const immediateAlerts = alerts.filter((a: Alert) => getAlertChannel(a) === 'slack_immediate');
+                    for (const alert of immediateAlerts) {
+                        if (alert.severity === "CRITICAL") {
+                            await SlackService.sendCriticalAlert(clientId, client.name, alert);
+                        }
                         criticalAlertsSent++;
                     }
 
-                    // Only send digest if there are critical alerts (skip WARNING/INFO-only digests)
-                    if (criticalAlerts.length > 0) {
-                        await SlackService.sendDigest(clientId, client.name, criticalAlerts);
+                    if (immediateAlerts.length > 0) {
+                        await SlackService.sendDigest(clientId, client.name, immediateAlerts);
                         alertDigestSent = true;
                     }
                 }

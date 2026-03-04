@@ -1,8 +1,8 @@
 import React from "react";
 
 interface ClientsFiltersProps {
-    filterActive: "all" | "active" | "inactive";
-    setFilterActive: (val: "all" | "active" | "inactive") => void;
+    filterActive: "all" | "active" | "inactive" | "archived";
+    setFilterActive: (val: "all" | "active" | "inactive" | "archived") => void;
     filterEcommerce: boolean;
     setFilterEcommerce: (val: boolean) => void;
     filterGoogle: boolean;
@@ -26,6 +26,7 @@ export default function ClientsFilters({
                     <option value="all">All Status</option>
                     <option value="active">Active Only</option>
                     <option value="inactive">Inactive Only</option>
+                    <option value="archived">Archived</option>
                 </select>
             </div>
             <label className="flex items-center gap-2 cursor-pointer">

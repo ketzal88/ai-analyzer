@@ -3,7 +3,8 @@ import { PerformanceService } from "@/lib/performance-service";
 import { DecisionEngine, ClientTargets } from "@/lib/decision-engine";
 import { EngineConfigService } from "@/lib/engine-config-service";
 import { CreativeClassifier } from "@/lib/creative-classifier";
-import { getDefaultEngineConfig } from "@/types/engine-config";
+import { resolveObjective, getPrimaryMetric, getPrimaryMetricValue, isConversionObjective, businessTypeToObjective } from "@/lib/objective-utils";
+import { AlertEngine } from "@/lib/alert-engine";
 import { DailyEntitySnapshot, EntityLevel, EntityRollingMetrics, ConceptRollingMetrics } from "@/types/performance-snapshots";
 import { EntityClassification, ClientPercentiles } from "@/types/classifications";
 import { Client, Alert } from "@/types";
@@ -166,11 +167,15 @@ export class ClientSnapshotService {
             }
         }
 
-        // ── 7. Compute alerts in memory ────────────────────────
-        const alerts = this.computeAlertsInMemory(
-            clientId, rollingMetrics, classifications, allSnapshots,
-            clientData, config, isEcommerce
-        );
+        // ── 7. Compute alerts via unified AlertEngine ─────────
+        const alerts = AlertEngine.evaluate({
+            clientId,
+            rollingMetrics,
+            classifications: classifications as any,
+            dailySnapshots: allSnapshots,
+            clientData,
+            config
+        });
 
         // ── 8. Compute MTD aggregation ─────────────────────────
         const mtd = this.computeMTD(allSnapshots, refDate);
@@ -317,35 +322,18 @@ export class ClientSnapshotService {
             }
 
             const entityName = rolling.name || rolling.entityId;
-            const lowerName = entityName.toLowerCase();
             const entityMeta = snap?.meta || {};
             const objective = entityMeta.objective;
 
-            const isNonConversion = objective === 'OUTCOME_TRAFFIC' ||
-                objective === 'OUTCOME_AWARENESS' ||
-                objective === 'TRAFFIC' ||
-                objective === 'AWARENESS' ||
-                lowerName.includes("trafico") ||
-                lowerName.includes("traffic") ||
-                lowerName.includes("awareness") ||
-                lowerName.includes("reconocimiento");
-
-            const isMessagingObjective = objective === 'OUTCOME_ENGAGEMENT' ||
-                objective === 'MESSAGES' ||
-                lowerName.includes("mensaje") ||
-                lowerName.includes("message");
+            const resolvedObj = resolveObjective(objective, entityName);
+            const isNonConversion = !isConversionObjective(resolvedObj);
 
             // Structural insight: only count adsets that share same goal (conversion vs non-conversion)
             const peerAdsetsCount = activeAdsets.filter(a => {
-                const aName = (a.name || "").toLowerCase();
-                const aMeta = rollingMetrics.find(rm => rm.entityId === a.entityId)?.rolling as any;
-                // Note: we might not have objectives for all active adsets in memory easily, 
-                // so we use name-based fallback for peers
-                const aIsNonConv = aName.includes("trafico") ||
-                    aName.includes("traffic") ||
-                    aName.includes("awareness") ||
-                    aName.includes("reconocimiento");
-                return aIsNonConv === isNonConversion;
+                const aName = a.name || "";
+                const aMeta = dailySnapshots.find(ds => ds.entityId === a.entityId)?.meta || {};
+                const aResolved = resolveObjective(aMeta.objective, aName);
+                return !isConversionObjective(aResolved) === isNonConversion;
             }).length;
 
             const conceptId = snap.meta?.conceptId || rolling.entityId.split(/[|_-]/)[0];
@@ -387,15 +375,11 @@ export class ClientSnapshotService {
         };
 
         const businessType = config.businessType || 'ecommerce';
+        const defaultObjective = businessTypeToObjective(businessType);
 
         const cpaInverses = rolling
             .map(r => {
-                let m = 0;
-                if (businessType === 'ecommerce') m = r.rolling.purchases_7d || 0;
-                else if (businessType === 'leads') m = r.rolling.leads_7d || 0;
-                else if (businessType === 'whatsapp') m = r.rolling.whatsapp_7d || 0;
-                else if (businessType === 'apps') m = r.rolling.installs_7d || 0;
-
+                const m = getPrimaryMetricValue(r.rolling, defaultObjective);
                 const cpa = m > 0 ? (r.rolling.spend_7d || 0) / m : 0;
                 return cpa > 0 ? 1 / cpa : 0;
             })
@@ -412,365 +396,8 @@ export class ClientSnapshotService {
         };
     }
 
-    // ─── PRIVATE: Alert computation ──────────────────────────
-
-    private static computeAlertsInMemory(
-        clientId: string,
-        rollingMetrics: EntityRollingMetrics[],
-        classifications: ClassificationEntry[],
-        dailySnapshots: DailyEntitySnapshot[],
-        clientData: Client | null,
-        config: any,
-        isEcommerce: boolean
-    ): Alert[] {
-        const alerts: Alert[] = [];
-
-        const nameMap: Record<string, string> = {};
-        for (const rm of rollingMetrics) {
-            if (rm.name) nameMap[rm.entityId] = rm.name;
-        }
-
-        const formatMessage = (template: string, vars: Record<string, string | number>) => {
-            let msg = template;
-            for (const [k, v] of Object.entries(vars)) {
-                msg = msg.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v));
-            }
-            return msg;
-        };
-
-        // Cache for deduplication
-        const campaignsWithScaling = new Set<string>();
-        const adsetsWithScaling = new Set<string>();
-
-        const latestDate = dailySnapshots.length > 0 ? dailySnapshots.sort((a, b) => b.date.localeCompare(a.date))[0].date : '';
-        const latestSnaps = dailySnapshots.filter(s => s.date === latestDate);
-
-        // Pre-calculate Meta Map and Names (Merge with existing nameMap)
-        const metaMap: Record<string, any> = {};
-        const currency = clientData?.currency || "USD";
-        const curSuffix = currency !== "USD" ? ` ${currency}` : "";
-
-        const formatCcy = (v: number) => {
-            if (currency !== "USD" && Math.abs(v) > 100) return Math.round(v).toLocaleString();
-            return v.toFixed(2).toLocaleString();
-        };
-
-        for (const s of latestSnaps) {
-            if (s.name) nameMap[s.entityId] = s.name;
-        }
-        for (const s of dailySnapshots) {
-            if (!metaMap[s.entityId] && s.meta && Object.keys(s.meta).length > 0) {
-                metaMap[s.entityId] = s.meta;
-            }
-            if (!nameMap[s.entityId] && s.name) {
-                nameMap[s.entityId] = s.name;
-            }
-        }
-
-        // Sort metrics: Campaigns -> Adsets -> Ads -> Account
-        // This ensures Campaign alerts are processed first for deduplication
-        const sortedMetrics = [...rollingMetrics].sort((a, b) => {
-            const levelMap: Record<string, number> = { campaign: 0, adset: 1, ad: 2, account: 3 };
-            return (levelMap[a.level] || 99) - (levelMap[b.level] || 99);
-        });
-
-        for (const rolling of sortedMetrics) {
-            const r = rolling.rolling;
-            const snap = latestSnaps.find(s => s.entityId === rolling.entityId && s.level === rolling.level);
-            const classif = classifications.find(c => c.entityId === rolling.entityId && c.level === rolling.level);
-            const entityMeta = metaMap[rolling.entityId] || snap?.meta || {};
-
-            const entityName = rolling.name || rolling.entityId;
-            const lowerName = entityName.toLowerCase();
-            const objective = entityMeta.objective;
-
-            const isNonConversionCampaign = objective === 'OUTCOME_TRAFFIC' ||
-                objective === 'OUTCOME_AWARENESS' ||
-                objective === 'TRAFFIC' ||
-                objective === 'AWARENESS' ||
-                lowerName.includes("trafico") ||
-                lowerName.includes("traffic") ||
-                lowerName.includes("awareness") ||
-                lowerName.includes("reconocimiento");
-
-            const isMessagingCampaign = objective === 'OUTCOME_ENGAGEMENT' ||
-                objective === 'MESSAGES' ||
-                lowerName.includes("mensaje") ||
-                lowerName.includes("message");
-
-            const contextName = rolling.level === 'ad' && entityMeta.adsetId && entityMeta.campaignId
-                ? `${nameMap[entityMeta.campaignId] || 'Camp.'} > ${nameMap[entityMeta.adsetId] || 'Set'} > ${entityName}`
-                : rolling.level === 'adset' && entityMeta.campaignId
-                    ? `${nameMap[entityMeta.campaignId] || 'Camp.'} > ${entityName}`
-                    : entityName;
-
-            const spend_7d = r.spend_7d || 0;
-            const businessType = config.businessType || 'ecommerce';
-            let primaryMetric = 0;
-            let metricName = "Conv.";
-
-            if (businessType === 'ecommerce' && !isMessagingCampaign) {
-                primaryMetric = r.purchases_7d || 0;
-                metricName = "Ventas";
-            } else if (businessType === 'leads') {
-                primaryMetric = r.leads_7d || 0;
-                metricName = "Leads";
-            } else if (businessType === 'whatsapp' || isMessagingCampaign) {
-                primaryMetric = r.whatsapp_7d || 0;
-                metricName = "Mensajes";
-            } else if (businessType === 'apps') {
-                primaryMetric = r.installs_7d || 0;
-                metricName = "App Installs";
-            }
-
-            const isEcommerce = businessType === 'ecommerce';
-            const primaryCpa = primaryMetric > 0 ? (spend_7d / primaryMetric) : undefined;
-            const targetCpa = clientData?.targetCpa;
-            const targetRoas = clientData?.targetRoas || 2.0;
-
-            const currency = clientData?.currency || "USD";
-            const curSuffix = currency !== "USD" ? ` ${currency}` : "";
-
-            const commonVars = {
-                entityName: contextName,
-                spend_7d: `$${formatCcy(spend_7d)}${curSuffix}`,
-                cpa_7d: primaryCpa ? `$${formatCcy(primaryCpa)}${curSuffix}` : 'N/A',
-                targetCpa: targetCpa ? `$${formatCcy(targetCpa)}${curSuffix}` : 'N/A',
-                frequency_7d: (r.frequency_7d || 0).toFixed(1),
-                budget_change_3d_pct: (r.budget_change_3d_pct || 0).toFixed(0),
-                cpa_delta_pct: (r.cpa_delta_pct || 0).toFixed(0),
-                primaryMetric: primaryMetric.toFixed(0),
-                metricName
-            };
-
-            const defaultConfig = getDefaultEngineConfig(clientId, businessType);
-
-            // SCALING OPPORTUNITY (respects growthMode)
-            const growthMode = clientData?.growthMode || "stable";
-            const cpaMeetsTarget = targetCpa ? (primaryCpa || Infinity) <= targetCpa : false;
-            const roasMeetsTarget = isEcommerce ? (r.roas_7d || 0) >= targetRoas : true;
-            const velocity7d = isEcommerce ? (r.conversion_velocity_7d || 0) : (primaryMetric / 7);
-            const velocityStable = velocity7d > 0.5;
-            const freqSafe = (r.frequency_7d || 0) < config.alerts.scalingFrequencyMax;
-            const daysStable = snap ? snap.stability.daysSinceLastEdit >= 3 : true;
-
-            if ((cpaMeetsTarget || (isEcommerce && roasMeetsTarget)) && velocityStable && freqSafe && daysStable) {
-                // Deduplication logic: skip sub-entities if parent already scales
-                let redundant = false;
-                const campaignId = (entityMeta.campaignId || snap?.meta.campaignId)?.toString();
-                const adsetId = (entityMeta.adsetId || snap?.meta.adsetId)?.toString();
-
-                if (rolling.level === 'adset') {
-                    if (campaignId && campaignsWithScaling.has(campaignId.toString())) redundant = true;
-                }
-                if (rolling.level === 'ad') {
-                    if (adsetId && adsetsWithScaling.has(adsetId.toString())) redundant = true;
-                    if (campaignId && campaignsWithScaling.has(campaignId.toString())) redundant = true;
-                }
-
-                // Extra check: name-based dedup if IDs fail (fallback)
-                if (!redundant && (rolling.level === 'adset' || rolling.level === 'ad')) {
-                    for (const campId of campaignsWithScaling) {
-                        const campName = nameMap[campId]?.toLowerCase();
-                        if (campName && lowerName.startsWith(campName)) {
-                            redundant = true;
-                            break;
-                        }
-                    }
-                }
-
-                // Conservative mode: skip SCALING_OPPORTUNITY alerts entirely
-                if (growthMode !== "conservative" && !redundant) {
-                    const type = "SCALING_OPPORTUNITY";
-                    const template = config.alertTemplates[type] || defaultConfig.alertTemplates[type];
-                    const evidence = [
-                        `${isEcommerce ? 'CPA' : `Coste/${metricName}`} 7d: ${commonVars.cpa_7d}`,
-                        isEcommerce ? `ROAS 7d: ${(r.roas_7d || 0).toFixed(2)}x` : `Volumen 7d: ${primaryMetric}`,
-                        `Frecuencia: ${commonVars.frequency_7d}`
-                    ];
-                    if (clientData?.constraints?.stockRisk) evidence.push("⚠️ Stock sensible — validar inventario antes de escalar");
-                    alerts.push({
-                        id: `SCALING_${rolling.entityId}_${Date.now()}`,
-                        clientId, level: rolling.level, entityId: rolling.entityId, entityName: contextName, type,
-                        severity: "INFO",
-                        title: formatMessage(template.title, commonVars),
-                        description: formatMessage(template.description, commonVars),
-                        impactScore: classif?.impactScore || 50,
-                        evidence,
-                        createdAt: new Date().toISOString()
-                    });
-
-                    // Mark for dedup (Ensure string keys)
-                    if (rolling.level === 'campaign') campaignsWithScaling.add(rolling.entityId.toString());
-                    if (rolling.level === 'adset') adsetsWithScaling.add(rolling.entityId.toString());
-                }
-            }
-
-            // LEARNING RESET RISK
-            const budgetChange = r.budget_change_3d_pct || 0;
-            const recentEdit = snap ? snap.stability.daysSinceLastEdit < 3 : false;
-            // Only check at campaign/adset level + require min spend
-            const hasMinSpendLR = (r.spend_7d || 0) > 10;
-
-            if (Math.abs(budgetChange) > config.alerts.learningResetBudgetChangePct && recentEdit && (rolling.level === 'campaign' || rolling.level === 'adset') && hasMinSpendLR) {
-                const type = "LEARNING_RESET_RISK";
-                const template = config.alertTemplates[type] || defaultConfig.alertTemplates[type];
-                alerts.push({
-                    id: `LEARNING_RESET_${rolling.entityId}_${Date.now()}`,
-                    clientId, level: rolling.level, entityId: rolling.entityId, entityName: contextName, type,
-                    severity: "WARNING",
-                    title: formatMessage(template.title, commonVars),
-                    description: formatMessage(template.description, { ...commonVars, threshold_pct: config.alerts.learningResetBudgetChangePct }),
-                    impactScore: Math.min((classif?.impactScore || 50) + 15, 100),
-                    evidence: [`Budget Δ 3d: ${budgetChange.toFixed(1)}%`, `Edición hace < 3 días`],
-                    createdAt: new Date().toISOString()
-                });
-            }
-
-            // CPA SPIKE
-            const cpaDelta = r.cpa_delta_pct || 0;
-            if (cpaDelta > (config.findings.cpaSpikeThreshold * 100) && !isNonConversionCampaign) {
-                const type = "CPA_SPIKE";
-                const template = config.alertTemplates[type] || defaultConfig.alertTemplates[type];
-                alerts.push({
-                    id: `CPA_SPIKE_${rolling.entityId}_${Date.now()}`,
-                    clientId, level: rolling.level, entityId: rolling.entityId, entityName: contextName, type,
-                    severity: "CRITICAL",
-                    title: formatMessage(template.title, commonVars),
-                    description: formatMessage(template.description, commonVars),
-                    impactScore: 80,
-                    evidence: [
-                        `CPA Actual (7d): $${commonVars.cpa_7d}${curSuffix}`,
-                        `CPA Anterior (14d): $${formatCcy(r.cpa_14d || 0)}${curSuffix}`,
-                        `Incremento: ${cpaDelta.toFixed(1)}%`
-                    ],
-                    createdAt: new Date().toISOString()
-                });
-            }
-
-            // BUDGET BLEED
-            if (primaryMetric === 0 && targetCpa && spend_7d > (targetCpa * 2) && !isNonConversionCampaign) {
-                const type = "BUDGET_BLEED";
-                const template = config.alertTemplates[type] || defaultConfig.alertTemplates[type];
-                alerts.push({
-                    id: `BLEED_${rolling.entityId}_${Date.now()}`,
-                    clientId, level: rolling.level, entityId: rolling.entityId, entityName: contextName, type,
-                    severity: "CRITICAL",
-                    title: formatMessage(template.title, commonVars),
-                    description: formatMessage(template.description, commonVars),
-                    impactScore: 90,
-                    evidence: [`Gasto 7d: $${commonVars.spend_7d}${curSuffix}`, `Conversiones: 0`, `Target CPA: $${formatCcy(targetCpa)}${curSuffix}`],
-                    createdAt: new Date().toISOString()
-                });
-            }
-
-            // CPA VOLATILITY (respects acceptableVolatilityPct)
-            const volatilityThreshold = clientData?.constraints?.acceptableVolatilityPct
-                ? clientData.constraints.acceptableVolatilityPct
-                : config.findings.volatilityThreshold * 100;
-            if (Math.abs(budgetChange) > volatilityThreshold) {
-                const type = "CPA_VOLATILITY";
-                const template = config.alertTemplates[type] || defaultConfig.alertTemplates[type];
-                alerts.push({
-                    id: `VOLATILITY_${rolling.entityId}_${Date.now()}`,
-                    clientId, level: rolling.level, entityId: rolling.entityId, entityName: contextName, type,
-                    severity: "WARNING",
-                    title: formatMessage(template.title, commonVars),
-                    description: formatMessage(template.description, commonVars),
-                    impactScore: 40,
-                    evidence: [
-                        `Δ Budget 3d: ${budgetChange.toFixed(1)}%`,
-                        `Inestabilidad detectada por cambio brusco en inversión (${budgetChange > 0 ? 'Aumento' : 'Caída'}).`,
-                        `Umbral Permitido: ${volatilityThreshold}%`
-                    ],
-                    createdAt: new Date().toISOString()
-                });
-            }
-
-            if (classif) {
-                // FATIGUE
-                if (classif.fatigueState === "REAL" || classif.fatigueState === "CONCEPT_DECAY" || classif.fatigueState === "AUDIENCE_SATURATION") {
-                    const type = "ROTATE_CONCEPT";
-                    const template = config.alertTemplates[type] || defaultConfig.alertTemplates[type];
-                    const fatigueLabels: Record<string, string> = {
-                        REAL: "Fatiga Real", CONCEPT_DECAY: "Decaimiento Conceptual",
-                        AUDIENCE_SATURATION: "Saturación de Audiencia", HEALTHY_REPETITION: "Repetición Saludable", NONE: "Ninguna"
-                    };
-                    alerts.push({
-                        id: `FATIGUE_${rolling.entityId}_${Date.now()}`,
-                        clientId, level: rolling.level, entityId: rolling.entityId, entityName: contextName, type,
-                        severity: "CRITICAL",
-                        title: formatMessage(template.title, commonVars),
-                        description: formatMessage(template.description, {
-                            ...commonVars,
-                            fatigueLabel: fatigueLabels[classif.fatigueState] || "Fatiga",
-                            hook_rate_7d: `${(r.hook_rate_7d || 0).toFixed(2)}%`
-                        }),
-                        impactScore: classif.impactScore,
-                        evidence: classif.evidence,
-                        createdAt: new Date().toISOString()
-                    });
-                }
-
-                // STRUCTURE
-                if (classif.structuralState === "FRAGMENTED" || classif.structuralState === "OVERCONCENTRATED") {
-                    const type = "CONSOLIDATE";
-                    const isFragmented = classif.structuralState === "FRAGMENTED";
-                    const template = config.alertTemplates[type] || defaultConfig.alertTemplates[type];
-
-                    const structuralDescription = isFragmented
-                        ? `Tu estructura está FRAGMENTADA (${classif.evidence.find(e => e.includes('adsets')) || 'muchos conjuntos'}). Se recomienda agrupar para consolidar el aprendizaje en menos entidades.`
-                        : `Tu presupuesto está SOBRECONCENTRADO. Un solo anuncio absorbe el ${commonVars.budget_change_3d_pct}%. Considera diversificar si el rendimiento baja.`;
-
-                    // Inhibit if explicitly different objectives (heuristic: name tags)
-                    if (!isNonConversionCampaign) {
-                        alerts.push({
-                            id: `STRUCT_${rolling.entityId}_${Date.now()}`,
-                            clientId, level: rolling.level, entityId: rolling.entityId, entityName: contextName, type,
-                            severity: "WARNING",
-                            title: formatMessage(template.title, commonVars),
-                            description: structuralDescription,
-                            impactScore: classif.impactScore,
-                            evidence: classif.evidence,
-                            createdAt: new Date().toISOString()
-                        });
-                    }
-                }
-
-                if (classif.finalDecision === "KILL_RETRY" && !isNonConversionCampaign) {
-                    const type = "KILL_RETRY";
-                    const template = config.alertTemplates[type] || defaultConfig.alertTemplates[type];
-                    alerts.push({
-                        id: `KILL_${rolling.entityId}_${Date.now()}`,
-                        clientId, level: rolling.level, entityId: rolling.entityId, entityName: contextName, type,
-                        severity: "WARNING",
-                        title: formatMessage(template.title, commonVars),
-                        description: formatMessage(template.description, commonVars),
-                        impactScore: classif.impactScore,
-                        evidence: classif.evidence,
-                        createdAt: new Date().toISOString()
-                    });
-                }
-
-                if (classif.finalDecision === "INTRODUCE_BOFU_VARIANTS") {
-                    const type = "INTRODUCE_BOFU_VARIANTS";
-                    const template = config.alertTemplates[type] || defaultConfig.alertTemplates[type];
-                    alerts.push({
-                        id: `UPSELL_${rolling.entityId}_${Date.now()}`,
-                        clientId, level: rolling.level, entityId: rolling.entityId, entityName: contextName, type,
-                        severity: "INFO",
-                        title: formatMessage(template.title, commonVars),
-                        description: formatMessage(template.description, commonVars),
-                        impactScore: classif.impactScore,
-                        evidence: classif.evidence,
-                        createdAt: new Date().toISOString()
-                    });
-                }
-            }
-        }
-
-        return alerts;
-    }
+    // Alert computation now delegated to AlertEngine.evaluate()
+    // See src/lib/alert-engine.ts for the unified alert evaluation logic.
 
     // ─── PRIVATE: MTD aggregation ────────────────────────────
 

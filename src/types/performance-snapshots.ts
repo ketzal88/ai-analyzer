@@ -10,6 +10,7 @@ export interface PerformanceMetrics {
     purchases?: number;
     leads?: number;
     whatsapp?: number;
+    schedule?: number;
     revenue?: number;
     roas?: number;
     addToCart?: number;
@@ -89,7 +90,9 @@ export interface EntityRollingMetrics {
         purchases_7d?: number;
         leads_7d?: number;
         whatsapp_7d?: number;
+        schedule_7d?: number;
         installs_7d?: number;
+        video_views_7d?: number;
 
         cpa_3d?: number;
         cpa_7d?: number;
@@ -108,6 +111,11 @@ export interface EntityRollingMetrics {
         ctr_delta_pct?: number;
         hook_rate_7d?: number;
         hook_rate_delta_pct?: number;
+        hold_rate_7d?: number;           // ThruPlays (p75) / 3s views
+        hold_rate_delta_pct?: number;
+        completion_rate_7d?: number;     // p100 / video_play
+        drop_off_point?: string;         // 'p25' | 'p50' | 'p75' | 'p100' — biggest drop
+        frequency_velocity_3d?: number;  // daily frequency change rate
         fitr_7d?: number;
         retention_rate_7d?: number;
         conversion_per_impression_delta?: number;
