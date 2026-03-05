@@ -114,7 +114,7 @@ export default function PerformanceDiagnostic() {
             <div className="flex flex-col gap-8 h-[calc(100vh-200px)]">
                 <header className="flex flex-col md:flex-row justify-between items-start md:items-center bg-stellar/50 p-6 rounded-xl border border-argent/50 gap-4 flex-shrink-0">
                     <div>
-                        <h1 className="text-display font-black text-text-primary uppercase tracking-tighter">Matriz de Decisión GEM</h1>
+                        <h1 className="text-display font-black text-text-primary uppercase tracking-tighter">Meta Creative Decision Board</h1>
                         <p className="text-small text-text-muted font-bold uppercase tracking-widest mt-1">
                             Nivel: Motor de Optimización Probabilística • {dateRangeLabel && <span className="text-classic">{dateRangeLabel}</span>}
                         </p>

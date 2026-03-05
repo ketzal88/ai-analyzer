@@ -78,9 +78,9 @@ export default function CreativeIntelligencePage() {
                 {/* Header */}
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
-                        <h1 className="text-display font-black text-text-primary mb-2">CREATIVE INTELLIGENCE</h1>
+                        <h1 className="text-display font-black text-text-primary mb-2">BIBLIOTECA DE CREATIVOS</h1>
                         <p className="text-subheader text-text-secondary uppercase tracking-widest font-bold text-[12px]">
-                            Librería Activa y Análisis de Activos
+                            Libreria y Analisis de Activos
                         </p>
                     </div>
 

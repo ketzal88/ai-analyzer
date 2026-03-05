@@ -94,9 +94,23 @@ function getQuarterOptions(): { value: string; label: string; year: number; num:
 
 // ── Component ───────────────────────────────────────
 export default function ObjectivesEditor() {
-    const { selectedClientId: clientId, activeClients } = useClient();
+    const { selectedClientId: globalClientId, activeClients, setSelectedClientId } = useClient();
+    const [localClientId, setLocalClientId] = useState<string>("");
+
+    // Sync from global on mount
+    useEffect(() => {
+        if (globalClientId && !localClientId) setLocalClientId(globalClientId);
+    }, [globalClientId]);
+
+    const clientId = localClientId || globalClientId;
     const currentClient = activeClients.find((c: Client) => c.id === clientId);
     const integraciones = currentClient?.integraciones;
+
+    // When user picks a client in this page, also update global context
+    function handleClientChange(newClientId: string) {
+        setLocalClientId(newClientId);
+        setSelectedClientId(newClientId);
+    }
 
     const [objectives, setObjectives] = useState<(QuarterlyObjective & { id?: string })[]>([]);
     const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -382,7 +396,7 @@ export default function ObjectivesEditor() {
     return (
         <AppLayout>
             <div className="space-y-6 pb-20">
-                <header className="flex items-start justify-between">
+                <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
                     <div>
                         <h1 className="text-3xl font-black text-text-primary uppercase tracking-tighter">
                             Objetivos
@@ -390,6 +404,20 @@ export default function ObjectivesEditor() {
                         <p className="text-small text-text-muted font-bold uppercase tracking-widest mt-1">
                             Metas Trimestrales y Pacing
                         </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <label className="text-[10px] font-black text-text-muted uppercase tracking-widest">
+                            Cliente
+                        </label>
+                        <select
+                            value={clientId || ""}
+                            onChange={(e) => handleClientChange(e.target.value)}
+                            className="bg-stellar border border-argent text-text-primary px-3 py-2 text-[12px] font-bold min-w-[200px]"
+                        >
+                            {activeClients.map((c: Client) => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                        </select>
                     </div>
                 </header>
 

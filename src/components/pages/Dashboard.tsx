@@ -112,9 +112,9 @@ export default function Dashboard({
                 {/* Header Row */}
                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
                     <div>
-                        <h1 className="text-display font-black text-text-primary uppercase tracking-tighter">Centro de Mando</h1>
+                        <h1 className="text-display font-black text-text-primary uppercase tracking-tighter">Alert Center</h1>
                         <p className="text-small text-text-muted font-bold uppercase tracking-widest mt-1">
-                            Visión Operativa Unificada • {report.config.currencyCode} • {formatDateRange(report.dateRange)}
+                            Centro de Alertas y Acciones • {report.config.currencyCode} • {formatDateRange(report.dateRange)}
                         </p>
                     </div>
 
