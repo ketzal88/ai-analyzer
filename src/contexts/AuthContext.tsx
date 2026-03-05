@@ -45,14 +45,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const signInWithGoogle = async () => {
         try {
             const provider = new GoogleAuthProvider();
-            // Add additional scopes if needed
             provider.addScope("profile");
             provider.addScope("email");
+            provider.setCustomParameters({ hd: "worker.ar" });
 
             const result = await signInWithPopup(auth, provider);
 
-            // User is signed in, redirect to account selector
+            // User is signed in, validate domain
             if (result.user) {
+                const email = result.user.email || "";
+                if (!email.endsWith("@worker.ar")) {
+                    await firebaseSignOut(auth);
+                    throw new Error("Solo cuentas @worker.ar pueden acceder.");
+                }
+
                 const idToken = await result.user.getIdToken();
                 const sessionRes = await fetch("/api/auth/session", {
                     method: "POST",

@@ -41,6 +41,8 @@ export interface UnifiedChannelMetrics {
     clicks?: number;
     ctr?: number;
     cpc?: number;
+    reach?: number;
+    frequency?: number;
 
     // ── Ecommerce (Tienda Nube / Shopify) ────────
     orders?: number;

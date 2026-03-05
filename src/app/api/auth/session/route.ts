@@ -13,6 +13,16 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        // Verify email domain restriction
+        const decodedToken = await auth.verifyIdToken(idToken);
+        const email = decodedToken.email || "";
+        if (!email.endsWith("@worker.ar")) {
+            return NextResponse.json(
+                { error: "Solo cuentas @worker.ar pueden acceder." },
+                { status: 403 }
+            );
+        }
+
         // 1. Create a session cookie using Firebase Admin SDK
         // This makes the cookie verifiable by auth.verifySessionCookie()
         const expiresIn = 60 * 60 * 24 * 5 * 1000; // 5 days in milliseconds
