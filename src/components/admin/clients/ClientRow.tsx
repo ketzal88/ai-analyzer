@@ -3,14 +3,16 @@ import { Client } from "@/types";
 
 interface ClientRowProps {
     client: Client;
+    teamName?: string;
     onToggleActive: (client: Client) => void;
     onArchive: (id: string) => void;
 }
 
-export default function ClientRow({ client, onToggleActive, onArchive }: ClientRowProps) {
+export default function ClientRow({ client, teamName, onToggleActive, onArchive }: ClientRowProps) {
     return (
         <tr className="hover:bg-special transition-colors group">
             <td className="px-6 py-4 font-medium text-text-primary">{client.name}</td>
+            <td className="px-6 py-4 text-text-secondary text-small">{teamName || "—"}</td>
             <td className="px-6 py-4 text-center">
                 <button
                     onClick={() => onToggleActive(client)}

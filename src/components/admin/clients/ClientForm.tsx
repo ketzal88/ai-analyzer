@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Client } from "@/types";
+import { Client, Team } from "@/types";
 import { EngineConfig, getDefaultEngineConfig } from "@/types/engine-config";
 
 interface ClientFormProps {
@@ -19,6 +19,7 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
     const [formData, setFormData] = useState<Partial<Client>>({
         name: initialData?.name || "",
         slug: initialData?.slug || "",
+        team: initialData?.team || "",
         active: initialData?.active ?? true,
         businessType: initialData?.businessType || "ecommerce",
         isEcommerce: initialData?.isEcommerce ?? false,
@@ -71,6 +72,12 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
     const [slugModifiedManually, setSlugModifiedManually] = useState(false);
     const [configData, setConfigData] = useState<EngineConfig | null>(null);
     const [loadingConfig, setLoadingConfig] = useState(false);
+    const [teams, setTeams] = useState<Team[]>([]);
+
+    // Fetch teams list
+    useEffect(() => {
+        fetch("/api/teams").then(r => r.json()).then(setTeams).catch(() => {});
+    }, []);
 
     // Fetch config if editing
     useEffect(() => {
@@ -112,8 +119,14 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
             return;
         }
 
-        if (formData.active && !formData.metaAdAccountId) {
-            setError("Meta Ad Account ID is required when the client is active.");
+        if (formData.integraciones?.meta && !formData.metaAdAccountId) {
+            setError("Meta Ad Account ID is required when Meta Ads is enabled.");
+            setLoading(false);
+            return;
+        }
+
+        if (formData.integraciones?.google && !formData.googleAdsId) {
+            setError("Google Ads Customer ID is required when Google Ads is enabled.");
             setLoading(false);
             return;
         }
@@ -250,42 +263,59 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
                             <p className="mt-2 text-small text-yellow-500">⚠ Manual slug changes may affect SEO and deep links.</p>
                         )}
                     </div>
+                    <div>
+                        <label className="block text-small font-bold text-text-muted uppercase mb-2">Equipo Asignado</label>
+                        <select
+                            value={formData.team || ""}
+                            onChange={(e) => setFormData({ ...formData, team: e.target.value || undefined })}
+                            className="w-full bg-stellar border border-argent rounded-lg px-3 py-2 text-text-primary focus:border-classic outline-none"
+                        >
+                            <option value="">Sin equipo asignado</option>
+                            {teams.map(t => (
+                                <option key={t.id} value={t.id}>{t.name}</option>
+                            ))}
+                        </select>
+                    </div>
                 </div>
 
-                {/* Integrations */}
+                {/* Slack & Currency */}
                 <div className="space-y-6">
-                    <h2 className="text-subheader text-text-primary">Integrations</h2>
+                    <h2 className="text-subheader text-text-primary">Slack & Currency</h2>
 
-                    <div className="space-y-4">
-                        <label className="flex items-center gap-3 p-4 border border-argent rounded-lg cursor-pointer hover:bg-special transition-colors">
-                            <input
-                                type="checkbox"
-                                checked={formData.isEcommerce}
-                                onChange={(e) => setFormData({ ...formData, isEcommerce: e.target.checked })}
-                                className="w-5 h-5 rounded border-argent text-classic focus:ring-0"
-                            />
-                            <div>
-                                <span className="block text-body font-bold text-text-primary">Ecommerce Site</span>
-                                <span className="text-small text-text-muted">Enables LTV and Purchase attribution diagnostics.</span>
-                            </div>
-                        </label>
-
-                        <label className="flex items-center gap-3 p-4 border border-argent rounded-lg cursor-pointer hover:bg-special transition-colors">
-                            <input
-                                type="checkbox"
-                                checked={formData.isGoogle}
-                                onChange={(e) => setFormData({ ...formData, isGoogle: e.target.checked })}
-                                className="w-5 h-5 rounded border-argent text-classic focus:ring-0"
-                            />
-                            <div>
-                                <span className="block text-body font-bold text-text-primary">Google Ads</span>
-                                <span className="text-small text-text-muted">Sync Google Ads performance for cross-channel audit.</span>
-                            </div>
-                        </label>
+                    <div>
+                        <label className="block text-small font-bold text-text-muted uppercase mb-2">Account Currency</label>
+                        <select
+                            value={formData.currency}
+                            onChange={(e) => {
+                                const newCurr = e.target.value as any;
+                                setFormData({
+                                    ...formData,
+                                    currency: newCurr,
+                                    conversionSchema: formData.conversionSchema ? {
+                                        ...formData.conversionSchema,
+                                        value: formData.conversionSchema.value ? {
+                                            ...formData.conversionSchema.value,
+                                            currency: newCurr
+                                        } : { actionType: "", currency: newCurr, isNet: true }
+                                    } : undefined
+                                });
+                            }}
+                            className="w-full bg-stellar border border-argent rounded-lg px-3 py-2 text-text-primary focus:border-classic outline-none font-bold"
+                        >
+                            <option value="USD">USD - US Dollar</option>
+                            <option value="COP">COP - Colombian Peso</option>
+                            <option value="ARS">ARS - Argentine Peso</option>
+                            <option value="EUR">EUR - Euro</option>
+                            <option value="BRL">BRL - Brazilian Real</option>
+                            <option value="MXN">MXN - Mexican Peso</option>
+                            <option value="GBP">GBP - British Pound</option>
+                            <option value="CAD">CAD - Canadian Dollar</option>
+                            <option value="AUD">AUD - Australian Dollar</option>
+                        </select>
+                        <p className="mt-1 text-small text-text-muted">Primary currency for insights & financial metrics.</p>
                     </div>
 
-                    {/* Slack Tuning */}
-                    <div className="space-y-4 mt-6">
+                    <div className="space-y-4">
                         <h3 className="text-small font-bold text-text-muted uppercase mb-2">Slack Integration</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
@@ -635,92 +665,52 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
                 </div>
             </div>
 
-            {/* Account Details */}
-            <div className="col-span-1 md:col-span-2 p-6 bg-stellar border border-argent rounded-lg space-y-6">
-                <h2 className="text-subheader text-text-primary">Platform Configuration</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <label className="block text-small font-bold text-text-muted uppercase mb-2">Meta Ad Account ID</label>
-                        <input
-                            required={formData.active}
-                            type="text"
-                            value={formData.metaAdAccountId}
-                            onChange={(e) => setFormData({ ...formData, metaAdAccountId: e.target.value })}
-                            placeholder="act_xxxxxxxxxxxx"
-                            className="w-full font-mono"
-                        />
-                        <p className="mt-1 text-small text-text-muted">Required to fetch Meta Graph API insights.</p>
-                    </div>
-
-                    <div>
-                        <label className="block text-small font-bold text-text-muted uppercase mb-2">Meta Account Currency</label>
-                        <select
-                            value={formData.currency}
-                            onChange={(e) => {
-                                const newCurr = e.target.value as any;
-                                setFormData({
-                                    ...formData,
-                                    currency: newCurr,
-                                    conversionSchema: formData.conversionSchema ? {
-                                        ...formData.conversionSchema,
-                                        value: formData.conversionSchema.value ? {
-                                            ...formData.conversionSchema.value,
-                                            currency: newCurr
-                                        } : { actionType: "", currency: newCurr, isNet: true }
-                                    } : undefined
-                                });
-                            }}
-                            className="w-full bg-stellar border border-argent rounded-lg px-3 py-2 text-text-primary focus:border-classic outline-none font-bold"
-                        >
-                            <option value="USD">USD - US Dollar</option>
-                            <option value="COP">COP - Colombian Peso</option>
-                            <option value="ARS">ARS - Argentine Peso</option>
-                            <option value="EUR">EUR - Euro</option>
-                            <option value="BRL">BRL - Brazilian Real</option>
-                            <option value="MXN">MXN - Mexican Peso</option>
-                            <option value="GBP">GBP - British Pound</option>
-                            <option value="CAD">CAD - Canadian Dollar</option>
-                            <option value="AUD">AUD - Australian Dollar</option>
-                        </select>
-                        <p className="mt-1 text-small text-text-muted">Primary currency for Meta insights & financial metrics.</p>
-                    </div>
-
-                    {formData.isGoogle && (
-                        <div className="animate-in fade-in slide-in-from-top-2">
-                            <label className="block text-small font-bold text-text-muted uppercase mb-2">Google Ads Customer ID</label>
-                            <input
-                                type="text"
-                                value={formData.googleAdsId}
-                                onChange={(e) => setFormData({ ...formData, googleAdsId: e.target.value })}
-                                placeholder="xxx-xxx-xxxx"
-                                className="w-full font-mono"
-                            />
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* Channel Integrations */}
+            {/* Channel Integrations — Consolidated */}
             <div className="col-span-1 md:col-span-2 p-6 bg-stellar border border-argent rounded-lg space-y-6">
                 <h2 className="text-subheader text-text-primary">Channel Integrations</h2>
-                <p className="text-small text-text-muted -mt-4">Enable channels and configure per-client API credentials.</p>
+                <p className="text-small text-text-muted -mt-4">Enable channels and configure credentials in one place.</p>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Meta */}
+                    {/* Meta Ads */}
                     <div className="p-4 border border-argent rounded-lg space-y-3">
                         <label className="flex items-center gap-3 cursor-pointer">
                             <input
                                 type="checkbox"
                                 checked={formData.integraciones?.meta || !!formData.metaAdAccountId}
-                                onChange={(e) => setFormData({
-                                    ...formData,
-                                    integraciones: { ...formData.integraciones!, meta: e.target.checked }
-                                })}
+                                onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    setFormData({
+                                        ...formData,
+                                        integraciones: { ...formData.integraciones!, meta: checked },
+                                        ...(checked ? {} : { metaAdAccountId: "" }),
+                                    });
+                                }}
                                 className="w-4 h-4 rounded border-argent text-classic focus:ring-0"
                             />
                             <span className="text-body font-bold text-text-primary">Meta Ads</span>
                         </label>
-                        <p className="text-tiny text-text-muted">Uses global META_ACCESS_TOKEN. Account ID set above.</p>
+                        {(formData.integraciones?.meta || !!formData.metaAdAccountId) && (
+                            <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                                <div>
+                                    <label className="block text-tiny text-text-muted mb-1 font-bold">AD ACCOUNT ID</label>
+                                    <input
+                                        type="text"
+                                        value={formData.metaAdAccountId}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setFormData({
+                                                ...formData,
+                                                metaAdAccountId: val,
+                                                integraciones: { ...formData.integraciones!, meta: !!val },
+                                            });
+                                        }}
+                                        placeholder="act_xxxxxxxxxxxx"
+                                        className="w-full bg-stellar border border-argent rounded px-3 py-2 text-small text-text-primary font-mono placeholder:text-text-muted/50 focus:border-classic outline-none"
+                                    />
+                                </div>
+                                <p className="text-tiny text-text-muted">Uses global META_ACCESS_TOKEN.</p>
+                            </div>
+                        )}
                     </div>
 
                     {/* Google Ads */}
@@ -728,16 +718,43 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
                         <label className="flex items-center gap-3 cursor-pointer">
                             <input
                                 type="checkbox"
-                                checked={formData.integraciones?.google || false}
-                                onChange={(e) => setFormData({
-                                    ...formData,
-                                    integraciones: { ...formData.integraciones!, google: e.target.checked }
-                                })}
+                                checked={formData.integraciones?.google || !!formData.googleAdsId}
+                                onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    setFormData({
+                                        ...formData,
+                                        integraciones: { ...formData.integraciones!, google: checked },
+                                        isGoogle: checked,
+                                        ...(checked ? {} : { googleAdsId: "" }),
+                                    });
+                                }}
                                 className="w-4 h-4 rounded border-argent text-classic focus:ring-0"
                             />
                             <span className="text-body font-bold text-text-primary">Google Ads</span>
                         </label>
-                        <p className="text-tiny text-text-muted">Customer ID set above. Uses global OAuth credentials.</p>
+                        {(formData.integraciones?.google || !!formData.googleAdsId) && (
+                            <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                                <div>
+                                    <label className="block text-tiny text-text-muted mb-1 font-bold">CUSTOMER ID</label>
+                                    <input
+                                        type="text"
+                                        value={formData.googleAdsId}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setFormData({
+                                                ...formData,
+                                                googleAdsId: val,
+                                                isGoogle: !!val,
+                                                integraciones: { ...formData.integraciones!, google: !!val },
+                                            });
+                                        }}
+                                        placeholder="xxx-xxx-xxxx"
+                                        className="w-full bg-stellar border border-argent rounded px-3 py-2 text-small text-text-primary font-mono placeholder:text-text-muted/50 focus:border-classic outline-none"
+                                    />
+                                </div>
+                                <p className="text-tiny text-text-muted">Uses global OAuth credentials.</p>
+                            </div>
+                        )}
                     </div>
 
                     {/* Ecommerce / Tienda Nube */}

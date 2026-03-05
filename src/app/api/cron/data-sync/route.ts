@@ -6,7 +6,6 @@ import { BackfillService } from "@/lib/backfill-service";
 import { EventService } from "@/lib/event-service";
 import { reportError } from "@/lib/error-reporter";
 import { Client } from "@/types";
-import { buildChannelSnapshotId, ChannelDailySnapshot } from "@/types/channel-snapshots";
 
 export const maxDuration = 300; // Allow 5 minutes
 
@@ -70,60 +69,6 @@ export async function GET(request: NextRequest) {
                         clientName: client.name,
                         metadata: { stage: "slack_digest" }
                     });
-                }
-
-                // 3. Write today's actual Meta daily data into channel_snapshots
-                try {
-                    const todayStr = new Date().toISOString().split("T")[0];
-                    const metaToken = process.env.META_ACCESS_TOKEN;
-                    const metaVersion = process.env.META_API_VERSION || "v24.0";
-                    if (metaToken && client.metaAdAccountId) {
-                        const cleanId = client.metaAdAccountId.startsWith("act_") ? client.metaAdAccountId : `act_${client.metaAdAccountId}`;
-                        const timeRange = JSON.stringify({ since: todayStr, until: todayStr });
-                        const fields = "spend,impressions,clicks,reach,frequency,ctr,cpc,actions,action_values";
-                        const metaUrl = `https://graph.facebook.com/${metaVersion}/${cleanId}/insights?level=account&time_increment=1&time_range=${encodeURIComponent(timeRange)}&fields=${fields}&access_token=${metaToken}`;
-                        const metaRes = await fetch(metaUrl);
-                        if (metaRes.ok) {
-                            const metaJson = await metaRes.json();
-                            const row = metaJson.data?.[0];
-                            if (row) {
-                                const getAct = (type: string) => Number(row.actions?.find((a: any) => a.action_type === type)?.value || 0);
-                                const getActVal = (type: string) => Number(row.action_values?.find((a: any) => a.action_type === type)?.value || 0);
-                                const spend = Number(row.spend || 0);
-                                const impressions = Number(row.impressions || 0);
-                                const clicks = Number(row.clicks || 0);
-                                const purchases = getAct("purchase") || getAct("offsite_conversion.fb_pixel_purchase");
-                                const revenue = getActVal("purchase") || getActVal("offsite_conversion.fb_pixel_purchase");
-                                const leads = getAct("lead") || getAct("offsite_conversion.fb_pixel_lead");
-                                const messages = getAct("onsite_conversion.messaging_first_reply");
-                                const conversions = purchases || leads || messages || 0;
-
-                                const metaSnapshot: ChannelDailySnapshot = {
-                                    clientId,
-                                    channel: 'META',
-                                    date: todayStr,
-                                    metrics: {
-                                        spend,
-                                        revenue,
-                                        conversions,
-                                        impressions,
-                                        clicks,
-                                        ctr: Number(row.ctr || 0),
-                                        cpc: Number(row.cpc || 0),
-                                        roas: spend > 0 ? revenue / spend : 0,
-                                        cpa: conversions > 0 ? spend / conversions : 0,
-                                        reach: Number(row.reach || 0),
-                                        frequency: Number(row.frequency || 0),
-                                    },
-                                    syncedAt: new Date().toISOString(),
-                                };
-                                const docId = buildChannelSnapshotId(clientId, 'META', todayStr);
-                                await db.collection('channel_snapshots').doc(docId).set(metaSnapshot, { merge: true });
-                            }
-                        }
-                    }
-                } catch (metaBackfillErr: any) {
-                    console.warn(`[Cron Data Sync] Meta→channel_snapshots failed for ${clientId}:`, metaBackfillErr.message);
                 }
 
                 results.push({ clientId, clientName: client.name, status: "success" });

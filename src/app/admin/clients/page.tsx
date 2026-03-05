@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import AppLayout from "@/components/layouts/AppLayout";
-import { Client } from "@/types";
+import { Client, Team } from "@/types";
 import ClientsActionBar from "@/components/admin/clients/ClientsActionBar";
 import ClientsFilters from "@/components/admin/clients/ClientsFilters";
 import ClientsTable from "@/components/admin/clients/ClientsTable";
@@ -17,6 +17,8 @@ export default function AdminClientsPage() {
     const [filterActive, setFilterActive] = useState<"all" | "active" | "inactive" | "archived">("all");
     const [filterEcommerce, setFilterEcommerce] = useState(false);
     const [filterGoogle, setFilterGoogle] = useState(false);
+    const [filterTeam, setFilterTeam] = useState("all");
+    const [teams, setTeams] = useState<Team[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -37,6 +39,7 @@ export default function AdminClientsPage() {
 
     useEffect(() => {
         fetchClients();
+        fetch("/api/teams").then(r => r.json()).then(setTeams).catch(() => {});
     }, []);
 
     const toggleActive = async (client: Client) => {
@@ -70,7 +73,8 @@ export default function AdminClientsPage() {
             || (filterActive === "active" ? c.active : !c.active);
         const matchesEcommerce = !filterEcommerce || c.isEcommerce;
         const matchesGoogle = !filterGoogle || c.isGoogle;
-        return matchesSearch && matchesActive && matchesEcommerce && matchesGoogle;
+        const matchesTeam = filterTeam === "all" || c.team === filterTeam;
+        return matchesSearch && matchesActive && matchesEcommerce && matchesGoogle && matchesTeam;
     });
 
     return (
@@ -89,6 +93,9 @@ export default function AdminClientsPage() {
                     setFilterEcommerce={setFilterEcommerce}
                     filterGoogle={filterGoogle}
                     setFilterGoogle={setFilterGoogle}
+                    filterTeam={filterTeam}
+                    setFilterTeam={setFilterTeam}
+                    teams={teams}
                 />
 
                 <div className="card p-0 overflow-hidden relative min-h-[400px]">
@@ -101,6 +108,7 @@ export default function AdminClientsPage() {
                     {!isLoading && !error && filteredClients.length > 0 && (
                         <ClientsTable
                             clients={filteredClients}
+                            teams={teams}
                             onToggleActive={toggleActive}
                             onArchive={archiveClient}
                         />

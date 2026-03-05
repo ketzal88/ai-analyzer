@@ -57,12 +57,16 @@ export const POST = withErrorReporting("API Clients POST", async (request: NextR
 
     const docRef = await db.collection("clients").add(newClient);
 
-    // 🚀 Trigger automatic backfill for the last 60 days
+    // Trigger channel backfill for the current quarter (non-blocking)
     try {
-        const { BackfillService } = await import("@/lib/backfill-service");
-        await BackfillService.enqueueClient(docRef.id, 60);
+        const { ChannelBackfillService } = await import("@/lib/channel-backfill-service");
+        ChannelBackfillService.backfillAllChannels(docRef.id).then(results => {
+            console.log(`[Channel Backfill] New client ${docRef.id}:`, results);
+        }).catch(err => {
+            console.error(`[Channel Backfill] Failed for new client ${docRef.id}:`, err.message);
+        });
     } catch (backfillErr) {
-        console.error(`[Backfill] Failed to enqueue for new client ${docRef.id}:`, backfillErr);
+        console.error(`[Channel Backfill] Import failed for ${docRef.id}:`, backfillErr);
     }
 
     return NextResponse.json({ id: docRef.id, ...newClient });

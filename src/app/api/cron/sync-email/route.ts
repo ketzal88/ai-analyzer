@@ -36,9 +36,11 @@ export async function GET(request: NextRequest) {
             }
 
             try {
-                // Sync last 90 days (full quarter for date range picker)
-                const endDate = new Date().toISOString().split("T")[0];
-                const startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+                // Sync only yesterday (complete closed day)
+                const yesterday = new Date();
+                yesterday.setDate(yesterday.getDate() - 1);
+                const startDate = yesterday.toISOString().split("T")[0];
+                const endDate = startDate;
 
                 if (client.integraciones.email === 'perfit') {
                     const apiKey = client.perfitApiKey;

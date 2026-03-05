@@ -261,12 +261,22 @@ export interface DashboardReport {
 }
 
 /**
+ * Team interface — stored in Firestore `teams` collection
+ */
+export interface Team {
+    id: string;
+    name: string;
+    createdAt: string;
+}
+
+/**
  * Administrative Client Interface (Mission 9 + 16 updates)
  */
 export interface Client {
     id: string;
     slug: string;
     name: string;
+    team?: string; // Team ID from `teams` collection
     active: boolean;
     businessType: BusinessType;
     isEcommerce: boolean;
