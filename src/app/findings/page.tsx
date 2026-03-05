@@ -6,31 +6,30 @@ import AppLayout from "@/components/layouts/AppLayout";
 import { useEffect, useState } from "react";
 import { useClient } from "@/contexts/ClientContext";
 import { DiagnosticFinding } from "@/types";
-import { DateRangeOption } from "@/components/pages/Dashboard";
+import { UnifiedDateRange, resolvePreset } from "@/lib/date-utils";
+import DateRangePicker from "@/components/ui/DateRangePicker";
 
 export default function FindingsPage() {
     const { selectedClientId } = useClient();
     const [findings, setFindings] = useState<DiagnosticFinding[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [range, setRange] = useState<DateRangeOption>("last_14d");
+    const [range, setRange] = useState<UnifiedDateRange>(() => resolvePreset("last_14d"));
 
     const fetchActiveFindings = React.useCallback(async () => {
         if (!selectedClientId) return;
         setIsLoading(true);
         setError(null);
         try {
-            // Use unified Analyze Endpoint to get findings
-            // We use 'forceRefresh: false' to get cached findings if available
             const res = await fetch("/api/analyze", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     clientId: selectedClientId,
-                    currentRangePreset: range,
+                    currentRangeCustom: { start: range.start, end: range.end },
                     compareMode: "previous_period",
                     flags: {
-                        syncIfMissing: false // Don't auto-sync here, rely on Dashboard or user action
+                        syncIfMissing: false
                     }
                 })
             });
@@ -52,13 +51,13 @@ export default function FindingsPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [selectedClientId, range]);
+    }, [selectedClientId, range.start, range.end]);
 
     useEffect(() => {
         if (selectedClientId) {
             fetchActiveFindings();
         }
-    }, [selectedClientId, range, fetchActiveFindings]);
+    }, [selectedClientId, range.start, range.end, fetchActiveFindings]);
 
     return (
         <AppLayout>
@@ -72,18 +71,7 @@ export default function FindingsPage() {
                     </div>
 
                     <div className="flex items-center gap-4">
-                        <select
-                            value={range}
-                            onChange={(e) => setRange(e.target.value as DateRangeOption)}
-                            className="bg-stellar border border-argent rounded-lg px-3 py-2 text-small font-bold text-text-primary focus:border-classic outline-none min-w-[160px]"
-                        >
-                            <option value="last_7d">Últimos 7 días</option>
-                            <option value="last_14d">Últimos 14 días</option>
-                            <option value="last_30d">Últimos 30 días</option>
-                            <option value="last_90d">Últimos 90 días</option>
-                            <option value="this_month">Este Mes</option>
-                            <option value="last_month">Mes Pasado</option>
-                        </select>
+                        <DateRangePicker value={range} onChange={setRange} />
 
                         <button
                             onClick={fetchActiveFindings}

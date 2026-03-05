@@ -36,9 +36,9 @@ export async function GET(request: NextRequest) {
             }
 
             try {
-                // Sync last 7 days of data
+                // Sync last 90 days (full quarter for date range picker)
                 const endDate = new Date().toISOString().split("T")[0];
-                const startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+                const startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
                 const { daysWritten, totalSpend } = await GoogleAdsService.syncToChannelSnapshots(
                     clientId,

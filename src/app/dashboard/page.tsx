@@ -5,8 +5,7 @@ import { useClient } from "@/contexts/ClientContext";
 import { useReport } from "@/contexts/ReportContext";
 import Dashboard from "@/components/pages/Dashboard";
 import { DashboardReport } from "@/types";
-
-import { DateRangeOption } from "@/components/pages/Dashboard";
+import { UnifiedDateRange, resolvePreset } from "@/lib/date-utils";
 
 export default function DashboardPage() {
     const { selectedClientId: clientId } = useClient();
@@ -15,7 +14,7 @@ export default function DashboardPage() {
     const [report, setReportInState] = useState<DashboardReport | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [range, setRange] = useState<DateRangeOption>("last_7d");
+    const [range, setRange] = useState<UnifiedDateRange>(() => resolvePreset("last_7d"));
 
     const fetchDashboardData = async (forceRefresh = false) => {
         if (!clientId) return;
@@ -28,7 +27,7 @@ export default function DashboardPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     clientId,
-                    currentRangePreset: range,
+                    currentRangeCustom: { start: range.start, end: range.end },
                     flags: { forceRefresh, syncIfMissing: true }
                 })
             });
@@ -64,7 +63,7 @@ export default function DashboardPage() {
         if (clientId) {
             fetchDashboardData(false);
         }
-    }, [clientId, range]);
+    }, [clientId, range.start, range.end]);
 
     return <Dashboard
         report={report || undefined}

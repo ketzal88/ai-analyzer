@@ -7,14 +7,15 @@ import GemReportRenderer from "@/components/report/GemReportRenderer";
 import { GemReportV1 } from "@/types/gem-report";
 import { useSearchParams } from "next/navigation";
 
-import { DateRangeOption } from "@/components/pages/Dashboard";
+import { UnifiedDateRange, resolvePreset } from "@/lib/date-utils";
+import DateRangePicker from "@/components/ui/DateRangePicker";
 
 function ReportContent() {
     const { selectedClientId } = useClient();
     const [reportData, setReportData] = useState<GemReportV1 | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [range, setRange] = useState<DateRangeOption>("last_14d");
+    const [range, setRange] = useState<UnifiedDateRange>(() => resolvePreset("last_14d"));
 
     // Allow overriding clientId via URL for sharing/direct access
     const searchParams = useSearchParams();
@@ -32,10 +33,10 @@ function ReportContent() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     clientId: activeClientId,
-                    currentRangePreset: range,
+                    currentRangeCustom: { start: range.start, end: range.end },
                     compareMode: "previous_period",
                     flags: {
-                        runLLM: true // Trigger Gemini
+                        runLLM: true
                     }
                 })
             });
@@ -102,21 +103,7 @@ function ReportContent() {
         <div className="space-y-6">
             {/* Control Bar */}
             <div className="flex justify-end items-center gap-4 bg-stellar/30 p-4 rounded-xl border border-argent/50">
-                <div className="flex flex-col items-end gap-1">
-                    <span className="text-[10px] font-black uppercase text-text-muted tracking-widest">Rango de Análisis</span>
-                    <select
-                        value={range}
-                        onChange={(e) => setRange(e.target.value as DateRangeOption)}
-                        className="bg-stellar border border-argent rounded-lg px-3 py-2 text-small font-bold text-text-primary focus:border-classic outline-none min-w-[160px]"
-                    >
-                        <option value="last_7d">Últimos 7 días</option>
-                        <option value="last_14d">Últimos 14 días</option>
-                        <option value="last_30d">Últimos 30 días</option>
-                        <option value="last_90d">Últimos 90 días</option>
-                        <option value="this_month">Este Mes</option>
-                        <option value="last_month">Mes Pasado</option>
-                    </select>
-                </div>
+                <DateRangePicker value={range} onChange={setRange} />
 
                 <button
                     onClick={generateReport}

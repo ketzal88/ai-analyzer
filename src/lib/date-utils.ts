@@ -255,3 +255,189 @@ export const COMMON_TIMEZONES = [
   { value: 'Europe/London', label: 'London (GMT+0/+1)' },
   { value: 'UTC', label: 'UTC (GMT+0)' }
 ] as const;
+
+// ── Unified Date Range Picker ────────────────────────────
+
+export type DatePreset =
+  | "custom"
+  | "today"
+  | "yesterday"
+  | "this_week"
+  | "last_7d"
+  | "last_week"
+  | "last_14d"
+  | "mtd"
+  | "last_30d"
+  | "last_month"
+  | "last_90d";
+
+export interface UnifiedDateRange {
+  start: string;
+  end: string;
+  label: string;
+  preset?: DatePreset;
+}
+
+export const PRESET_LABELS: Record<DatePreset, string> = {
+  custom: "Personalizado",
+  today: "Hoy",
+  yesterday: "Ayer",
+  this_week: "Esta semana (lun-Hoy)",
+  last_7d: "Últimos 7 días",
+  last_week: "La semana pasada (lun-dom)",
+  last_14d: "Últimos 14 días",
+  mtd: "Este mes",
+  last_30d: "Últimos 30 días",
+  last_month: "El mes pasado",
+  last_90d: "Últimos 90 días",
+};
+
+export const PICKER_PRESETS: DatePreset[] = [
+  "today",
+  "yesterday",
+  "this_week",
+  "last_7d",
+  "last_week",
+  "last_14d",
+  "mtd",
+  "last_30d",
+  "last_month",
+  "last_90d",
+];
+
+export function resolvePreset(preset: DatePreset, refDate: Date = new Date()): UnifiedDateRange {
+  const today = new Date(refDate);
+  today.setHours(0, 0, 0, 0);
+
+  let start: Date;
+  let end: Date;
+
+  switch (preset) {
+    case "today":
+      start = end = new Date(today);
+      break;
+
+    case "yesterday":
+      start = end = new Date(today);
+      start.setDate(today.getDate() - 1);
+      break;
+
+    case "this_week": {
+      const day = today.getDay();
+      const diff = day === 0 ? 6 : day - 1;
+      start = new Date(today);
+      start.setDate(today.getDate() - diff);
+      end = new Date(today);
+      break;
+    }
+
+    case "last_7d":
+      start = new Date(today);
+      start.setDate(today.getDate() - 7);
+      end = new Date(today);
+      end.setDate(today.getDate() - 1);
+      break;
+
+    case "last_week": {
+      const day = today.getDay();
+      const diffToLastSunday = day === 0 ? 7 : day;
+      end = new Date(today);
+      end.setDate(today.getDate() - diffToLastSunday);
+      start = new Date(end);
+      start.setDate(end.getDate() - 6);
+      break;
+    }
+
+    case "last_14d":
+      start = new Date(today);
+      start.setDate(today.getDate() - 14);
+      end = new Date(today);
+      end.setDate(today.getDate() - 1);
+      break;
+
+    case "mtd":
+      start = new Date(today.getFullYear(), today.getMonth(), 1);
+      end = new Date(today);
+      break;
+
+    case "last_30d":
+      start = new Date(today);
+      start.setDate(today.getDate() - 30);
+      end = new Date(today);
+      end.setDate(today.getDate() - 1);
+      break;
+
+    case "last_month":
+      start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      end = new Date(today.getFullYear(), today.getMonth(), 0);
+      break;
+
+    case "last_90d":
+      start = new Date(today);
+      start.setDate(today.getDate() - 90);
+      end = new Date(today);
+      end.setDate(today.getDate() - 1);
+      break;
+
+    default:
+      start = new Date(today);
+      start.setDate(today.getDate() - 7);
+      end = new Date(today);
+      end.setDate(today.getDate() - 1);
+      break;
+  }
+
+  return {
+    start: formatDate(start),
+    end: formatDate(end),
+    label: PRESET_LABELS[preset] || "Personalizado",
+    preset,
+  };
+}
+
+export function getComparisonRange(range: UnifiedDateRange): UnifiedDateRange {
+  const start = new Date(range.start + "T12:00:00");
+  const end = new Date(range.end + "T12:00:00");
+  const durationMs = end.getTime() - start.getTime();
+  const days = Math.floor(durationMs / (24 * 60 * 60 * 1000)) + 1;
+
+  const prevEnd = new Date(start);
+  prevEnd.setDate(prevEnd.getDate() - 1);
+  const prevStart = new Date(prevEnd);
+  prevStart.setDate(prevEnd.getDate() - days + 1);
+
+  return {
+    start: formatDate(prevStart),
+    end: formatDate(prevEnd),
+    label: `Periodo anterior (${days}d)`,
+  };
+}
+
+export function validateDateRange(range: UnifiedDateRange): { valid: boolean; error?: string } {
+  const start = new Date(range.start + "T12:00:00");
+  const end = new Date(range.end + "T12:00:00");
+
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+    return { valid: false, error: "Fecha inválida" };
+  }
+  if (end < start) {
+    return { valid: false, error: "La fecha de fin debe ser posterior a la de inicio" };
+  }
+  const days = Math.floor((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+  if (days > 90) {
+    return { valid: false, error: "El rango máximo es 90 días" };
+  }
+  return { valid: true };
+}
+
+export function formatRangeLabel(range: UnifiedDateRange): string {
+  if (range.preset && range.preset !== "custom") {
+    return PRESET_LABELS[range.preset];
+  }
+  const fmt = (dateStr: string) => {
+    const d = new Date(dateStr + "T12:00:00");
+    return d.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+  };
+  if (range.start === range.end) return fmt(range.start);
+  return `${fmt(range.start)} – ${fmt(range.end)}`;
+}

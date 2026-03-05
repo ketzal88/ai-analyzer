@@ -4,6 +4,8 @@ import React, { useEffect, useState } from "react";
 import AppLayout from "@/components/layouts/AppLayout";
 import { useClient } from "@/contexts/ClientContext";
 import { ChannelDailySnapshot } from "@/types/channel-snapshots";
+import { UnifiedDateRange, resolvePreset, formatRangeLabel } from "@/lib/date-utils";
+import DateRangePicker from "@/components/ui/DateRangePicker";
 
 function formatCurrency(value: number | undefined, prefix = "$"): string {
     if (value === undefined || value === null) return "—";
@@ -45,38 +47,6 @@ function KPICard({ label, value, subtitle, color }: KPICardProps) {
     );
 }
 
-type PeriodOption = "mtd" | "last_month" | "two_months_ago";
-
-const PERIOD_LABELS: Record<PeriodOption, string> = {
-    mtd: "Este mes",
-    last_month: "Mes pasado",
-    two_months_ago: "Hace 2 meses",
-};
-
-function getPeriodRange(period: PeriodOption): { startDate: string; endDate: string; label: string } {
-    const now = new Date();
-    let start: Date;
-    let end: Date;
-
-    if (period === "mtd") {
-        start = new Date(now.getFullYear(), now.getMonth(), 1);
-        end = now;
-    } else if (period === "last_month") {
-        start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        end = new Date(now.getFullYear(), now.getMonth(), 0);
-    } else {
-        start = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-        end = new Date(now.getFullYear(), now.getMonth() - 1, 0);
-    }
-
-    const fmt = (d: Date) => d.toISOString().split("T")[0];
-    const months = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
-    const label = period === "mtd"
-        ? `${months[now.getMonth()]} ${now.getFullYear()} (hasta la fecha)`
-        : `${months[start.getMonth()]} ${start.getFullYear()}`;
-
-    return { startDate: fmt(start), endDate: fmt(end), label };
-}
 
 const CHANNEL_LABELS: Record<string, string> = {
     meta_ads: "Meta Ads",
@@ -97,21 +67,19 @@ export default function EcommerceChannel() {
     const [snapshots, setSnapshots] = useState<ChannelDailySnapshot[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [period, setPeriod] = useState<PeriodOption>("mtd");
-
-    const { startDate, endDate, label: periodLabel } = getPeriodRange(period);
+    const [dateRange, setDateRange] = useState<UnifiedDateRange>(() => resolvePreset("mtd"));
 
     useEffect(() => {
         if (!clientId) return;
         setIsLoading(true);
         setError(null);
 
-        fetch(`/api/channel-snapshots?clientId=${clientId}&channel=ECOMMERCE&startDate=${startDate}&endDate=${endDate}`)
+        fetch(`/api/channel-snapshots?clientId=${clientId}&channel=ECOMMERCE&startDate=${dateRange.start}&endDate=${dateRange.end}`)
             .then(res => res.json())
             .then(data => setSnapshots(data.snapshots || []))
             .catch(err => setError(err.message))
             .finally(() => setIsLoading(false));
-    }, [clientId, startDate, endDate]);
+    }, [clientId, dateRange.start, dateRange.end]);
 
     // Detect platform from rawData
     const platform = snapshots.length > 0
@@ -217,24 +185,10 @@ export default function EcommerceChannel() {
                             Ecommerce
                         </h1>
                         <p className="text-small text-text-muted font-bold uppercase tracking-widest mt-1">
-                            {platform} • {periodLabel}
+                            {platform} &bull; {formatRangeLabel(dateRange)}
                         </p>
                     </div>
-                    <div className="flex gap-1">
-                        {(Object.keys(PERIOD_LABELS) as PeriodOption[]).map((key) => (
-                            <button
-                                key={key}
-                                onClick={() => setPeriod(key)}
-                                className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest transition-all ${
-                                    period === key
-                                        ? "bg-classic text-white"
-                                        : "bg-special text-text-muted hover:text-text-primary"
-                                }`}
-                            >
-                                {PERIOD_LABELS[key]}
-                            </button>
-                        ))}
-                    </div>
+                    <DateRangePicker value={dateRange} onChange={setDateRange} />
                 </header>
 
                 {isLoading && (
