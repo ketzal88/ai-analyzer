@@ -19,8 +19,7 @@ export default function ClientsTable({ clients, teams, onToggleActive, onArchive
                     <th className="px-6 py-4 text-small font-bold text-text-muted uppercase tracking-wider">Client Name</th>
                     <th className="px-6 py-4 text-small font-bold text-text-muted uppercase tracking-wider">Equipo</th>
                     <th className="px-6 py-4 text-small font-bold text-text-muted uppercase tracking-wider text-center">Active</th>
-                    <th className="px-6 py-4 text-small font-bold text-text-muted uppercase tracking-wider text-center">Ecommerce</th>
-                    <th className="px-6 py-4 text-small font-bold text-text-muted uppercase tracking-wider text-center">Google Ads</th>
+                    <th className="px-6 py-4 text-small font-bold text-text-muted uppercase tracking-wider">Channels</th>
                     <th className="px-6 py-4 text-small font-bold text-text-muted uppercase tracking-wider text-right">Actions</th>
                 </tr>
             </thead>

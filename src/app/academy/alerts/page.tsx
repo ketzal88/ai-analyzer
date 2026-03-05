@@ -623,19 +623,19 @@ export default function AlertsAcademyPage() {
 
                         {[
                             {
-                                time: "08:00 AM",
-                                title: "Data Sync (Meta → DB)",
-                                desc: "El sistema descarga toda la data de Meta del dia anterior. Se calculan las metricas rolling (7d y 14d) para normalizar tendencias y eliminar outliers de un solo dia."
+                                time: "09:00 AM",
+                                title: "Channel Sync (Meta, Google, Ecommerce, Email)",
+                                desc: "El sistema descarga la data completa del dia anterior de todos los canales configurados: Meta Ads, Google Ads, Ecommerce (Shopify/TiendaNube/WooCommerce) y Email (Klaviyo/Perfit). Se escribe 1 snapshot por canal por cliente en channel_snapshots."
                             },
                             {
-                                time: "08:30 AM",
+                                time: "10:00 AM",
+                                title: "Data Sync + Rolling Metrics",
+                                desc: "Con la data de canales ya sincronizada, se calculan las metricas rolling (7d y 14d) de Meta, se generan los client_snapshots con alertas y clasificaciones, y se envia el Daily Digest a Slack."
+                            },
+                            {
+                                time: "10:30 AM",
                                 title: "AI Assessment (Gemini)",
                                 desc: "La AI analiza los nuevos creativos y los cambios de tendencia. Identifica fatiga, reclasifica anuncios en el funnel y actualiza patrones ganadores."
-                            },
-                            {
-                                time: "09:00 AM",
-                                title: "Daily Digest + Alertas",
-                                desc: "Se dispara el reporte consolidado a Slack con los KPIs del mes y las alertas CRITICAL. Las oportunidades de escala tambien se incluyen en este digest."
                             },
                             {
                                 time: "Cada 2 horas",
@@ -646,6 +646,11 @@ export default function AlertsAcademyPage() {
                                 time: "Lunes 9 AM",
                                 title: "Weekly Digest",
                                 desc: "Resumen semanal con KPIs WoW (week-over-week) y todas las alertas WARNING acumuladas. Ideal para la revision de inicio de semana."
+                            },
+                            {
+                                time: "Al crear cliente",
+                                title: "Backfill Automatico",
+                                desc: "Cuando se crea un cliente nuevo o se habilita un canal, el sistema automaticamente descarga la data historica del quarter actual (ej: 1 de enero a ayer). No es necesario correr scripts manuales."
                             }
                         ].map((step, i) => (
                             <div key={i} className="relative pl-12">

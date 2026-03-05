@@ -136,11 +136,13 @@ Extended `ClientConfig` with business-aware fields:
 - **Health Check**: `/api/health` endpoint returns system status + Firestore connectivity.
 - **Admin UI**: `/admin/system` with 3 tabs: System Events, Cron History, Account Health.
 
-### Backfill & Historical Data
-- **Problem**: Syncing 30 days of data for multiple clients (e.g., 29 clients * 500 ads) exceeds Firebase Free Tier write quotas (20k/day) and Vercel execution timeouts.
-- **Solution**: The system uses a **Historical Backfill Queue** (`backfill_queue`).
-- **Process**: Tasks are enqueued for missing days. The main cron processes a small batch (3-5 tasks) at the end of every run to progressively build the 30-day history without crashing the system.
-- **Trigger**: New clients or missing history can be seeded using the backfill utility.
+### Channel Backfill & Historical Data
+- **Service**: `src/lib/channel-backfill-service.ts` — Handles backfilling `channel_snapshots` for all channels (META, GOOGLE, ECOMMERCE, EMAIL).
+- **Trigger**: Automatically fires (non-blocking) when:
+  - A new client is created (`POST /api/clients`) → backfills all configured channels for the current quarter.
+  - A channel integration is enabled on an existing client (`PATCH /api/clients/:id`) → backfills only the newly enabled channel(s).
+- **Quarter Logic**: Backfills from quarter start (Q1=Jan 1, Q2=Apr 1, Q3=Jul 1, Q4=Oct 1) to yesterday.
+- **Legacy Queue**: The old `backfill_queue` collection (Meta-only, batch processing) is still processed by `data-sync` for backward compatibility.
 
 ---
 
@@ -172,15 +174,24 @@ Extended `ClientConfig` with business-aware fields:
 
 ## 6. Cron Jobs & Automation
 
-| Cron | Route | Schedule | Purpose |
-|------|-------|----------|---------|
-| Super Cron (Consolidated) | `/api/cron/data-sync` | Daily | Sync `today` + Compute Snapshots + Classify + **Slack Reports (KPIs & Digest)** + Backfill Batch |
-| Creative Sync | `/api/cron/sync-creatives` | Daily | Fetch ad metadata & creative assets from Meta |
-| Account Health | `/api/cron/account-health` | Every 6h | Meta account status & spend cap checks |
+### Daily Channel Sync (09:00 UTC — yesterday's closed data)
+| Cron | Route | Purpose |
+|------|-------|---------|
+| Meta Sync | `/api/cron/sync-meta` | Yesterday's Meta Ads metrics → `channel_snapshots` |
+| Google Sync | `/api/cron/sync-google` | Yesterday's Google Ads metrics → `channel_snapshots` |
+| Ecommerce Sync | `/api/cron/sync-ecommerce` | Yesterday's orders (Shopify/TiendaNube/WooCommerce) → `channel_snapshots` |
+| Email Sync | `/api/cron/sync-email` | Yesterday's campaigns (Klaviyo/Perfit) → `channel_snapshots` |
 
-- **Consolidation**: Since Vercel Free allows only **one cron slot**, the Data Sync route was expanded to handle the full pipeline (Sync → Analysis → Slack Reporting).
-- **Manual Trigger**: `/api/admin/trigger-cron` mimics the Super Cron logic for manual on-demand audits.
-- **Quota Management**: Daily syncs are restricted to `today`'s data to respect the 20,000 Firebase write limit (unless on Blaze plan).
+### Daily Processing (10:00 UTC — after channel syncs)
+| Cron | Route | Purpose |
+|------|-------|---------|
+| Data Sync | `/api/cron/data-sync` | Meta rolling metrics + client snapshots + alerts + Slack digest + backfill batch |
+| Creative Sync | `/api/cron/sync-creatives` | Fetch ad metadata & creative assets from Meta |
+| Account Health | `/api/cron/account-health` | Every 2h — Meta account status & spend cap checks |
+
+- **Sync Strategy**: All daily channel syncs fetch only yesterday's complete data (1 API call per client, 1 Firestore write per client/channel). Historical data is handled by the channel backfill service on client creation or channel enable.
+- **Manual Trigger**: `/api/admin/trigger-cron` for on-demand `data-sync` audits.
+- **Vercel Crons**: All 5 daily crons registered in `vercel.json` (4 syncs at 09:00 + data-sync at 10:00).
 
 ---
 

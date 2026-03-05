@@ -305,18 +305,37 @@ Extended `ClientConfig` with business-aware fields:
 
 ## 6. Cron Jobs & Automation
 
+### Daily Channel Sync (09:00 UTC — yesterday's closed data)
+| Cron | Route | Purpose |
+|------|-------|---------|
+| Meta Sync | `/api/cron/sync-meta` | Fetch yesterday's Meta Ads metrics → `channel_snapshots` |
+| Google Sync | `/api/cron/sync-google` | Fetch yesterday's Google Ads metrics → `channel_snapshots` |
+| Ecommerce Sync | `/api/cron/sync-ecommerce` | Fetch yesterday's orders from Shopify/TiendaNube/WooCommerce → `channel_snapshots` |
+| Email Sync | `/api/cron/sync-email` | Fetch yesterday's campaigns from Klaviyo/Perfit → `channel_snapshots` |
+
+### Daily Processing (10:00 UTC — after channel syncs complete)
+| Cron | Route | Purpose |
+|------|-------|---------|
+| Data Sync | `/api/cron/data-sync` | Meta rolling metrics, client snapshots, alerts, Slack digest, backfill batch |
+| Creative Sync | `/api/cron/sync-creatives` | Fetch ad metadata & creative assets from Meta |
+| Classify Entities | `/api/cron/classify-entities` | GEM classification engine (after data-sync) |
+| Creative DNA | `/api/cron/creative-dna` | Gemini Vision creative analysis (after sync-creatives) |
+| Daily Digest | `/api/cron/daily-digest` | Slack MTD report + CRITICAL/scaling alerts |
+
+### Periodic
 | Cron | Route | Schedule | Purpose |
 |------|-------|----------|---------|
-| Creative Sync | `/api/cron/sync-creatives` | Daily | Fetch ads from Meta API |
-| Data Sync | `/api/cron/data-sync` | Daily | Aggregate rolling metrics, snapshots & alerts |
-| Classify Entities | `/api/cron/classify-entities` | Daily (after data-sync) | GEM classification engine |
-| Creative DNA | `/api/cron/creative-dna` | Daily (after sync-creatives) | Gemini Vision creative analysis |
-| Daily Digest | `/api/cron/daily-digest` | Daily 9 AM | Slack MTD report + CRITICAL/scaling alerts |
-| Weekly Alerts | `/api/cron/weekly-alerts` | Weekly (Monday) | Slack WoW summary + WARNING alerts |
+| Weekly Alerts | `/api/cron/weekly-alerts` | Monday | Slack WoW summary + WARNING alerts |
 | Account Health | `/api/cron/account-health` | Every 2h | Meta account status & spend cap checks |
-| Ecommerce Sync | `/api/cron/sync-ecommerce` | Daily | Fetch orders from Shopify/TiendaNube → channel_snapshots |
-| Email Sync | `/api/cron/sync-email` | Daily | Fetch campaigns from Klaviyo/Perfit → channel_snapshots |
 
+### Channel Backfill on New Client / Channel Enable
+- **Service**: `src/lib/channel-backfill-service.ts` — Backfills `channel_snapshots` from current quarter start to yesterday.
+- **Triggers**: Automatically fires (non-blocking) on:
+  - `POST /api/clients` — New client creation → backfills all configured channels.
+  - `PATCH /api/clients/:id` — Detects newly enabled channels → backfills only those.
+- **Quarter Logic**: Q1=Jan 1, Q2=Apr 1, Q3=Jul 1, Q4=Oct 1.
+
+### Notes
 - **Manual Trigger**: `GET` with `Authorization: Bearer <CRON_SECRET>` (data-sync, daily-digest, weekly-alerts, account-health, creative-dna) or `POST` with `x-cron-secret` header (sync-creatives, classify-entities).
 - **Cleaning Cache**: Delete documents from `entity_rolling_metrics` or `daily_entity_snapshots` to force data refresh.
 - **Full Simulation**: `scripts/simulate-monday-cron.ts` runs: data-sync → classify-entities → daily-digest → weekly-alerts.
