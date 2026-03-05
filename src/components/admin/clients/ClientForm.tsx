@@ -755,6 +755,7 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
                                 <option value="">Disabled</option>
                                 <option value="tiendanube">Tienda Nube</option>
                                 <option value="shopify">Shopify</option>
+                                <option value="woocommerce">WooCommerce</option>
                             </select>
                         </div>
                         {formData.integraciones?.ecommerce === 'shopify' && (
@@ -801,6 +802,51 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
                                         </p>
                                     </div>
                                 )}
+                            </div>
+                        )}
+                        {formData.integraciones?.ecommerce === 'woocommerce' && (
+                            <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                                {initialData?.woocommerceConsumerKey ? (
+                                    <div className="flex items-center gap-2 p-2 bg-synced/10 border border-synced/30 rounded">
+                                        <div className="w-2 h-2 bg-synced rounded-full" />
+                                        <span className="text-small font-bold text-synced">Connected</span>
+                                        <span className="text-tiny text-text-muted font-mono">{initialData.woocommerceStoreDomain}</span>
+                                    </div>
+                                ) : null}
+                                <div>
+                                    <label className="block text-tiny text-text-muted mb-1 font-bold">STORE DOMAIN</label>
+                                    <input
+                                        type="text"
+                                        value={formData.woocommerceStoreDomain || ""}
+                                        onChange={(e) => setFormData({ ...formData, woocommerceStoreDomain: e.target.value })}
+                                        placeholder="mitienda.com"
+                                        className="w-full bg-stellar border border-argent rounded px-3 py-2 text-small text-text-primary font-mono placeholder:text-text-muted/50 focus:border-classic outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-tiny text-text-muted mb-1 font-bold">CONSUMER KEY</label>
+                                    <input
+                                        type="text"
+                                        value={formData.woocommerceConsumerKey || ""}
+                                        onChange={(e) => setFormData({ ...formData, woocommerceConsumerKey: e.target.value })}
+                                        placeholder="ck_..."
+                                        className="w-full bg-stellar border border-argent rounded px-3 py-2 text-small text-text-primary font-mono placeholder:text-text-muted/50 focus:border-classic outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-tiny text-text-muted mb-1 font-bold">CONSUMER SECRET</label>
+                                    <input
+                                        type="password"
+                                        value={formData.woocommerceConsumerSecret || ""}
+                                        onChange={(e) => setFormData({ ...formData, woocommerceConsumerSecret: e.target.value })}
+                                        placeholder="cs_..."
+                                        className="w-full bg-stellar border border-argent rounded px-3 py-2 text-small text-text-primary font-mono placeholder:text-text-muted/50 focus:border-classic outline-none"
+                                    />
+                                </div>
+                                <p className="text-tiny text-text-muted">
+                                    Las API keys se generan en WooCommerce &rarr; Settings &rarr; Advanced &rarr; REST API.
+                                    Permisos: Read.
+                                </p>
                             </div>
                         )}
                     </div>

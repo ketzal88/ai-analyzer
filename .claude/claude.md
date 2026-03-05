@@ -190,8 +190,8 @@ Centralized hub for ALL AI logic. 4 tabs:
 - **Pattern**: `systemPrompt = baseSystem + (dbCriticalInstructions || defaultForKey)`. Backward-compatible: if no `criticalInstructions` in DB, uses the original hardcoded defaults.
 - **Prompt Keys**: `report`, `creative-audit`, `creative-variations`, `recommendations_v1`, `concept_briefs_v1`.
 
-### Ecommerce Integration (Shopify + Tienda Nube)
-Multi-platform ecommerce data sync. Both platforms write to the same `channel_snapshots` collection with `channel: 'ECOMMERCE'`.
+### Ecommerce Integration (Shopify + Tienda Nube + WooCommerce)
+Multi-platform ecommerce data sync. All platforms write to the same `channel_snapshots` collection with `channel: 'ECOMMERCE'`.
 
 **Shopify** — OAuth Partners App:
 - **App**: "Worker Brain" in Shopify Partners (Custom Distribution).
@@ -211,8 +211,17 @@ Multi-platform ecommerce data sync. Both platforms write to the same `channel_sn
 - **Metrics**: orders, revenue, avgOrderValue, refunds, grossRevenue, totalDiscounts, totalShipping, fulfilledOrders, cancelledOrders, itemsPerOrder.
 - **Raw Data**: Breakdown by storefront (store, meli, api, form, pos), top products, unique customers.
 
-**Cron**: `/api/cron/sync-ecommerce` — Daily. Iterates all active clients, dispatches to ShopifyService or TiendaNubeService based on `integraciones.ecommerce`.
-**UI**: `src/components/pages/EcommerceChannel.tsx` — Auto-detects platform from `rawData.source`. Period filters (MTD / last month / 2 months ago). 4 KPI rows, attribution bars, top products table, discount codes.
+**WooCommerce** — API Key Auth (no OAuth):
+- **Auth**: Consumer Key + Consumer Secret via query params (Basic Auth). Generated in WooCommerce → Settings → Advanced → REST API.
+- **Service**: `src/lib/woocommerce-service.ts` — REST API v3 `https://{storeDomain}/wp-json/wc/v3`, page-based pagination (`X-WP-TotalPages` header).
+- **Client Fields**: `woocommerceStoreDomain`, `woocommerceConsumerKey`, `woocommerceConsumerSecret`, `integraciones.ecommerce: 'woocommerce'`.
+- **Metrics**: Financial (grossRevenue, netRevenue, totalDiscounts, discountRate, totalTax, totalShipping), Operations (fulfilledOrders, cancelledOrders, fulfillmentRate, itemsPerOrder).
+- **Attribution**: UTM extraction from `meta_data` (supports `_wc_order_attribution_utm_source` from WC 8.5+ native attribution + `_utm_source` from tracking plugins) → classifies into meta_ads, google_ads, email, direct, etc.
+- **Raw Data**: Top products, discount codes (from `coupon_lines`), payment method breakdown, unique customers.
+- **Requires**: HTTPS on the store (WooCommerce REST API requirement for query param auth).
+
+**Cron**: `/api/cron/sync-ecommerce` — Daily. Iterates all active clients, dispatches to ShopifyService, TiendaNubeService, or WooCommerceService based on `integraciones.ecommerce`.
+**UI**: `src/components/pages/EcommerceChannel.tsx` — Auto-detects platform from `rawData.source` ('shopify' | 'tiendanube' | 'woocommerce'). Period filters (MTD / last month / 2 months ago). 4 KPI rows, attribution bars, top products table, discount codes.
 
 ### Email Marketing Integration (Klaviyo + Perfit)
 Multi-platform email marketing data sync. Both platforms write to `channel_snapshots` with `channel: 'EMAIL'`.
@@ -367,4 +376,4 @@ All engines (alerts, classification, performance, reporting) resolve the campaig
   - Phase 3: Creative DNA — Gemini Vision analysis of ad creatives. `creative-dna-service.ts`, diversity scoring, `/api/cron/creative-dna`.
   - Phase 4: Format Diagnostics — IMAGE_INVISIBLE, IMAGE_NO_CONVERT alerts. CREATIVE_MIX_IMBALANCE aggregate alert. Classifier enriched with DNA insights.
   - Phase 5: Consolidation — `AlertEngine.evaluate()` extracted as pure function. ~340 lines of duplicate alert logic removed from `ClientSnapshotService`. `AlertChannel` routing. Weekly digest cron. All thresholds in EngineConfig.
-- **Multi-Channel Expansion**: Shopify OAuth Partners App + Tienda Nube marketplace OAuth + Klaviyo API + Perfit API. Unified `channel_snapshots` collection. Expanded ecommerce metrics (financial, customer segmentation, abandoned carts, UTM attribution, top products, discount codes). Multi-platform dashboards with period filters (`EcommerceChannel.tsx`, `EmailChannel.tsx`).
+- **Multi-Channel Expansion**: Shopify OAuth Partners App + Tienda Nube marketplace OAuth + WooCommerce REST API + Klaviyo API + Perfit API. Unified `channel_snapshots` collection. Expanded ecommerce metrics (financial, customer segmentation, abandoned carts, UTM attribution, top products, discount codes). Multi-platform dashboards with period filters (`EcommerceChannel.tsx`, `EmailChannel.tsx`).

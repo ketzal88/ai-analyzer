@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebase-admin";
 import { TiendaNubeService } from "@/lib/tiendanube-service";
 import { ShopifyService } from "@/lib/shopify-service";
+import { WooCommerceService } from "@/lib/woocommerce-service";
 import { EventService } from "@/lib/event-service";
 import { reportError } from "@/lib/error-reporter";
 import { Client } from "@/types";
@@ -66,6 +67,23 @@ export async function GET(request: NextRequest) {
                         clientId,
                         storeDomain,
                         accessToken,
+                        startDate,
+                        endDate
+                    );
+                    results.push({ clientId, clientName: client.name, status: "success", daysWritten, totalOrders });
+                } else if (client.integraciones.ecommerce === 'woocommerce') {
+                    const storeDomain = client.woocommerceStoreDomain;
+                    const consumerKey = client.woocommerceConsumerKey;
+                    const consumerSecret = client.woocommerceConsumerSecret;
+                    if (!storeDomain || !consumerKey || !consumerSecret) {
+                        results.push({ clientId, clientName: client.name, status: "skipped", error: "No woocommerceStoreDomain, consumerKey, or consumerSecret configured" });
+                        continue;
+                    }
+                    const { daysWritten, totalOrders, totalRevenue } = await WooCommerceService.syncToChannelSnapshots(
+                        clientId,
+                        storeDomain,
+                        consumerKey,
+                        consumerSecret,
                         startDate,
                         endDate
                     );

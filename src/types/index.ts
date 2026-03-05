@@ -280,6 +280,9 @@ export interface Client {
     tiendanubeAccessToken?: string;
     shopifyStoreDomain?: string;    // e.g. "mi-tienda.myshopify.com"
     shopifyAccessToken?: string;    // OAuth token from app install
+    woocommerceStoreDomain?: string;   // e.g. "mitienda.com"
+    woocommerceConsumerKey?: string;   // WooCommerce REST API consumer key (ck_...)
+    woocommerceConsumerSecret?: string; // WooCommerce REST API consumer secret (cs_...)
     currency?: Currency;
     slackPublicChannel?: string;
     slackInternalChannel?: string;
@@ -323,7 +326,7 @@ export interface Client {
         meta: boolean;                               // Meta Ads (Facebook/Instagram) — Phase 1
         google: boolean;                             // Google Ads — Phase 4
         ga4: boolean;                                // Google Analytics 4 — Phase 3
-        ecommerce: 'tiendanube' | 'shopify' | null;  // Ecommerce platform — Phase 2
+        ecommerce: 'tiendanube' | 'shopify' | 'woocommerce' | null;  // Ecommerce platform — Phase 2
         email: 'klaviyo' | 'perfit' | null;          // Email marketing — Phase 6
     };
 

@@ -82,8 +82,10 @@ export default function EcommerceChannel() {
     }, [clientId, dateRange.start, dateRange.end]);
 
     // Detect platform from rawData
-    const platform = snapshots.length > 0
-        ? (snapshots[0]?.rawData?.source === 'shopify' ? 'Shopify' : 'Tienda Nube')
+    const platformSource = snapshots.length > 0 ? snapshots[0]?.rawData?.source : null;
+    const platform = platformSource === 'shopify' ? 'Shopify'
+        : platformSource === 'woocommerce' ? 'WooCommerce'
+        : platformSource === 'tiendanube' ? 'Tienda Nube'
         : 'Ecommerce';
 
     // Aggregate totals across period
