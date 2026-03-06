@@ -200,6 +200,7 @@ Multi-platform ecommerce data sync. All platforms write to the same `channel_sna
 - **Service**: `src/lib/shopify-service.ts` — REST Admin API v2024-01, cursor-based pagination (Link header), rate limit handling.
 - **Client Fields**: `shopifyStoreDomain`, `shopifyAccessToken`, `integraciones.ecommerce: 'shopify'`.
 - **Expanded Metrics**: Financial (grossRevenue, netRevenue, totalDiscounts, discountRate, totalTax, totalShipping), Customer (newCustomers, returningCustomers, repeatPurchaseRate), Operations (fulfilledOrders, cancelledOrders, fulfillmentRate, itemsPerOrder), Abandoned Carts (abandonedCheckouts, abandonedCheckoutValue, cartAbandonmentRate).
+- **Customer LTV**: Computes `avgLtv` per cohort (firstTime, returning, VIP) from `customer.total_spent`. Uses `Map<customerId, totalSpent>` per cohort to deduplicate across orders.
 - **Attribution**: UTM parsing from `landing_site` + `referring_site` → classifies into meta_ads, google_ads, email, direct, google_organic, etc.
 - **Raw Data**: Top products, discount codes, attribution breakdown, customer segmentation.
 
@@ -210,6 +211,7 @@ Multi-platform ecommerce data sync. All platforms write to the same `channel_sna
 - **Client Fields**: `tiendanubeStoreId`, `tiendanubeAccessToken`, `integraciones.ecommerce: 'tiendanube'`.
 - **Metrics**: orders, revenue, avgOrderValue, refunds, grossRevenue, totalDiscounts, totalShipping, fulfilledOrders, cancelledOrders, itemsPerOrder.
 - **Raw Data**: Breakdown by storefront (store, meli, api, form, pos), top products, unique customers.
+- **UI Storefront Section**: "Performance por Canal de Venta" — horizontal bars with revenue, orders, AOV per storefront. Labels: store→"Tienda Online", meli→"Mercado Libre", api→"API", form→"Formulario", pos→"Punto de Venta". Replaces generic attribution for Tienda Nube.
 
 **WooCommerce** — API Key Auth (no OAuth):
 - **Auth**: Consumer Key + Consumer Secret via query params (Basic Auth). Generated in WooCommerce → Settings → Advanced → REST API.
@@ -221,7 +223,7 @@ Multi-platform ecommerce data sync. All platforms write to the same `channel_sna
 - **Requires**: HTTPS on the store (WooCommerce REST API requirement for query param auth).
 
 **Cron**: `/api/cron/sync-ecommerce` — Daily. Iterates all active clients, dispatches to ShopifyService, TiendaNubeService, or WooCommerceService based on `integraciones.ecommerce`.
-**UI**: `src/components/pages/EcommerceChannel.tsx` — Auto-detects platform from `rawData.source` ('shopify' | 'tiendanube' | 'woocommerce'). Period filters (MTD / last month / 2 months ago). 4 KPI rows, attribution bars, top products table, discount codes.
+**UI**: `src/components/pages/EcommerceChannel.tsx` — Auto-detects platform from `rawData.source` ('shopify' | 'tiendanube' | 'woocommerce'). Period filters (MTD / last month / 2 months ago). 4 KPI rows, attribution bars, top products table, discount codes. Shopify cohort cards display LTV. Tienda Nube shows storefront performance section.
 
 ### Email Marketing Integration (Klaviyo + Perfit)
 Multi-platform email marketing data sync. Both platforms write to `channel_snapshots` with `channel: 'EMAIL'`.
@@ -244,8 +246,20 @@ Multi-platform email marketing data sync. Both platforms write to `channel_snaps
 - **Raw Data**: Per-campaign breakdown, automation summaries, account info (plan, contacts, cost).
 
 **Cron**: `/api/cron/sync-email` — Daily, last 30 days. Dispatches to KlaviyoService or PerfitService based on `integraciones.email`.
-**UI**: `src/components/pages/EmailChannel.tsx` — Auto-detects platform from `rawData.source`. Period filters. KPI cards, campaign table, automation cards.
+**UI**: `src/components/pages/EmailChannel.tsx` — Auto-detects platform from `rawData.source`. Period filters. KPI cards, campaign table, automation cards. Klaviyo flows show 5-column grid (enviados, open rate, click rate, ventas, revenue). Perfit campaigns show thumbnail images and tag badges.
 **Backfill Scripts**: `scripts/sync-klaviyo-backfill.ts`, `scripts/sync-perfit-backfill.ts` — Sync 3-month history.
+
+### Google Ads Integration
+Channel data sync from Google Ads API via `google-ads-api` npm package. Writes to `channel_snapshots` with `channel: 'GOOGLE'`.
+
+- **Service**: `src/lib/google-ads-service.ts` — GAQL queries via MCC (login_customer_id). Supports Search, Shopping, Display, Video, PMax campaigns.
+- **Client Fields**: `googleAdsCustomerId`, `integraciones.google_ads: true`.
+- **Metrics**: spend, impressions, clicks, ctr, cpc, conversions, conversionsValue, costPerConversion, roas, videoViews, videoPlays, videoP25, videoP50, videoP75, videoP100.
+- **Video Metrics Aggregation**: Weighted average of video quartile rates (P25/P50/P75/P100) by videoViews per campaign in `aggregateByDay()`.
+- **Search Terms**: `fetchSearchTerms()` queries `search_term_view` (GAQL) — top 50 by spend. Try/catch for campaigns that don't support it (Display/Video/PMax). Stored in `rawData.searchTerms`.
+- **Raw Data**: Per-campaign breakdown, search terms, video metrics.
+- **Cron**: `/api/cron/sync-google` — Daily, fetches yesterday's metrics.
+- **UI**: `src/components/pages/GoogleAdsChannel.tsx` — Campaign table, KPI cards. Video Completion Funnel (stepped bars with P25→P50→P75→P100 drop-off). Top Search Terms table (term, impressions, clicks, CTR, conversions, spend, CPA).
 
 ### Account Health Monitoring
 - **Service**: `src/lib/account-health-service.ts` — Monitors Meta account status via API.
@@ -396,3 +410,4 @@ All engines (alerts, classification, performance, reporting) resolve the campaig
   - Phase 4: Format Diagnostics — IMAGE_INVISIBLE, IMAGE_NO_CONVERT alerts. CREATIVE_MIX_IMBALANCE aggregate alert. Classifier enriched with DNA insights.
   - Phase 5: Consolidation — `AlertEngine.evaluate()` extracted as pure function. ~340 lines of duplicate alert logic removed from `ClientSnapshotService`. `AlertChannel` routing. Weekly digest cron. All thresholds in EngineConfig.
 - **Multi-Channel Expansion**: Shopify OAuth Partners App + Tienda Nube marketplace OAuth + WooCommerce REST API + Klaviyo API + Perfit API. Unified `channel_snapshots` collection. Expanded ecommerce metrics (financial, customer segmentation, abandoned carts, UTM attribution, top products, discount codes). Multi-platform dashboards with period filters (`EcommerceChannel.tsx`, `EmailChannel.tsx`).
+- **Channel KPI Enhancements**: 6 improvements leveraging unused API fields — Google Ads search terms (GAQL `search_term_view`) + video completion funnel (P25/P50/P75/P100), Shopify customer LTV (`total_spent` per cohort), Tienda Nube storefront performance breakdown, Klaviyo expanded flow stats (open rate, click rate), Perfit campaign thumbnails & tags in UI.

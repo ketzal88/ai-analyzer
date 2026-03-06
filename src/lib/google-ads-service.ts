@@ -51,6 +51,18 @@ export interface GoogleAdsCampaignRow {
     videoP100Rate: number;
 }
 
+export interface GoogleAdsSearchTermRow {
+    searchTerm: string;
+    impressions: number;
+    clicks: number;
+    conversions: number;
+    conversionsValue: number;
+    spend: number;
+    ctr: number;
+    cpc: number;
+    costPerConversion: number;
+}
+
 export interface GoogleAdsDailyAggregate {
     date: string;
     metrics: UnifiedChannelMetrics;
@@ -179,6 +191,58 @@ export class GoogleAdsService {
     }
 
     /**
+     * Fetch top search terms for a date range (Search & Shopping campaigns only)
+     */
+    static async fetchSearchTerms(
+        customerId: string,
+        startDate: string,
+        endDate: string,
+        limit = 50
+    ): Promise<GoogleAdsSearchTermRow[]> {
+        const customer = this.getCustomer(customerId);
+
+        let results: any[];
+        try {
+            results = await customer.query(`
+                SELECT
+                    search_term_view.search_term,
+                    metrics.impressions,
+                    metrics.clicks,
+                    metrics.conversions,
+                    metrics.conversions_value,
+                    metrics.cost_micros
+                FROM search_term_view
+                WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
+                ORDER BY metrics.cost_micros DESC
+                LIMIT ${limit}
+            `);
+        } catch (err: any) {
+            // search_term_view not available for all campaign types (Display, Video, PMax)
+            console.warn(`[GoogleAds] Search terms query failed: ${err?.errors?.[0]?.message || err?.message}`);
+            return [];
+        }
+
+        return results.map((row: any) => {
+            const spend = (row.metrics?.cost_micros || 0) / 1_000_000;
+            const impressions = row.metrics?.impressions || 0;
+            const clicks = row.metrics?.clicks || 0;
+            const conversions = row.metrics?.conversions || 0;
+            const conversionsValue = row.metrics?.conversions_value || 0;
+            return {
+                searchTerm: row.search_term_view?.search_term || "",
+                impressions,
+                clicks,
+                conversions,
+                conversionsValue,
+                spend,
+                ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+                cpc: clicks > 0 ? spend / clicks : 0,
+                costPerConversion: conversions > 0 ? spend / conversions : 0,
+            };
+        });
+    }
+
+    /**
      * Aggregate campaign rows into daily totals
      */
     static aggregateByDay(rows: GoogleAdsCampaignRow[]): GoogleAdsDailyAggregate[] {
@@ -203,6 +267,16 @@ export class GoogleAdsService {
             const totalAllConversionsValue = campaigns.reduce((s, c) => s + c.allConversionsValue, 0);
             const totalVTC = campaigns.reduce((s, c) => s + c.viewThroughConversions, 0);
             const totalVideoViews = campaigns.reduce((s, c) => s + c.videoViews, 0);
+
+            // Weighted average video quartile rates (weight by videoViews per campaign)
+            const weightedVideoP25 = totalVideoViews > 0
+                ? campaigns.reduce((s, c) => s + c.videoP25Rate * c.videoViews, 0) / totalVideoViews : 0;
+            const weightedVideoP50 = totalVideoViews > 0
+                ? campaigns.reduce((s, c) => s + c.videoP50Rate * c.videoViews, 0) / totalVideoViews : 0;
+            const weightedVideoP75 = totalVideoViews > 0
+                ? campaigns.reduce((s, c) => s + c.videoP75Rate * c.videoViews, 0) / totalVideoViews : 0;
+            const weightedVideoP100 = totalVideoViews > 0
+                ? campaigns.reduce((s, c) => s + c.videoP100Rate * c.videoViews, 0) / totalVideoViews : 0;
 
             // Weighted average for impression share (weight by impressions)
             const weightedIS = totalImpressions > 0
@@ -234,6 +308,10 @@ export class GoogleAdsService {
                     searchRankLostIS: weightedRankLost || undefined,
                     conversionRate: totalClicks > 0 ? (totalConversions / totalClicks) * 100 : 0,
                     videoPlays: totalVideoViews || undefined,
+                    videoP25: totalVideoViews > 0 ? weightedVideoP25 : undefined,
+                    videoP50: totalVideoViews > 0 ? weightedVideoP50 : undefined,
+                    videoP75: totalVideoViews > 0 ? weightedVideoP75 : undefined,
+                    videoP100: totalVideoViews > 0 ? weightedVideoP100 : undefined,
                 },
                 campaigns,
             });
@@ -253,7 +331,10 @@ export class GoogleAdsService {
     ): Promise<{ daysWritten: number; totalSpend: number }> {
         console.log(`[GoogleAds] Syncing ${clientId} (${customerId}) for ${startDate} → ${endDate}`);
 
-        const rows = await this.fetchCampaignMetrics(customerId, startDate, endDate);
+        const [rows, searchTerms] = await Promise.all([
+            this.fetchCampaignMetrics(customerId, startDate, endDate),
+            this.fetchSearchTerms(customerId, startDate, endDate, 50),
+        ]);
         const dailyAggregates = this.aggregateByDay(rows);
 
         if (dailyAggregates.length === 0) {
@@ -292,6 +373,7 @@ export class GoogleAdsService {
                         searchRankLostIS: c.searchRankLostIS || undefined,
                         conversionRate: c.conversionRate || undefined,
                     })),
+                    ...(searchTerms.length > 0 ? { searchTerms } : {}),
                 },
                 syncedAt: new Date().toISOString(),
             };

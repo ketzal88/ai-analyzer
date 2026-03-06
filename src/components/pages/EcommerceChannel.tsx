@@ -62,6 +62,24 @@ const CHANNEL_LABELS: Record<string, string> = {
     paid_other: "Paid Otros",
 };
 
+const STOREFRONT_LABELS: Record<string, string> = {
+    store: "Tienda Online",
+    meli: "Mercado Libre",
+    api: "API",
+    form: "Formulario",
+    pos: "Punto de Venta",
+    unknown: "Desconocido",
+};
+
+const STOREFRONT_COLORS: Record<string, string> = {
+    store: "bg-classic/50",
+    meli: "bg-yellow-500/50",
+    api: "bg-purple-500/50",
+    form: "bg-synced/50",
+    pos: "bg-orange-500/50",
+    unknown: "bg-argent/30",
+};
+
 export default function EcommerceChannel() {
     const { selectedClientId: clientId } = useClient();
     const [snapshots, setSnapshots] = useState<ChannelDailySnapshot[]>([]);
@@ -161,18 +179,60 @@ export default function EcommerceChannel() {
         .slice(0, 10);
     const totalCountryRevenue = countryData.reduce((s, c) => s + c.revenue, 0);
 
-    // Customer Cohorts aggregated
-    const cohortAcc = { firstTime: { count: 0, revenue: 0 }, returning: { count: 0, revenue: 0 }, vip: { count: 0, revenue: 0 } };
-    let hasCohortData = false;
-    for (const s of snapshots) {
-        const cohorts = s.rawData?.customerCohorts as { firstTime?: { count: number; revenue: number }; returning?: { count: number; revenue: number }; vip?: { count: number; revenue: number } } | undefined;
-        if (cohorts) {
-            hasCohortData = true;
-            if (cohorts.firstTime) { cohortAcc.firstTime.count += cohorts.firstTime.count; cohortAcc.firstTime.revenue += cohorts.firstTime.revenue; }
-            if (cohorts.returning) { cohortAcc.returning.count += cohorts.returning.count; cohortAcc.returning.revenue += cohorts.returning.revenue; }
-            if (cohorts.vip) { cohortAcc.vip.count += cohorts.vip.count; cohortAcc.vip.revenue += cohorts.vip.revenue; }
+    // Storefront breakdown for Tienda Nube
+    const storefrontMap = new Map<string, { orders: number; revenue: number }>();
+    if (platformSource === 'tiendanube') {
+        for (const s of snapshots) {
+            const byStorefront = (s.rawData?.byStorefront as Record<string, { orders: number; revenue: number }>) || {};
+            for (const [sf, data] of Object.entries(byStorefront)) {
+                const existing = storefrontMap.get(sf) || { orders: 0, revenue: 0 };
+                existing.orders += data.orders;
+                existing.revenue += data.revenue;
+                storefrontMap.set(sf, existing);
+            }
         }
     }
+    const storefrontData = Array.from(storefrontMap.entries())
+        .map(([storefront, data]) => ({ storefront, ...data, aov: data.orders > 0 ? data.revenue / data.orders : 0 }))
+        .sort((a, b) => b.revenue - a.revenue);
+    const totalStorefrontRevenue = storefrontData.reduce((s, d) => s + d.revenue, 0);
+
+    // Customer Cohorts aggregated (with LTV for Shopify)
+    const cohortAcc = {
+        firstTime: { count: 0, revenue: 0, totalLtv: 0, ltvCustomers: 0 },
+        returning: { count: 0, revenue: 0, totalLtv: 0, ltvCustomers: 0 },
+        vip: { count: 0, revenue: 0, totalLtv: 0, ltvCustomers: 0 },
+    };
+    let hasCohortData = false;
+    for (const s of snapshots) {
+        const cohorts = s.rawData?.customerCohorts as {
+            firstTime?: { count: number; revenue: number; avgLtv?: number };
+            returning?: { count: number; revenue: number; avgLtv?: number };
+            vip?: { count: number; revenue: number; avgLtv?: number };
+        } | undefined;
+        if (cohorts) {
+            hasCohortData = true;
+            if (cohorts.firstTime) {
+                cohortAcc.firstTime.count += cohorts.firstTime.count;
+                cohortAcc.firstTime.revenue += cohorts.firstTime.revenue;
+                if (cohorts.firstTime.avgLtv) { cohortAcc.firstTime.totalLtv += cohorts.firstTime.avgLtv * cohorts.firstTime.count; cohortAcc.firstTime.ltvCustomers += cohorts.firstTime.count; }
+            }
+            if (cohorts.returning) {
+                cohortAcc.returning.count += cohorts.returning.count;
+                cohortAcc.returning.revenue += cohorts.returning.revenue;
+                if (cohorts.returning.avgLtv) { cohortAcc.returning.totalLtv += cohorts.returning.avgLtv * cohorts.returning.count; cohortAcc.returning.ltvCustomers += cohorts.returning.count; }
+            }
+            if (cohorts.vip) {
+                cohortAcc.vip.count += cohorts.vip.count;
+                cohortAcc.vip.revenue += cohorts.vip.revenue;
+                if (cohorts.vip.avgLtv) { cohortAcc.vip.totalLtv += cohorts.vip.avgLtv * cohorts.vip.count; cohortAcc.vip.ltvCustomers += cohorts.vip.count; }
+            }
+        }
+    }
+    const firstTimeLtv = cohortAcc.firstTime.ltvCustomers > 0 ? cohortAcc.firstTime.totalLtv / cohortAcc.firstTime.ltvCustomers : 0;
+    const returningLtv = cohortAcc.returning.ltvCustomers > 0 ? cohortAcc.returning.totalLtv / cohortAcc.returning.ltvCustomers : 0;
+    const vipLtv = cohortAcc.vip.ltvCustomers > 0 ? cohortAcc.vip.totalLtv / cohortAcc.vip.ltvCustomers : 0;
+    const hasLtvData = firstTimeLtv > 0 || returningLtv > 0 || vipLtv > 0;
     const cohortTotal = cohortAcc.firstTime.count + cohortAcc.returning.count + cohortAcc.vip.count;
     const cohortFirstPct = cohortTotal > 0 ? (cohortAcc.firstTime.count / cohortTotal) * 100 : 0;
     const cohortRetPct = cohortTotal > 0 ? (cohortAcc.returning.count / cohortTotal) * 100 : 0;
@@ -301,8 +361,39 @@ export default function EcommerceChannel() {
                             />
                         </div>
 
-                        {/* ── Attribution (cross-channel) ── */}
-                        {attributionData.length > 0 && (
+                        {/* ── Storefront Performance (Tienda Nube only) ── */}
+                        {platformSource === 'tiendanube' && storefrontData.length > 0 && (
+                            <div className="card p-6">
+                                <h2 className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4">
+                                    Performance por Canal de Venta
+                                </h2>
+                                <div className="space-y-2">
+                                    {storefrontData.map((sf) => {
+                                        const pct = totalStorefrontRevenue > 0 ? (sf.revenue / totalStorefrontRevenue) * 100 : 0;
+                                        return (
+                                            <div key={sf.storefront} className="flex items-center gap-3 text-[11px]">
+                                                <span className="text-text-secondary font-bold w-28 shrink-0 text-[10px]">
+                                                    {STOREFRONT_LABELS[sf.storefront] || sf.storefront}
+                                                </span>
+                                                <div className="flex-1 h-5 bg-argent/20 relative">
+                                                    <div
+                                                        className={`h-full ${STOREFRONT_COLORS[sf.storefront] || "bg-classic/30"}`}
+                                                        style={{ width: `${pct}%` }}
+                                                    />
+                                                </div>
+                                                <span className="text-text-secondary font-mono w-16 text-right">{formatCurrency(sf.revenue)}</span>
+                                                <span className="text-text-muted font-mono w-12 text-right">{sf.orders} ord</span>
+                                                <span className="text-text-muted font-mono w-16 text-right">AOV {formatCurrency(sf.aov)}</span>
+                                                <span className="text-text-muted font-mono w-12 text-right">{pct.toFixed(1)}%</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ── Attribution (cross-channel, skip for Tienda Nube since storefront = attribution) ── */}
+                        {attributionData.length > 0 && platformSource !== 'tiendanube' && (
                             <div className="card p-6">
                                 <h2 className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4">
                                     Atribución por Canal
@@ -394,6 +485,11 @@ export default function EcommerceChannel() {
                                         <p className="text-[10px] text-text-muted">
                                             AOV {formatCurrency(cohortAcc.firstTime.count > 0 ? cohortAcc.firstTime.revenue / cohortAcc.firstTime.count : 0)}
                                         </p>
+                                        {hasLtvData && firstTimeLtv > 0 && (
+                                            <p className="text-[10px] text-classic font-bold mt-1">
+                                                LTV {formatCurrency(firstTimeLtv)}
+                                            </p>
+                                        )}
                                     </div>
                                     <div className="bg-stellar border border-argent p-4">
                                         <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">Recurrentes (2-5)</p>
@@ -404,6 +500,11 @@ export default function EcommerceChannel() {
                                         <p className="text-[10px] text-text-muted">
                                             AOV {formatCurrency(cohortAcc.returning.count > 0 ? cohortAcc.returning.revenue / cohortAcc.returning.count : 0)}
                                         </p>
+                                        {hasLtvData && returningLtv > 0 && (
+                                            <p className="text-[10px] text-synced font-bold mt-1">
+                                                LTV {formatCurrency(returningLtv)}
+                                            </p>
+                                        )}
                                     </div>
                                     <div className="bg-stellar border border-argent p-4">
                                         <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">VIP (6+)</p>
@@ -414,6 +515,11 @@ export default function EcommerceChannel() {
                                         <p className="text-[10px] text-text-muted">
                                             AOV {formatCurrency(cohortAcc.vip.count > 0 ? cohortAcc.vip.revenue / cohortAcc.vip.count : 0)}
                                         </p>
+                                        {hasLtvData && vipLtv > 0 && (
+                                            <p className="text-[10px] text-yellow-400 font-bold mt-1">
+                                                LTV {formatCurrency(vipLtv)}
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                                 {/* Stacked proportion bar */}

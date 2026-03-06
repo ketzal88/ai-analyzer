@@ -331,34 +331,46 @@ export default function EmailChannel() {
                                     Flows ({flows.length})
                                 </h2>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                    {flows.map((f: any) => (
-                                        <div key={f.flowId} className="card p-4 border-classic/10">
-                                            <div className="flex items-start justify-between mb-2">
-                                                <p className="text-[11px] font-bold text-text-primary truncate max-w-[200px]">
-                                                    {f.flowName}
-                                                </p>
-                                                <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
-                                                    f.status === "live" ? "bg-synced/20 text-synced" : "bg-argent/20 text-text-muted"
-                                                }`}>
-                                                    {f.status}
-                                                </span>
+                                    {flows.map((f: any) => {
+                                        const flowOpenRate = f.recipients > 0 ? (f.opens / f.recipients) * 100 : 0;
+                                        const flowClickRate = f.recipients > 0 ? (f.clicks / f.recipients) * 100 : 0;
+                                        return (
+                                            <div key={f.flowId} className="card p-4 border-classic/10">
+                                                <div className="flex items-start justify-between mb-2">
+                                                    <p className="text-[11px] font-bold text-text-primary truncate max-w-[200px]">
+                                                        {f.flowName}
+                                                    </p>
+                                                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
+                                                        f.status === "live" ? "bg-synced/20 text-synced" : "bg-argent/20 text-text-muted"
+                                                    }`}>
+                                                        {f.status}
+                                                    </span>
+                                                </div>
+                                                <div className="grid grid-cols-5 gap-2 text-center">
+                                                    <div>
+                                                        <p className="text-[14px] font-black font-mono text-text-primary">{formatNumber(f.recipients)}</p>
+                                                        <p className="text-[9px] text-text-muted">enviados</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[14px] font-black font-mono text-text-primary">{formatPct(flowOpenRate)}</p>
+                                                        <p className="text-[9px] text-text-muted">open rate</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[14px] font-black font-mono text-text-primary">{formatPct(flowClickRate)}</p>
+                                                        <p className="text-[9px] text-text-muted">click rate</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[14px] font-black font-mono text-synced">{formatNumber(f.conversions)}</p>
+                                                        <p className="text-[9px] text-text-muted">ventas</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[14px] font-black font-mono text-classic">{formatCurrency(f.revenue)}</p>
+                                                        <p className="text-[9px] text-text-muted">revenue</p>
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <div className="grid grid-cols-3 gap-2 text-center">
-                                                <div>
-                                                    <p className="text-[16px] font-black font-mono text-text-primary">{formatNumber(f.recipients)}</p>
-                                                    <p className="text-[9px] text-text-muted">enviados</p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[16px] font-black font-mono text-synced">{formatNumber(f.conversions)}</p>
-                                                    <p className="text-[9px] text-text-muted">ventas</p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[16px] font-black font-mono text-classic">{formatCurrency(f.revenue)}</p>
-                                                    <p className="text-[9px] text-text-muted">revenue</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}
@@ -395,10 +407,34 @@ export default function EmailChannel() {
                                                 return (
                                                 <tr key={c.id || c.campaignId} className="border-b border-argent/10 hover:bg-classic/[0.03]">
                                                     <td className="p-3 max-w-[280px]">
-                                                        <p className="text-[11px] text-text-primary font-medium truncate">{name}</p>
-                                                        {c.subject && c.subject !== name && (
-                                                            <p className="text-[10px] text-text-muted truncate">{c.subject}</p>
-                                                        )}
+                                                        <div className="flex items-start gap-2">
+                                                            {source === 'perfit' && c.thumbnail && (
+                                                                <img
+                                                                    src={c.thumbnail}
+                                                                    alt=""
+                                                                    className="w-10 h-10 object-cover rounded shrink-0 border border-argent/30"
+                                                                    loading="lazy"
+                                                                />
+                                                            )}
+                                                            <div className="min-w-0">
+                                                                <p className="text-[11px] text-text-primary font-medium truncate">{name}</p>
+                                                                {c.subject && c.subject !== name && (
+                                                                    <p className="text-[10px] text-text-muted truncate">{c.subject}</p>
+                                                                )}
+                                                                {source === 'perfit' && c.tags && (c.tags as string[]).length > 0 && (
+                                                                    <div className="flex flex-wrap gap-1 mt-1">
+                                                                        {(c.tags as string[]).map((tag: string) => (
+                                                                            <span
+                                                                                key={tag}
+                                                                                className="text-[8px] px-1.5 py-0.5 bg-classic/10 text-classic rounded font-bold uppercase"
+                                                                            >
+                                                                                {tag}
+                                                                            </span>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
                                                     </td>
                                                     <td className="p-3 text-[11px] text-text-muted font-mono whitespace-nowrap">
                                                         {date ? formatDate(date.split("T")[0]) : "—"}

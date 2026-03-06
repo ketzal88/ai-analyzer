@@ -451,25 +451,34 @@ export class ShopifyService {
                 .sort((a, b) => b.revenue - a.revenue)
                 .slice(0, 10);
 
-            // Customer cohorts
-            const firstTime = { count: 0, revenue: 0, aov: 0 };
-            const returning = { count: 0, revenue: 0, aov: 0 };
-            const vip = { count: 0, revenue: 0, aov: 0 };
+            // Customer cohorts with LTV tracking
+            const firstTime = { count: 0, revenue: 0, aov: 0, avgLtv: 0 };
+            const returning = { count: 0, revenue: 0, aov: 0, avgLtv: 0 };
+            const vip = { count: 0, revenue: 0, aov: 0, avgLtv: 0 };
+
+            // Track unique customers per cohort for LTV (avoid double-counting same customer)
+            const firstTimeLtvMap = new Map<number, number>();
+            const returningLtvMap = new Map<number, number>();
+            const vipLtvMap = new Map<number, number>();
 
             for (const order of paidOrders) {
                 if (order.customer) {
                     const orderRevenue = parseFloat(order.total_price || "0");
                     const ordersCount = order.customer.orders_count;
+                    const customerLtv = parseFloat(order.customer.total_spent || "0");
 
                     if (ordersCount <= 1) {
                         firstTime.count++;
                         firstTime.revenue += orderRevenue;
+                        firstTimeLtvMap.set(order.customer.id, customerLtv);
                     } else if (ordersCount >= 2 && ordersCount <= 5) {
                         returning.count++;
                         returning.revenue += orderRevenue;
+                        returningLtvMap.set(order.customer.id, customerLtv);
                     } else {
                         vip.count++;
                         vip.revenue += orderRevenue;
+                        vipLtvMap.set(order.customer.id, customerLtv);
                     }
                 }
             }
@@ -477,6 +486,17 @@ export class ShopifyService {
             firstTime.aov = firstTime.count > 0 ? firstTime.revenue / firstTime.count : 0;
             returning.aov = returning.count > 0 ? returning.revenue / returning.count : 0;
             vip.aov = vip.count > 0 ? vip.revenue / vip.count : 0;
+
+            // Compute average LTV per cohort from unique customers
+            if (firstTimeLtvMap.size > 0) {
+                firstTime.avgLtv = Array.from(firstTimeLtvMap.values()).reduce((s, v) => s + v, 0) / firstTimeLtvMap.size;
+            }
+            if (returningLtvMap.size > 0) {
+                returning.avgLtv = Array.from(returningLtvMap.values()).reduce((s, v) => s + v, 0) / returningLtvMap.size;
+            }
+            if (vipLtvMap.size > 0) {
+                vip.avgLtv = Array.from(vipLtvMap.values()).reduce((s, v) => s + v, 0) / vipLtvMap.size;
+            }
 
             const customerCohorts = { firstTime, returning, vip };
 

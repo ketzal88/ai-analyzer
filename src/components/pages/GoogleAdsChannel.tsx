@@ -77,7 +77,12 @@ export default function GoogleAdsChannel() {
             allConversions: acc.allConversions + ((s.metrics as any).allConversions || 0),
             allConversionsValue: acc.allConversionsValue + ((s.metrics as any).allConversionsValue || 0),
             viewThroughConversions: acc.viewThroughConversions + ((s.metrics as any).viewThroughConversions || 0),
-            videoViews: acc.videoViews + ((s.metrics as any).videoViews || 0),
+            videoViews: acc.videoViews + ((s.metrics as any).videoPlays || (s.metrics as any).videoViews || 0),
+            // Video quartile weighted accumulators
+            wVideoP25: acc.wVideoP25 + ((s.metrics as any).videoP25 || 0) * ((s.metrics as any).videoPlays || (s.metrics as any).videoViews || 0),
+            wVideoP50: acc.wVideoP50 + ((s.metrics as any).videoP50 || 0) * ((s.metrics as any).videoPlays || (s.metrics as any).videoViews || 0),
+            wVideoP75: acc.wVideoP75 + ((s.metrics as any).videoP75 || 0) * ((s.metrics as any).videoPlays || (s.metrics as any).videoViews || 0),
+            wVideoP100: acc.wVideoP100 + ((s.metrics as any).videoP100 || 0) * ((s.metrics as any).videoPlays || (s.metrics as any).videoViews || 0),
             // Weighted accumulators for impression share, cpm, conversionRate
             wImpressionShare: acc.wImpressionShare + ((s.metrics as any).searchImpressionShare || 0) * (s.metrics.impressions || 0),
             wBudgetLostIS: acc.wBudgetLostIS + ((s.metrics as any).searchBudgetLostIS || 0) * (s.metrics.impressions || 0),
@@ -85,7 +90,7 @@ export default function GoogleAdsChannel() {
             wConversionRate: acc.wConversionRate + ((s.metrics as any).conversionRate || 0) * (s.metrics.impressions || 0),
             wCpm: acc.wCpm + ((s.metrics as any).cpm || 0) * (s.metrics.impressions || 0),
         }),
-        { spend: 0, revenue: 0, conversions: 0, impressions: 0, clicks: 0, allConversions: 0, allConversionsValue: 0, viewThroughConversions: 0, videoViews: 0, wImpressionShare: 0, wBudgetLostIS: 0, wRankLostIS: 0, wConversionRate: 0, wCpm: 0 }
+        { spend: 0, revenue: 0, conversions: 0, impressions: 0, clicks: 0, allConversions: 0, allConversionsValue: 0, viewThroughConversions: 0, videoViews: 0, wVideoP25: 0, wVideoP50: 0, wVideoP75: 0, wVideoP100: 0, wImpressionShare: 0, wBudgetLostIS: 0, wRankLostIS: 0, wConversionRate: 0, wCpm: 0 }
     );
     const roas = totals.spend > 0 ? totals.revenue / totals.spend : 0;
     const cpa = totals.conversions > 0 ? totals.spend / totals.conversions : 0;
@@ -96,6 +101,46 @@ export default function GoogleAdsChannel() {
     const avgRankLostIS = totals.impressions > 0 ? totals.wRankLostIS / totals.impressions : 0;
     const avgConversionRate = totals.impressions > 0 ? totals.wConversionRate / totals.impressions : 0;
     const avgCpm = totals.impressions > 0 ? totals.wCpm / totals.impressions : 0;
+
+    // Video quartile averages
+    const avgVideoP25 = totals.videoViews > 0 ? totals.wVideoP25 / totals.videoViews : 0;
+    const avgVideoP50 = totals.videoViews > 0 ? totals.wVideoP50 / totals.videoViews : 0;
+    const avgVideoP75 = totals.videoViews > 0 ? totals.wVideoP75 / totals.videoViews : 0;
+    const avgVideoP100 = totals.videoViews > 0 ? totals.wVideoP100 / totals.videoViews : 0;
+
+    // Search terms aggregated across snapshots (dedupe by term, keep highest values)
+    const searchTermMap = new Map<string, { impressions: number; clicks: number; conversions: number; conversionsValue: number; spend: number }>();
+    for (const s of snapshots) {
+        const terms = (s.rawData?.searchTerms as any[]) || [];
+        for (const t of terms) {
+            const key = t.searchTerm;
+            const existing = searchTermMap.get(key);
+            if (existing) {
+                existing.impressions += t.impressions || 0;
+                existing.clicks += t.clicks || 0;
+                existing.conversions += t.conversions || 0;
+                existing.conversionsValue += t.conversionsValue || 0;
+                existing.spend += t.spend || 0;
+            } else {
+                searchTermMap.set(key, {
+                    impressions: t.impressions || 0,
+                    clicks: t.clicks || 0,
+                    conversions: t.conversions || 0,
+                    conversionsValue: t.conversionsValue || 0,
+                    spend: t.spend || 0,
+                });
+            }
+        }
+    }
+    const searchTerms = Array.from(searchTermMap.entries())
+        .map(([term, data]) => ({
+            term,
+            ...data,
+            ctr: data.impressions > 0 ? (data.clicks / data.impressions) * 100 : 0,
+            cpa: data.conversions > 0 ? data.spend / data.conversions : 0,
+        }))
+        .sort((a, b) => b.spend - a.spend)
+        .slice(0, 30);
 
     // Aggregate campaigns across all snapshots (deduplicate by id+date → aggregate by id)
     const campaignMap = new Map<string, { name: string; status: string; spend: number; conversions: number; revenue: number; impressions: number; clicks: number }>();
@@ -334,6 +379,94 @@ export default function GoogleAdsChannel() {
                                                     </tr>
                                                 );
                                             })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Video Completion Funnel */}
+                        {totals.videoViews > 0 && avgVideoP25 > 0 && (
+                            <div className="card p-6">
+                                <h2 className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4">
+                                    Video Completion Funnel
+                                </h2>
+                                <div className="grid grid-cols-5 gap-2 text-center mb-4">
+                                    <div>
+                                        <p className="text-lg font-black font-mono text-text-primary">{formatNumber(totals.videoViews, 0)}</p>
+                                        <p className="text-[9px] text-text-muted">Views</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-lg font-black font-mono text-classic">{formatPct(avgVideoP25)}</p>
+                                        <p className="text-[9px] text-text-muted">25% visto</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-lg font-black font-mono text-classic">{formatPct(avgVideoP50)}</p>
+                                        <p className="text-[9px] text-text-muted">50% visto</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-lg font-black font-mono text-classic">{formatPct(avgVideoP75)}</p>
+                                        <p className="text-[9px] text-text-muted">75% visto</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-lg font-black font-mono text-synced">{formatPct(avgVideoP100)}</p>
+                                        <p className="text-[9px] text-text-muted">Completado</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center h-6 w-full overflow-hidden">
+                                    <div className="h-full bg-classic/70 flex items-center justify-center text-[9px] font-bold text-stellar" style={{ width: `${avgVideoP25}%` }}>
+                                        {avgVideoP25 >= 10 ? `${avgVideoP25.toFixed(0)}%` : ""}
+                                    </div>
+                                    <div className="h-full bg-classic/50 flex items-center justify-center text-[9px] font-bold text-stellar" style={{ width: `${Math.max(avgVideoP50 - avgVideoP25, 0)}%` }} />
+                                    <div className="h-full bg-classic/30 flex items-center justify-center text-[9px] font-bold text-stellar" style={{ width: `${Math.max(avgVideoP75 - avgVideoP50, 0)}%` }} />
+                                    <div className="h-full bg-synced/50 flex items-center justify-center text-[9px] font-bold text-stellar" style={{ width: `${Math.max(avgVideoP100 - avgVideoP75, 0)}%` }} />
+                                    <div className="h-full bg-argent/20" style={{ width: `${Math.max(100 - avgVideoP25, 0)}%` }} />
+                                </div>
+                                <div className="flex gap-4 mt-2 text-[9px] text-text-muted">
+                                    <span>Drop P25→P50: {avgVideoP25 > 0 ? ((1 - avgVideoP50 / avgVideoP25) * 100).toFixed(0) : 0}%</span>
+                                    <span>Drop P50→P75: {avgVideoP50 > 0 ? ((1 - avgVideoP75 / avgVideoP50) * 100).toFixed(0) : 0}%</span>
+                                    <span>Drop P75→P100: {avgVideoP75 > 0 ? ((1 - avgVideoP100 / avgVideoP75) * 100).toFixed(0) : 0}%</span>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Search Terms */}
+                        {searchTerms.length > 0 && (
+                            <div className="card p-6">
+                                <h2 className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4">
+                                    Top Search Terms ({searchTerms.length})
+                                </h2>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="border-b border-argent/50">
+                                                <th className="p-3 text-[10px] font-black text-text-muted uppercase tracking-widest">Término</th>
+                                                <th className="p-3 text-[10px] font-black text-text-muted uppercase tracking-widest text-right">Impresiones</th>
+                                                <th className="p-3 text-[10px] font-black text-text-muted uppercase tracking-widest text-right">Clicks</th>
+                                                <th className="p-3 text-[10px] font-black text-text-muted uppercase tracking-widest text-right">CTR</th>
+                                                <th className="p-3 text-[10px] font-black text-text-muted uppercase tracking-widest text-right">Conv.</th>
+                                                <th className="p-3 text-[10px] font-black text-text-muted uppercase tracking-widest text-right">Inversión</th>
+                                                <th className="p-3 text-[10px] font-black text-text-muted uppercase tracking-widest text-right">CPA</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {searchTerms.map((t, i) => (
+                                                <tr key={i} className="border-b border-argent/10 hover:bg-classic/[0.03]">
+                                                    <td className="p-3 text-[11px] text-text-primary font-medium max-w-[300px] truncate">{t.term}</td>
+                                                    <td className="p-3 text-[11px] text-text-secondary font-mono text-right">{formatNumber(t.impressions, 0)}</td>
+                                                    <td className="p-3 text-[11px] text-text-secondary font-mono text-right">{formatNumber(t.clicks, 0)}</td>
+                                                    <td className="p-3 text-[11px] text-text-secondary font-mono text-right">{formatPct(t.ctr)}</td>
+                                                    <td className="p-3 text-[11px] font-mono text-right">
+                                                        <span className={t.conversions > 0 ? "text-synced" : "text-text-muted"}>
+                                                            {t.conversions > 0 ? formatNumber(t.conversions, 0) : "—"}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-3 text-[11px] text-text-secondary font-mono text-right">{formatCurrency(t.spend)}</td>
+                                                    <td className="p-3 text-[11px] text-text-secondary font-mono text-right">
+                                                        {t.cpa > 0 ? formatCurrency(t.cpa) : "—"}
+                                                    </td>
+                                                </tr>
+                                            ))}
                                         </tbody>
                                     </table>
                                 </div>

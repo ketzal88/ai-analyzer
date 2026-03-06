@@ -147,11 +147,11 @@ export abstract class ChannelBrain {
   /**
    * Helper: Read snapshot from Firestore for this channel
    *
-   * Subclasses implement this to read from their specific cache structure:
-   * - MetaBrain: dashbo_snapshots/{clientId}/{date}/meta
-   * - GoogleBrain: dashbo_snapshots/{clientId}/{date}/google
-   * - GA4Brain: dashbo_snapshots/{clientId}/{date}/ga4
-   * - EcommerceBrain: dashbo_snapshots/{clientId}/{date}/ecommerce
+   * Subclasses implement this to read from their specific Firestore structure:
+   * - MetaBrain: daily_entity_snapshots (Meta rolling metrics)
+   * - GoogleBrain: channel_snapshots (GOOGLE channel)
+   * - EcommerceBrain: channel_snapshots (ECOMMERCE channel)
+   * - EmailBrain: channel_snapshots (EMAIL channel)
    */
   protected abstract readSnapshot(
     clientId: string,

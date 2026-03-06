@@ -2,7 +2,7 @@
  * TEST API Route — MetaBrain Worker Brain V2
  *
  * Prueba end-to-end del flujo completo:
- * 1. MetaBrain lee de dashbo_snapshots
+ * 1. MetaBrain lee de daily_entity_snapshots
  * 2. Genera ChannelSignals
  * 3. Retorna JSON para inspección
  *

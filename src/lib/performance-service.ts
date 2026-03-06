@@ -57,9 +57,7 @@ export class PerformanceService {
     /**
      * Sync all levels for a specific client and date range
      *
-     * Worker Brain V2: Now writes to BOTH structures (dual-write):
-     * 1. daily_entity_snapshots (old) - for backward compatibility
-     * 2. dashbo_snapshots/{clientId}/{date}/meta (new) - for ChannelBrain pattern
+     * Writes to daily_entity_snapshots collection in Firestore.
      */
     static async syncAllLevels(clientId: string, metaAdAccountId: string, range: string | { since: string; until: string } = "last_7d") {
         if (!META_ACCESS_TOKEN) throw new Error("Meta API Token not configured");
@@ -205,59 +203,7 @@ export class PerformanceService {
             console.log(`[Sync] ${level} complete. Saved ${totalLevelCount} docs.`);
         }
 
-        // Worker Brain V2: Write to new dashbo_snapshots structure
-        await this.writeToDashboSnapshots(clientId, snapshotsByDate);
-
         return results;
-    }
-
-    /**
-     * Worker Brain V2: Write snapshots to dashbo_snapshots structure
-     *
-     * Structure: dashbo_snapshots/{clientId}/{date}/meta
-     * Contains: { account: [...], campaign: [...], adset: [...], ad: [...] }
-     */
-    private static async writeToDashboSnapshots(
-        clientId: string,
-        snapshotsByDate: Record<string, {
-            account: DailyEntitySnapshot[],
-            campaign: DailyEntitySnapshot[],
-            adset: DailyEntitySnapshot[],
-            ad: DailyEntitySnapshot[]
-        }>
-    ) {
-        const dates = Object.keys(snapshotsByDate);
-        if (dates.length === 0) {
-            console.log('[Sync] No data to write to dashbo_snapshots (empty snapshotsByDate)');
-            return;
-        }
-
-        console.log(`[Sync] Writing to dashbo_snapshots for ${dates.length} dates...`);
-
-        for (const date of dates) {
-            const snapshots = snapshotsByDate[date];
-            const docRef = db.doc(`dashbo_snapshots/${clientId}/${date}/meta`);
-
-            await docRef.set({
-                account: snapshots.account,
-                campaign: snapshots.campaign,
-                adset: snapshots.adset,
-                ad: snapshots.ad,
-                updatedAt: new Date().toISOString(),
-                syncedBy: 'PerformanceService.syncAllLevels',
-                sourceCollection: 'daily_entity_snapshots'
-            });
-
-            const totalSnapshots =
-                snapshots.account.length +
-                snapshots.campaign.length +
-                snapshots.adset.length +
-                snapshots.ad.length;
-
-            console.log(`[Sync] ✅ dashbo_snapshots/${clientId}/${date}/meta (${totalSnapshots} snapshots)`);
-        }
-
-        console.log(`[Sync] ✅ Dual-write complete: ${dates.length} dates synced to dashbo_snapshots`);
     }
 
     private static getEntityId(level: EntityLevel, item: any): string {
