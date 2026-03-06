@@ -4,8 +4,9 @@ import React, { useEffect, useState } from "react";
 import AppLayout from "@/components/layouts/AppLayout";
 import { useClient } from "@/contexts/ClientContext";
 import { ChannelDailySnapshot } from "@/types/channel-snapshots";
-import { UnifiedDateRange, resolvePreset, formatRangeLabel } from "@/lib/date-utils";
+import { UnifiedDateRange, resolvePreset, formatRangeLabel, getComparisonRange } from "@/lib/date-utils";
 import DateRangePicker from "@/components/ui/DateRangePicker";
+import KPICard, { calcDelta } from "@/components/ui/KPICard";
 import { useAnalyst } from "@/contexts/AnalystContext";
 
 function formatCurrency(value: number | undefined, prefix = "$"): string {
@@ -31,27 +32,12 @@ function formatDate(dateStr: string): string {
     return `${parseInt(d)} ${months[parseInt(m) - 1]}`;
 }
 
-interface KPICardProps {
-    label: string;
-    value: string;
-    subtitle?: string;
-    color?: string;
-}
-
-function KPICard({ label, value, subtitle, color }: KPICardProps) {
-    return (
-        <div className="card p-5 hover:border-classic/30 transition-all">
-            <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">{label}</p>
-            <p className={`text-2xl font-black mt-2 font-mono ${color || "text-text-primary"}`}>{value}</p>
-            {subtitle && <p className="text-[10px] text-text-muted mt-1">{subtitle}</p>}
-        </div>
-    );
-}
 
 export default function GoogleAdsChannel() {
     const { selectedClientId: clientId } = useClient();
     const { openAnalyst } = useAnalyst();
     const [snapshots, setSnapshots] = useState<ChannelDailySnapshot[]>([]);
+    const [prevSnapshots, setPrevSnapshots] = useState<ChannelDailySnapshot[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [dateRange, setDateRange] = useState<UnifiedDateRange>(() => resolvePreset("mtd"));
@@ -61,9 +47,15 @@ export default function GoogleAdsChannel() {
         setIsLoading(true);
         setError(null);
 
-        fetch(`/api/channel-snapshots?clientId=${clientId}&channel=GOOGLE&startDate=${dateRange.start}&endDate=${dateRange.end}`)
-            .then(res => res.json())
-            .then(data => setSnapshots(data.snapshots || []))
+        const compRange = getComparisonRange(dateRange);
+        Promise.all([
+            fetch(`/api/channel-snapshots?clientId=${clientId}&channel=GOOGLE&startDate=${dateRange.start}&endDate=${dateRange.end}`).then(r => r.json()),
+            fetch(`/api/channel-snapshots?clientId=${clientId}&channel=GOOGLE&startDate=${compRange.start}&endDate=${compRange.end}`).then(r => r.json()),
+        ])
+            .then(([curr, prev]) => {
+                setSnapshots(curr.snapshots || []);
+                setPrevSnapshots(prev.snapshots || []);
+            })
             .catch(err => setError(err.message))
             .finally(() => setIsLoading(false));
     }, [clientId, dateRange.start, dateRange.end]);
@@ -109,6 +101,22 @@ export default function GoogleAdsChannel() {
     const avgVideoP50 = totals.videoViews > 0 ? totals.wVideoP50 / totals.videoViews : 0;
     const avgVideoP75 = totals.videoViews > 0 ? totals.wVideoP75 / totals.videoViews : 0;
     const avgVideoP100 = totals.videoViews > 0 ? totals.wVideoP100 / totals.videoViews : 0;
+
+    // Previous period totals
+    const prevTotals = prevSnapshots.reduce(
+        (acc, s) => ({
+            spend: acc.spend + (s.metrics.spend || 0),
+            revenue: acc.revenue + (s.metrics.revenue || 0),
+            conversions: acc.conversions + (s.metrics.conversions || 0),
+            impressions: acc.impressions + (s.metrics.impressions || 0),
+            clicks: acc.clicks + (s.metrics.clicks || 0),
+        }),
+        { spend: 0, revenue: 0, conversions: 0, impressions: 0, clicks: 0 }
+    );
+    const prevRoas = prevTotals.spend > 0 ? prevTotals.revenue / prevTotals.spend : 0;
+    const prevCpa = prevTotals.conversions > 0 ? prevTotals.spend / prevTotals.conversions : 0;
+    const prevCtr = prevTotals.impressions > 0 ? (prevTotals.clicks / prevTotals.impressions) * 100 : 0;
+    const prevCpc = prevTotals.clicks > 0 ? prevTotals.spend / prevTotals.clicks : 0;
 
     // Search terms aggregated across snapshots (dedupe by term, keep highest values)
     const searchTermMap = new Map<string, { impressions: number; clicks: number; conversions: number; conversionsValue: number; spend: number }>();
@@ -220,24 +228,29 @@ export default function GoogleAdsChannel() {
                                 label="Inversión"
                                 value={formatCurrency(totals.spend)}
                                 subtitle={`${snapshots.length} días con data`}
+                                delta={calcDelta(totals.spend, prevTotals.spend)}
                             />
                             <KPICard
                                 label="Revenue"
                                 value={formatCurrency(totals.revenue)}
                                 subtitle={`${formatNumber(totals.conversions, 0)} conversiones`}
                                 color="text-synced"
+                                delta={calcDelta(totals.revenue, prevTotals.revenue)}
                             />
                             <KPICard
                                 label="ROAS"
                                 value={`${roas.toFixed(2)}x`}
                                 subtitle="Revenue / Inversión"
                                 color={roas >= 3 ? "text-synced" : roas >= 1 ? "text-classic" : "text-red-400"}
+                                delta={calcDelta(roas, prevRoas)}
                             />
                             <KPICard
                                 label="CPA"
                                 value={formatCurrency(cpa)}
                                 subtitle="Costo por conversión"
                                 color={cpa > 0 ? "text-text-primary" : "text-text-muted"}
+                                delta={calcDelta(cpa, prevCpa)}
+                                deltaInverse
                             />
                         </div>
 
@@ -245,19 +258,24 @@ export default function GoogleAdsChannel() {
                             <KPICard
                                 label="Impresiones"
                                 value={formatNumber(totals.impressions, 0)}
+                                delta={calcDelta(totals.impressions, prevTotals.impressions)}
                             />
                             <KPICard
                                 label="Clicks"
                                 value={formatNumber(totals.clicks, 0)}
+                                delta={calcDelta(totals.clicks, prevTotals.clicks)}
                             />
                             <KPICard
                                 label="CTR"
                                 value={formatPct(ctr)}
                                 color={ctr > 2 ? "text-synced" : "text-text-primary"}
+                                delta={calcDelta(ctr, prevCtr)}
                             />
                             <KPICard
                                 label="CPC"
                                 value={formatCurrency(cpc)}
+                                delta={calcDelta(cpc, prevCpc)}
+                                deltaInverse
                             />
                         </div>
 

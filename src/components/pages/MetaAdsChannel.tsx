@@ -4,8 +4,9 @@ import React, { useEffect, useState, useMemo } from "react";
 import AppLayout from "@/components/layouts/AppLayout";
 import { useClient } from "@/contexts/ClientContext";
 import { ChannelDailySnapshot } from "@/types/channel-snapshots";
-import { UnifiedDateRange, resolvePreset, formatRangeLabel } from "@/lib/date-utils";
+import { UnifiedDateRange, resolvePreset, formatRangeLabel, getComparisonRange } from "@/lib/date-utils";
 import DateRangePicker from "@/components/ui/DateRangePicker";
+import KPICard, { calcDelta } from "@/components/ui/KPICard";
 import { useAnalyst } from "@/contexts/AnalystContext";
 import Link from "next/link";
 import { EntityRollingMetrics, EntityLevel } from "@/types/performance-snapshots";
@@ -35,24 +36,6 @@ function formatDate(dateStr: string): string {
     return `${parseInt(d)} ${months[parseInt(m) - 1]}`;
 }
 
-interface KPICardProps {
-    label: string;
-    value: string;
-    subtitle?: string;
-    color?: string;
-}
-
-function KPICard({ label, value, subtitle, color }: KPICardProps) {
-    return (
-        <div className="card p-5 hover:border-classic/30 transition-all">
-            <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">{label}</p>
-            <p className={`text-2xl font-black mt-2 font-mono ${color || "text-text-primary"}`}>{value}</p>
-            {subtitle && <p className="text-[10px] text-text-muted mt-1">{subtitle}</p>}
-        </div>
-    );
-}
-
-
 export default function MetaAdsChannel() {
     const { openAnalyst } = useAnalyst();
     const {
@@ -63,6 +46,7 @@ export default function MetaAdsChannel() {
         refreshPerformance
     } = useClient();
     const [snapshots, setSnapshots] = useState<ChannelDailySnapshot[]>([]);
+    const [prevSnapshots, setPrevSnapshots] = useState<ChannelDailySnapshot[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [dateRange, setDateRange] = useState<UnifiedDateRange>(() => resolvePreset("mtd"));
@@ -91,9 +75,15 @@ export default function MetaAdsChannel() {
         setIsLoading(true);
         setError(null);
 
-        fetch(`/api/channel-snapshots?clientId=${clientId}&channel=META&startDate=${dateRange.start}&endDate=${dateRange.end}`)
-            .then(res => res.json())
-            .then(data => setSnapshots(data.snapshots || []))
+        const compRange = getComparisonRange(dateRange);
+        Promise.all([
+            fetch(`/api/channel-snapshots?clientId=${clientId}&channel=META&startDate=${dateRange.start}&endDate=${dateRange.end}`).then(r => r.json()),
+            fetch(`/api/channel-snapshots?clientId=${clientId}&channel=META&startDate=${compRange.start}&endDate=${compRange.end}`).then(r => r.json()),
+        ])
+            .then(([curr, prev]) => {
+                setSnapshots(curr.snapshots || []);
+                setPrevSnapshots(prev.snapshots || []);
+            })
             .catch(err => setError(err.message))
             .finally(() => setIsLoading(false));
     }, [clientId, dateRange.start, dateRange.end]);
@@ -135,6 +125,21 @@ export default function MetaAdsChannel() {
     const cpc = totals.clicks > 0 ? totals.spend / totals.clicks : 0;
     const avgCpm = totals.impressions > 0 ? totals.cpmWeighted / totals.impressions : 0;
     const avgCostPerLinkClick = totals.inlineLinkClicks > 0 ? totals.costPerInlineLinkClickWeighted / totals.inlineLinkClicks : 0;
+
+    // Previous period totals
+    const prevTotals = prevSnapshots.reduce(
+        (acc, s) => ({
+            spend: acc.spend + (s.metrics.spend || 0),
+            revenue: acc.revenue + (s.metrics.revenue || 0),
+            conversions: acc.conversions + (s.metrics.conversions || 0),
+            impressions: acc.impressions + (s.metrics.impressions || 0),
+            clicks: acc.clicks + (s.metrics.clicks || 0),
+        }),
+        { spend: 0, revenue: 0, conversions: 0, impressions: 0, clicks: 0 }
+    );
+    const prevRoas = prevTotals.spend > 0 ? prevTotals.revenue / prevTotals.spend : 0;
+    const prevCpa = prevTotals.conversions > 0 ? prevTotals.spend / prevTotals.conversions : 0;
+    const prevCtr = prevTotals.impressions > 0 ? (prevTotals.clicks / prevTotals.impressions) * 100 : 0;
 
     // Sort snapshots by date ascending for the daily chart
     const sortedSnapshots = [...snapshots].sort((a, b) => a.date.localeCompare(b.date));
@@ -312,24 +317,29 @@ export default function MetaAdsChannel() {
                                 label="Inversion"
                                 value={formatCurrency(totals.spend)}
                                 subtitle={`${snapshots.length} dias con data`}
+                                delta={calcDelta(totals.spend, prevTotals.spend)}
                             />
                             <KPICard
                                 label="Revenue"
                                 value={formatCurrency(totals.revenue)}
                                 subtitle={`${formatNumber(totals.conversions, 0)} conversiones`}
                                 color="text-synced"
+                                delta={calcDelta(totals.revenue, prevTotals.revenue)}
                             />
                             <KPICard
                                 label="ROAS"
                                 value={`${roas.toFixed(2)}x`}
                                 subtitle="Revenue / Inversion"
                                 color={roas >= 3 ? "text-synced" : roas >= 1 ? "text-classic" : "text-red-400"}
+                                delta={calcDelta(roas, prevRoas)}
                             />
                             <KPICard
                                 label="CPA"
                                 value={formatCurrency(cpa)}
                                 subtitle="Costo por conversion"
                                 color={cpa > 0 ? "text-text-primary" : "text-text-muted"}
+                                delta={calcDelta(cpa, prevCpa)}
+                                deltaInverse
                             />
                         </div>
 
@@ -338,15 +348,18 @@ export default function MetaAdsChannel() {
                             <KPICard
                                 label="Impresiones"
                                 value={formatNumber(totals.impressions, 0)}
+                                delta={calcDelta(totals.impressions, prevTotals.impressions)}
                             />
                             <KPICard
                                 label="Clicks"
                                 value={formatNumber(totals.clicks, 0)}
+                                delta={calcDelta(totals.clicks, prevTotals.clicks)}
                             />
                             <KPICard
                                 label="CTR"
                                 value={formatPct(ctr)}
                                 color={ctr > 2 ? "text-synced" : "text-text-primary"}
+                                delta={calcDelta(ctr, prevCtr)}
                             />
                             <KPICard
                                 label="Alcance"

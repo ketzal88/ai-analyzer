@@ -4,8 +4,9 @@ import React, { useEffect, useState } from "react";
 import AppLayout from "@/components/layouts/AppLayout";
 import { useClient } from "@/contexts/ClientContext";
 import { ChannelDailySnapshot } from "@/types/channel-snapshots";
-import { UnifiedDateRange, resolvePreset, formatRangeLabel } from "@/lib/date-utils";
+import { UnifiedDateRange, resolvePreset, formatRangeLabel, getComparisonRange } from "@/lib/date-utils";
 import DateRangePicker from "@/components/ui/DateRangePicker";
+import KPICard, { calcDelta } from "@/components/ui/KPICard";
 import { useAnalyst } from "@/contexts/AnalystContext";
 
 function formatCurrency(value: number | undefined, prefix = "$"): string {
@@ -30,24 +31,6 @@ function formatDate(dateStr: string): string {
     const months = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
     return `${parseInt(d)} ${months[parseInt(m) - 1]}`;
 }
-
-interface KPICardProps {
-    label: string;
-    value: string;
-    subtitle?: string;
-    color?: string;
-}
-
-function KPICard({ label, value, subtitle, color }: KPICardProps) {
-    return (
-        <div className="card p-5 hover:border-classic/30 transition-all">
-            <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">{label}</p>
-            <p className={`text-2xl font-black mt-2 font-mono ${color || "text-text-primary"}`}>{value}</p>
-            {subtitle && <p className="text-[10px] text-text-muted mt-1">{subtitle}</p>}
-        </div>
-    );
-}
-
 
 const CHANNEL_LABELS: Record<string, string> = {
     meta_ads: "Meta Ads",
@@ -85,6 +68,7 @@ export default function EcommerceChannel() {
     const { selectedClientId: clientId } = useClient();
     const { openAnalyst } = useAnalyst();
     const [snapshots, setSnapshots] = useState<ChannelDailySnapshot[]>([]);
+    const [prevSnapshots, setPrevSnapshots] = useState<ChannelDailySnapshot[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [dateRange, setDateRange] = useState<UnifiedDateRange>(() => resolvePreset("mtd"));
@@ -94,9 +78,15 @@ export default function EcommerceChannel() {
         setIsLoading(true);
         setError(null);
 
-        fetch(`/api/channel-snapshots?clientId=${clientId}&channel=ECOMMERCE&startDate=${dateRange.start}&endDate=${dateRange.end}`)
-            .then(res => res.json())
-            .then(data => setSnapshots(data.snapshots || []))
+        const compRange = getComparisonRange(dateRange);
+        Promise.all([
+            fetch(`/api/channel-snapshots?clientId=${clientId}&channel=ECOMMERCE&startDate=${dateRange.start}&endDate=${dateRange.end}`).then(r => r.json()),
+            fetch(`/api/channel-snapshots?clientId=${clientId}&channel=ECOMMERCE&startDate=${compRange.start}&endDate=${compRange.end}`).then(r => r.json()),
+        ])
+            .then(([curr, prev]) => {
+                setSnapshots(curr.snapshots || []);
+                setPrevSnapshots(prev.snapshots || []);
+            })
             .catch(err => setError(err.message))
             .finally(() => setIsLoading(false));
     }, [clientId, dateRange.start, dateRange.end]);
@@ -139,6 +129,19 @@ export default function EcommerceChannel() {
         : 0;
     const itemsPerOrder = totals.orders > 0 ? totals.totalItems / totals.orders : 0;
     const refundRate = totals.revenue > 0 ? (totals.totalRefundAmount / totals.revenue) * 100 : 0;
+
+    // Previous period totals
+    const prevTotals = prevSnapshots.reduce(
+        (acc, s) => ({
+            orders: acc.orders + (s.metrics.orders || 0),
+            revenue: acc.revenue + (s.metrics.revenue || 0),
+            abandonedCheckouts: acc.abandonedCheckouts + (s.metrics.abandonedCheckouts || 0),
+            totalItems: acc.totalItems + ((s.metrics.itemsPerOrder || 0) * (s.metrics.orders || 0)),
+        }),
+        { orders: 0, revenue: 0, abandonedCheckouts: 0, totalItems: 0 }
+    );
+    const prevAov = prevTotals.orders > 0 ? prevTotals.revenue / prevTotals.orders : 0;
+    const prevItemsPerOrder = prevTotals.orders > 0 ? prevTotals.totalItems / prevTotals.orders : 0;
 
     // Unique customers from rawData (TiendaNube tracks this via customer IDs)
     const totalUniqueCustomers = snapshots.reduce((sum, s) => sum + ((s.rawData?.uniqueCustomers as number) || 0), 0);
@@ -318,10 +321,10 @@ export default function EcommerceChannel() {
                     <>
                         {/* ── Primary KPIs ── */}
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                            <KPICard label="Revenue" value={formatCurrency(totals.revenue)} color="text-synced" />
-                            <KPICard label="Órdenes" value={formatNumber(totals.orders)} />
-                            <KPICard label="Ticket Promedio" value={formatCurrency(aov)} subtitle="AOV" />
-                            <KPICard label="Items / Orden" value={formatNumber(itemsPerOrder, 1)} />
+                            <KPICard label="Revenue" value={formatCurrency(totals.revenue)} color="text-synced" delta={calcDelta(totals.revenue, prevTotals.revenue)} />
+                            <KPICard label="Órdenes" value={formatNumber(totals.orders)} delta={calcDelta(totals.orders, prevTotals.orders)} />
+                            <KPICard label="Ticket Promedio" value={formatCurrency(aov)} subtitle="AOV" delta={calcDelta(aov, prevAov)} />
+                            <KPICard label="Items / Orden" value={formatNumber(itemsPerOrder, 1)} delta={calcDelta(itemsPerOrder, prevItemsPerOrder)} />
                         </div>
 
                         {/* ── Financial Breakdown ── */}

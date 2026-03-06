@@ -12,7 +12,7 @@ A high-performance Next.js application designed to analyze Meta Ads creatives us
 - **Framework**: Next.js 14 (App Router), TypeScript
 - **Styling**: Tailwind CSS (Stitch Design System implementation)
 - **Database/Auth**: Firebase (Firestore, Auth, Admin SDK)
-- **AI Engine**: Google Generative AI (Gemini 2.0 Flash)
+- **AI Engine**: Google Generative AI (Gemini 2.0 Flash) + Anthropic Claude (AI Analyst)
 - **Deployment**: Vercel
 
 ---
@@ -42,6 +42,8 @@ TIENDANUBE_APP_ID=...
 TIENDANUBE_CLIENT_SECRET=...
 # Slack
 SLACK_BOT_TOKEN=...
+# AI Analyst (Claude)
+ANTHROPIC_API_KEY=...
 ```
 
 ### Firestore Infrastructure
@@ -66,6 +68,8 @@ SLACK_BOT_TOKEN=...
 | `creative_diversity_scores` | Per-client creative diversity scores (ID: `clientId`) |
 | `channel_snapshots` | Unified daily metrics per channel (ID: `clientId__CHANNEL__YYYY-MM-DD`) |
 | `tiendanube_auth_tokens` | Temporary OAuth tokens for unlinked TiendaNube stores |
+| `brain_prompts` | AI Analyst system prompts per channel (ID: `channelId`) |
+| `ai_analyst_rate_limits` | Per-user rate limit counters for AI Analyst (ID: `uid`) |
 
 ---
 
@@ -285,6 +289,50 @@ Extended `ClientConfig` with business-aware fields:
 - **Health Check**: `/api/health` endpoint returns system status + Firestore connectivity.
 - **Error Reporter**: `src/lib/error-reporter.ts` — Structured error capture with context.
 - **Admin UI**: `/admin/system` with 3 tabs: System Events, Cron History, Account Health.
+
+### AI Analyst — Conversational Chat Panel
+Multi-turn conversational AI panel that analyzes channel data in real-time using Claude. Replaces one-shot Gemini reports with interactive, context-aware conversations.
+
+**Architecture:**
+- **AI Provider**: Anthropic Claude (Sonnet 4.5) via `@anthropic-ai/sdk`.
+- **Context Format**: Structured XML (`<business_data>` tags). Claude interprets XML tags better than JSON (~30% improved comprehension).
+- **Prompt Caching**: System prompt (channel prompt + data XML) cached for 5 minutes via `cache_control: { type: 'ephemeral' }`. ~90% cost reduction on follow-up messages within same conversation.
+- **Streaming**: Server-Sent Events (SSE) via `ReadableStream`. Real-time token-by-token display.
+- **Rate Limiting**: 30 requests/hour per user, tracked in `ai_analyst_rate_limits/{uid}`.
+
+**Key Files:**
+
+| File | Purpose |
+|------|---------|
+| `src/lib/ai-analyst/types.ts` | ChannelId, AnalystContext interfaces, CHANNEL_TO_FIRESTORE mapping, SUGGESTED_QUESTIONS |
+| `src/lib/ai-analyst/context-builder.ts` | Builds AnalystContext from Firestore data (client config, channel_snapshots, entity data, creative DNA) |
+| `src/lib/ai-analyst/xml-formatter.ts` | Converts AnalystContext → semantic XML for Claude's system prompt |
+| `src/lib/ai-analyst/prompts.ts` | Channel-specific system prompts with 5-min memory cache. Reads from `brain_prompts/{channelId}` in Firestore, falls back to built-in defaults |
+| `src/app/api/ai-analyst/chat/route.ts` | POST API route — auth, rate limit, context build, Anthropic SSE streaming |
+| `src/hooks/useAnalystChat.ts` | Client-side hook — manages messages, SSE reader, abort on panel close |
+| `src/contexts/AnalystContext.tsx` | React context — `openAnalyst(channelId, initialPrompt?)`, `closeAnalyst()` |
+| `src/components/ai-analyst/AnalystPanel.tsx` | 420px fixed right panel with header, messages, input |
+| `src/components/ai-analyst/MessageList.tsx` | Chat bubbles with markdown rendering + streaming indicator |
+| `src/components/ai-analyst/AnalystInput.tsx` | Auto-resize textarea, Enter=send, Shift+Enter=newline |
+| `src/components/ai-analyst/SuggestedQuestions.tsx` | 3 clickable question chips per channel (visible when no messages) |
+
+**Channels Supported:** `meta_ads`, `google_ads`, `ecommerce`, `email`, `cross_channel`.
+
+**Context Builder Data Sources per Channel:**
+
+| Channel | Summary From | Details From |
+|---------|-------------|-------------|
+| `meta_ads` | `channel_snapshots` (META) | `daily_entity_snapshots` (campaigns) + `entity_rolling_metrics` (top ads) + `creative_dna` |
+| `google_ads` | `channel_snapshots` (GOOGLE) | `rawData.campaigns` from snapshots |
+| `ecommerce` | `channel_snapshots` (ECOMMERCE) | `rawData.topProducts` + `rawData.attributionBreakdown` |
+| `email` | `channel_snapshots` (EMAIL) | `rawData.campaigns` + `rawData.automations/flows` |
+| `cross_channel` | All 4 channels combined | Attribution gap (Meta reported vs ecommerce real), spend distribution |
+
+**Token Budget:** ~30k max context. Limits: 15 campaigns, 10 creatives, 10 products, 10 email campaigns, 10 automations. Nulls omitted, floats rounded to 2 decimals.
+
+**Prompts:** Stored in `brain_prompts/{channelId}` Firestore collection. Each prompt defines the analyst's role, diagnostic rules, and response format (Spanish, max 250 words, end with actionable recommendation). Editable via Firestore without code deploys.
+
+**Integration:** "Analizar con IA" button in header of MetaAdsChannel, GoogleAdsChannel, EcommerceChannel, EmailChannel. Opens panel with `openAnalyst('channel_id')`. `AnalystProvider` wraps app in `layout.tsx`.
 
 ---
 

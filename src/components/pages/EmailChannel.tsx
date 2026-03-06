@@ -4,8 +4,9 @@ import React, { useEffect, useState } from "react";
 import AppLayout from "@/components/layouts/AppLayout";
 import { useClient } from "@/contexts/ClientContext";
 import { ChannelDailySnapshot } from "@/types/channel-snapshots";
-import { UnifiedDateRange, resolvePreset, formatRangeLabel } from "@/lib/date-utils";
+import { UnifiedDateRange, resolvePreset, formatRangeLabel, getComparisonRange } from "@/lib/date-utils";
 import DateRangePicker from "@/components/ui/DateRangePicker";
+import KPICard, { calcDelta } from "@/components/ui/KPICard";
 import { useAnalyst } from "@/contexts/AnalystContext";
 
 function formatNumber(value: number | undefined, decimals = 0): string {
@@ -31,22 +32,6 @@ function formatDate(dateStr: string): string {
     return `${parseInt(d)} ${months[parseInt(m) - 1]}`;
 }
 
-interface KPICardProps {
-    label: string;
-    value: string;
-    subtitle?: string;
-    color?: string;
-}
-
-function KPICard({ label, value, subtitle, color }: KPICardProps) {
-    return (
-        <div className="card p-5 hover:border-classic/30 transition-all">
-            <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">{label}</p>
-            <p className={`text-2xl font-black mt-2 font-mono ${color || "text-text-primary"}`}>{value}</p>
-            {subtitle && <p className="text-[10px] text-text-muted mt-1">{subtitle}</p>}
-        </div>
-    );
-}
 
 const AUTOMATION_TYPE_LABELS: Record<string, string> = {
     abandoned_cart: "Carrito Abandonado",
@@ -62,6 +47,7 @@ export default function EmailChannel() {
     const { selectedClientId: clientId } = useClient();
     const { openAnalyst } = useAnalyst();
     const [snapshots, setSnapshots] = useState<ChannelDailySnapshot[]>([]);
+    const [prevSnapshots, setPrevSnapshots] = useState<ChannelDailySnapshot[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [dateRange, setDateRange] = useState<UnifiedDateRange>(() => resolvePreset("mtd"));
@@ -71,9 +57,15 @@ export default function EmailChannel() {
         setIsLoading(true);
         setError(null);
 
-        fetch(`/api/channel-snapshots?clientId=${clientId}&channel=EMAIL&startDate=${dateRange.start}&endDate=${dateRange.end}`)
-            .then(res => res.json())
-            .then(data => setSnapshots(data.snapshots || []))
+        const compRange = getComparisonRange(dateRange);
+        Promise.all([
+            fetch(`/api/channel-snapshots?clientId=${clientId}&channel=EMAIL&startDate=${dateRange.start}&endDate=${dateRange.end}`).then(r => r.json()),
+            fetch(`/api/channel-snapshots?clientId=${clientId}&channel=EMAIL&startDate=${compRange.start}&endDate=${compRange.end}`).then(r => r.json()),
+        ])
+            .then(([curr, prev]) => {
+                setSnapshots(curr.snapshots || []);
+                setPrevSnapshots(prev.snapshots || []);
+            })
             .catch(err => setError(err.message))
             .finally(() => setIsLoading(false));
     }, [clientId, dateRange.start, dateRange.end]);
@@ -99,6 +91,27 @@ export default function EmailChannel() {
     const conversionRate = totals.opens > 0 ? (totals.conversions / totals.opens) * 1000 : 0;
     const ctor = totals.opens > 0 ? (totals.clicks / totals.opens) * 100 : 0;
     const revenuePerRecipient = totals.sent > 0 ? totals.revenue / totals.sent : 0;
+
+    // Previous period totals
+    const prevTotals = prevSnapshots.reduce(
+        (acc, s) => ({
+            sent: acc.sent + (s.metrics.sent || 0),
+            delivered: acc.delivered + (s.metrics.delivered || 0),
+            opens: acc.opens + (s.metrics.opens || 0),
+            clicks: acc.clicks + (s.metrics.emailClicks || 0),
+            bounces: acc.bounces + (s.metrics.bounces || 0),
+            unsubscribes: acc.unsubscribes + (s.metrics.unsubscribes || 0),
+            revenue: acc.revenue + (s.metrics.emailRevenue || 0),
+            conversions: acc.conversions + (s.metrics.conversions || 0),
+        }),
+        { sent: 0, delivered: 0, opens: 0, clicks: 0, bounces: 0, unsubscribes: 0, revenue: 0, conversions: 0 }
+    );
+    const prevOpenRate = prevTotals.delivered > 0 ? (prevTotals.opens / prevTotals.delivered) * 100 : 0;
+    const prevClickRate = prevTotals.delivered > 0 ? (prevTotals.clicks / prevTotals.delivered) * 100 : 0;
+    const prevBounceRate = prevTotals.sent > 0 ? (prevTotals.bounces / prevTotals.sent) * 100 : 0;
+    const prevConversionRate = prevTotals.opens > 0 ? (prevTotals.conversions / prevTotals.opens) * 1000 : 0;
+    const prevCtor = prevTotals.opens > 0 ? (prevTotals.clicks / prevTotals.opens) * 100 : 0;
+    const prevRevenuePerRecipient = prevTotals.sent > 0 ? prevTotals.revenue / prevTotals.sent : 0;
 
     // Detect source from rawData
     const source: 'perfit' | 'klaviyo' | null = snapshots[0]?.rawData?.source === 'klaviyo' ? 'klaviyo'
@@ -198,24 +211,28 @@ export default function EmailChannel() {
                                 label="Enviados"
                                 value={formatNumber(totals.sent)}
                                 subtitle={`${formatNumber(totals.delivered)} entregados`}
+                                delta={calcDelta(totals.sent, prevTotals.sent)}
                             />
                             <KPICard
                                 label="Tasa de Apertura"
                                 value={formatPct(openRate)}
                                 subtitle={`${formatNumber(totals.opens)} aperturas`}
                                 color={openRate > 20 ? "text-synced" : openRate > 10 ? "text-classic" : "text-red-400"}
+                                delta={calcDelta(openRate, prevOpenRate)}
                             />
                             <KPICard
                                 label="Tasa de Click"
                                 value={formatPct(clickRate)}
                                 subtitle={`${formatNumber(totals.clicks)} clicks`}
                                 color={clickRate > 3 ? "text-synced" : "text-text-primary"}
+                                delta={calcDelta(clickRate, prevClickRate)}
                             />
                             <KPICard
                                 label="Revenue Campañas"
                                 value={formatCurrency(totals.revenue)}
                                 subtitle={`${formatNumber(totals.conversions)} ventas asistidas`}
                                 color="text-synced"
+                                delta={calcDelta(totals.revenue, prevTotals.revenue)}
                             />
                         </div>
 
@@ -226,11 +243,13 @@ export default function EmailChannel() {
                                 value={formatPct(ctor)}
                                 subtitle="Click-to-Open Rate"
                                 color={ctor > 15 ? "text-synced" : "text-text-primary"}
+                                delta={calcDelta(ctor, prevCtor)}
                             />
                             <KPICard
                                 label="Revenue / Recipient"
                                 value={formatCurrency(revenuePerRecipient)}
                                 subtitle="Revenue por envio"
+                                delta={calcDelta(revenuePerRecipient, prevRevenuePerRecipient)}
                             />
                             {totals.unsubscribes > 0 && (
                                 <KPICard
@@ -248,11 +267,14 @@ export default function EmailChannel() {
                                 value={formatPct(bounceRate)}
                                 subtitle={`${formatNumber(totals.bounces)} rebotes`}
                                 color={bounceRate > 5 ? "text-red-400" : "text-text-primary"}
+                                delta={calcDelta(bounceRate, prevBounceRate)}
+                                deltaInverse
                             />
                             <KPICard
                                 label="Tasa de Conversión"
                                 value={`${conversionRate.toFixed(2)}‰`}
                                 subtitle="ventas / 1000 aperturas"
+                                delta={calcDelta(conversionRate, prevConversionRate)}
                             />
                             {/* Perfit automation totals */}
                             {automationTotals.totalConverted !== undefined && (
