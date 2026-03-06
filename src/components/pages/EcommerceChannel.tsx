@@ -105,8 +105,9 @@ export default function EcommerceChannel() {
             abandonedCheckouts: acc.abandonedCheckouts + (s.metrics.abandonedCheckouts || 0),
             abandonedCheckoutValue: acc.abandonedCheckoutValue + (s.metrics.abandonedCheckoutValue || 0),
             totalItems: acc.totalItems + ((s.metrics.itemsPerOrder || 0) * (s.metrics.orders || 0)),
+            totalRefundAmount: acc.totalRefundAmount + ((s.metrics as Record<string, number>).totalRefundAmount || 0),
         }),
-        { orders: 0, revenue: 0, grossRevenue: 0, refunds: 0, totalDiscounts: 0, totalTax: 0, totalShipping: 0, cancelledOrders: 0, fulfilledOrders: 0, newCustomers: 0, returningCustomers: 0, abandonedCheckouts: 0, abandonedCheckoutValue: 0, totalItems: 0 }
+        { orders: 0, revenue: 0, grossRevenue: 0, refunds: 0, totalDiscounts: 0, totalTax: 0, totalShipping: 0, cancelledOrders: 0, fulfilledOrders: 0, newCustomers: 0, returningCustomers: 0, abandonedCheckouts: 0, abandonedCheckoutValue: 0, totalItems: 0, totalRefundAmount: 0 }
     );
     const aov = totals.orders > 0 ? totals.revenue / totals.orders : 0;
     const discountRate = totals.grossRevenue > 0 ? (totals.totalDiscounts / totals.grossRevenue) * 100 : 0;
@@ -117,6 +118,7 @@ export default function EcommerceChannel() {
         ? (totals.abandonedCheckouts / (totals.abandonedCheckouts + totals.orders)) * 100
         : 0;
     const itemsPerOrder = totals.orders > 0 ? totals.totalItems / totals.orders : 0;
+    const refundRate = totals.revenue > 0 ? (totals.totalRefundAmount / totals.revenue) * 100 : 0;
 
     // Unique customers from rawData (TiendaNube tracks this via customer IDs)
     const totalUniqueCustomers = snapshots.reduce((sum, s) => sum + ((s.rawData?.uniqueCustomers as number) || 0), 0);
@@ -141,6 +143,40 @@ export default function EcommerceChannel() {
         .map(([source, data]) => ({ source, ...data }))
         .sort((a, b) => b.revenue - a.revenue);
     const totalAttrRevenue = attributionData.reduce((s, a) => s + a.revenue, 0);
+
+    // Revenue by Country aggregated
+    const countryMap = new Map<string, { orders: number; revenue: number }>();
+    for (const s of snapshots) {
+        const countries = (s.rawData?.byCountry as Array<{ country: string; orders: number; revenue: number }>) || [];
+        for (const c of countries) {
+            const existing = countryMap.get(c.country) || { orders: 0, revenue: 0 };
+            existing.orders += c.orders;
+            existing.revenue += c.revenue;
+            countryMap.set(c.country, existing);
+        }
+    }
+    const countryData = Array.from(countryMap.entries())
+        .map(([country, data]) => ({ country, ...data }))
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 10);
+    const totalCountryRevenue = countryData.reduce((s, c) => s + c.revenue, 0);
+
+    // Customer Cohorts aggregated
+    const cohortAcc = { firstTime: { count: 0, revenue: 0 }, returning: { count: 0, revenue: 0 }, vip: { count: 0, revenue: 0 } };
+    let hasCohortData = false;
+    for (const s of snapshots) {
+        const cohorts = s.rawData?.customerCohorts as { firstTime?: { count: number; revenue: number }; returning?: { count: number; revenue: number }; vip?: { count: number; revenue: number } } | undefined;
+        if (cohorts) {
+            hasCohortData = true;
+            if (cohorts.firstTime) { cohortAcc.firstTime.count += cohorts.firstTime.count; cohortAcc.firstTime.revenue += cohorts.firstTime.revenue; }
+            if (cohorts.returning) { cohortAcc.returning.count += cohorts.returning.count; cohortAcc.returning.revenue += cohorts.returning.revenue; }
+            if (cohorts.vip) { cohortAcc.vip.count += cohorts.vip.count; cohortAcc.vip.revenue += cohorts.vip.revenue; }
+        }
+    }
+    const cohortTotal = cohortAcc.firstTime.count + cohortAcc.returning.count + cohortAcc.vip.count;
+    const cohortFirstPct = cohortTotal > 0 ? (cohortAcc.firstTime.count / cohortTotal) * 100 : 0;
+    const cohortRetPct = cohortTotal > 0 ? (cohortAcc.returning.count / cohortTotal) * 100 : 0;
+    const cohortVipPct = cohortTotal > 0 ? (cohortAcc.vip.count / cohortTotal) * 100 : 0;
 
     // Top products aggregated
     const productMap = new Map<number, { title: string; unitsSold: number; revenue: number; orders: number }>();
@@ -224,12 +260,13 @@ export default function EcommerceChannel() {
                         </div>
 
                         {/* ── Financial Breakdown ── */}
-                        <div className={`grid grid-cols-2 ${hasTaxData ? "lg:grid-cols-5" : "lg:grid-cols-4"} gap-4`}>
+                        <div className={`grid grid-cols-2 ${hasTaxData ? "lg:grid-cols-6" : "lg:grid-cols-5"} gap-4`}>
                             <KPICard label="Revenue Bruto" value={formatCurrency(totals.grossRevenue)} subtitle="Antes de descuentos" />
                             <KPICard label="Descuentos" value={formatCurrency(totals.totalDiscounts)} subtitle={`${formatPct(discountRate)} del bruto`} color={discountRate > 15 ? "text-yellow-400" : "text-text-primary"} />
                             <KPICard label="Envíos Cobrados" value={formatCurrency(totals.totalShipping)} />
                             {hasTaxData && <KPICard label="Impuestos" value={formatCurrency(totals.totalTax)} />}
                             <KPICard label="Reembolsos" value={formatNumber(totals.refunds)} subtitle={`${totals.orders > 0 ? ((totals.refunds / totals.orders) * 100).toFixed(1) : 0}% tasa`} color={totals.refunds > 0 ? "text-red-400" : "text-text-primary"} />
+                            <KPICard label="Refund Amount" value={formatCurrency(totals.totalRefundAmount)} subtitle={`${formatPct(refundRate)} refund rate`} color={refundRate > 5 ? "text-red-400" : "text-text-primary"} />
                         </div>
 
                         {/* ── Customer & Operations ── */}
@@ -302,6 +339,117 @@ export default function EcommerceChannel() {
                                             </div>
                                         );
                                     })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ── Revenue by Country ── */}
+                        {countryData.length > 0 && (
+                            <div className="card p-6">
+                                <h2 className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4">
+                                    Revenue por País
+                                </h2>
+                                <div className="space-y-2">
+                                    {countryData.map((c) => {
+                                        const maxCountryRev = countryData[0]?.revenue || 1;
+                                        const barWidth = (c.revenue / maxCountryRev) * 100;
+                                        const pct = totalCountryRevenue > 0 ? (c.revenue / totalCountryRevenue) * 100 : 0;
+                                        return (
+                                            <div key={c.country} className="flex items-center gap-3 text-[11px]">
+                                                <span className="text-text-secondary font-bold w-10 shrink-0 uppercase text-[10px]">
+                                                    {c.country}
+                                                </span>
+                                                <div className="flex-1 h-5 bg-argent/20 relative">
+                                                    <div className="h-full bg-classic/40" style={{ width: `${barWidth}%` }} />
+                                                </div>
+                                                <span className="text-text-secondary font-mono w-16 text-right">
+                                                    {formatCurrency(c.revenue)}
+                                                </span>
+                                                <span className="text-text-muted font-mono w-14 text-right">
+                                                    {c.orders} ord
+                                                </span>
+                                                <span className="text-text-muted font-mono w-12 text-right">
+                                                    {pct.toFixed(0)}%
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ── Customer Cohorts ── */}
+                        {hasCohortData && cohortTotal > 0 && (
+                            <div className="card p-6">
+                                <h2 className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4">
+                                    Cohortes de Clientes
+                                </h2>
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+                                    <div className="bg-stellar border border-argent p-4">
+                                        <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">Primera Compra</p>
+                                        <p className="text-2xl font-black text-classic font-mono mt-2">{formatNumber(cohortAcc.firstTime.count)}</p>
+                                        <p className="text-[10px] text-text-muted mt-1">
+                                            {formatCurrency(cohortAcc.firstTime.revenue)} revenue
+                                        </p>
+                                        <p className="text-[10px] text-text-muted">
+                                            AOV {formatCurrency(cohortAcc.firstTime.count > 0 ? cohortAcc.firstTime.revenue / cohortAcc.firstTime.count : 0)}
+                                        </p>
+                                    </div>
+                                    <div className="bg-stellar border border-argent p-4">
+                                        <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">Recurrentes (2-5)</p>
+                                        <p className="text-2xl font-black text-synced font-mono mt-2">{formatNumber(cohortAcc.returning.count)}</p>
+                                        <p className="text-[10px] text-text-muted mt-1">
+                                            {formatCurrency(cohortAcc.returning.revenue)} revenue
+                                        </p>
+                                        <p className="text-[10px] text-text-muted">
+                                            AOV {formatCurrency(cohortAcc.returning.count > 0 ? cohortAcc.returning.revenue / cohortAcc.returning.count : 0)}
+                                        </p>
+                                    </div>
+                                    <div className="bg-stellar border border-argent p-4">
+                                        <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">VIP (6+)</p>
+                                        <p className="text-2xl font-black text-yellow-400 font-mono mt-2">{formatNumber(cohortAcc.vip.count)}</p>
+                                        <p className="text-[10px] text-text-muted mt-1">
+                                            {formatCurrency(cohortAcc.vip.revenue)} revenue
+                                        </p>
+                                        <p className="text-[10px] text-text-muted">
+                                            AOV {formatCurrency(cohortAcc.vip.count > 0 ? cohortAcc.vip.revenue / cohortAcc.vip.count : 0)}
+                                        </p>
+                                    </div>
+                                </div>
+                                {/* Stacked proportion bar */}
+                                <div className="flex h-6 w-full overflow-hidden">
+                                    {cohortFirstPct > 0 && (
+                                        <div
+                                            className="bg-classic/50 flex items-center justify-center text-[9px] font-mono text-text-primary font-bold"
+                                            style={{ width: `${cohortFirstPct}%` }}
+                                            title={`Primera Compra: ${cohortFirstPct.toFixed(1)}%`}
+                                        >
+                                            {cohortFirstPct >= 8 ? `${cohortFirstPct.toFixed(0)}%` : ""}
+                                        </div>
+                                    )}
+                                    {cohortRetPct > 0 && (
+                                        <div
+                                            className="bg-synced/50 flex items-center justify-center text-[9px] font-mono text-text-primary font-bold"
+                                            style={{ width: `${cohortRetPct}%` }}
+                                            title={`Recurrentes: ${cohortRetPct.toFixed(1)}%`}
+                                        >
+                                            {cohortRetPct >= 8 ? `${cohortRetPct.toFixed(0)}%` : ""}
+                                        </div>
+                                    )}
+                                    {cohortVipPct > 0 && (
+                                        <div
+                                            className="bg-yellow-400/50 flex items-center justify-center text-[9px] font-mono text-text-primary font-bold"
+                                            style={{ width: `${cohortVipPct}%` }}
+                                            title={`VIP: ${cohortVipPct.toFixed(1)}%`}
+                                        >
+                                            {cohortVipPct >= 8 ? `${cohortVipPct.toFixed(0)}%` : ""}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex gap-4 mt-2 text-[9px] text-text-muted">
+                                    <span className="flex items-center gap-1"><span className="w-2 h-2 bg-classic/50 inline-block" /> Primera Compra</span>
+                                    <span className="flex items-center gap-1"><span className="w-2 h-2 bg-synced/50 inline-block" /> Recurrentes</span>
+                                    <span className="flex items-center gap-1"><span className="w-2 h-2 bg-yellow-400/50 inline-block" /> VIP</span>
                                 </div>
                             </div>
                         )}

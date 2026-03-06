@@ -74,13 +74,28 @@ export default function GoogleAdsChannel() {
             conversions: acc.conversions + (s.metrics.conversions || 0),
             impressions: acc.impressions + (s.metrics.impressions || 0),
             clicks: acc.clicks + (s.metrics.clicks || 0),
+            allConversions: acc.allConversions + ((s.metrics as any).allConversions || 0),
+            allConversionsValue: acc.allConversionsValue + ((s.metrics as any).allConversionsValue || 0),
+            viewThroughConversions: acc.viewThroughConversions + ((s.metrics as any).viewThroughConversions || 0),
+            videoViews: acc.videoViews + ((s.metrics as any).videoViews || 0),
+            // Weighted accumulators for impression share, cpm, conversionRate
+            wImpressionShare: acc.wImpressionShare + ((s.metrics as any).searchImpressionShare || 0) * (s.metrics.impressions || 0),
+            wBudgetLostIS: acc.wBudgetLostIS + ((s.metrics as any).searchBudgetLostIS || 0) * (s.metrics.impressions || 0),
+            wRankLostIS: acc.wRankLostIS + ((s.metrics as any).searchRankLostIS || 0) * (s.metrics.impressions || 0),
+            wConversionRate: acc.wConversionRate + ((s.metrics as any).conversionRate || 0) * (s.metrics.impressions || 0),
+            wCpm: acc.wCpm + ((s.metrics as any).cpm || 0) * (s.metrics.impressions || 0),
         }),
-        { spend: 0, revenue: 0, conversions: 0, impressions: 0, clicks: 0 }
+        { spend: 0, revenue: 0, conversions: 0, impressions: 0, clicks: 0, allConversions: 0, allConversionsValue: 0, viewThroughConversions: 0, videoViews: 0, wImpressionShare: 0, wBudgetLostIS: 0, wRankLostIS: 0, wConversionRate: 0, wCpm: 0 }
     );
     const roas = totals.spend > 0 ? totals.revenue / totals.spend : 0;
     const cpa = totals.conversions > 0 ? totals.spend / totals.conversions : 0;
     const ctr = totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0;
     const cpc = totals.clicks > 0 ? totals.spend / totals.clicks : 0;
+    const avgImpressionShare = totals.impressions > 0 ? totals.wImpressionShare / totals.impressions : 0;
+    const avgBudgetLostIS = totals.impressions > 0 ? totals.wBudgetLostIS / totals.impressions : 0;
+    const avgRankLostIS = totals.impressions > 0 ? totals.wRankLostIS / totals.impressions : 0;
+    const avgConversionRate = totals.impressions > 0 ? totals.wConversionRate / totals.impressions : 0;
+    const avgCpm = totals.impressions > 0 ? totals.wCpm / totals.impressions : 0;
 
     // Aggregate campaigns across all snapshots (deduplicate by id+date → aggregate by id)
     const campaignMap = new Map<string, { name: string; status: string; spend: number; conversions: number; revenue: number; impressions: number; clicks: number }>();
@@ -196,6 +211,82 @@ export default function GoogleAdsChannel() {
                             />
                         </div>
 
+                        {/* KPI Row 3 - Expanded Metrics */}
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                            <KPICard
+                                label="Impression Share"
+                                value={formatPct(avgImpressionShare)}
+                                subtitle={`Lost: ${avgBudgetLostIS.toFixed(1)}% budget, ${avgRankLostIS.toFixed(1)}% rank`}
+                                color={avgImpressionShare > 50 ? "text-synced" : avgImpressionShare > 20 ? "text-classic" : "text-red-400"}
+                            />
+                            <KPICard
+                                label="CPM"
+                                value={formatCurrency(avgCpm)}
+                            />
+                            <KPICard
+                                label="View-Through Conv."
+                                value={formatNumber(totals.viewThroughConversions, 0)}
+                            />
+                            <KPICard
+                                label="Conv. Rate"
+                                value={formatPct(avgConversionRate)}
+                                color={avgConversionRate > 5 ? "text-synced" : "text-text-primary"}
+                            />
+                        </div>
+
+                        {/* Impression Share Analysis Bar */}
+                        {avgImpressionShare > 0 && (
+                            <div className="card p-6">
+                                <h2 className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4">
+                                    Impression Share Analysis
+                                </h2>
+                                <div className="flex items-center h-8 w-full rounded overflow-hidden">
+                                    {avgImpressionShare > 0 && (
+                                        <div
+                                            className="h-full bg-synced/70 flex items-center justify-center text-[10px] font-bold text-stellar"
+                                            style={{ width: `${avgImpressionShare}%` }}
+                                        >
+                                            {avgImpressionShare >= 8 ? `${avgImpressionShare.toFixed(1)}%` : ""}
+                                        </div>
+                                    )}
+                                    {avgBudgetLostIS > 0 && (
+                                        <div
+                                            className="h-full bg-yellow-500/70 flex items-center justify-center text-[10px] font-bold text-stellar"
+                                            style={{ width: `${avgBudgetLostIS}%` }}
+                                        >
+                                            {avgBudgetLostIS >= 8 ? `${avgBudgetLostIS.toFixed(1)}%` : ""}
+                                        </div>
+                                    )}
+                                    {avgRankLostIS > 0 && (
+                                        <div
+                                            className="h-full bg-red-500/70 flex items-center justify-center text-[10px] font-bold text-stellar"
+                                            style={{ width: `${avgRankLostIS}%` }}
+                                        >
+                                            {avgRankLostIS >= 8 ? `${avgRankLostIS.toFixed(1)}%` : ""}
+                                        </div>
+                                    )}
+                                    {/* Remaining (unaccounted) share */}
+                                    {(100 - avgImpressionShare - avgBudgetLostIS - avgRankLostIS) > 0 && (
+                                        <div
+                                            className="h-full bg-argent/20"
+                                            style={{ width: `${100 - avgImpressionShare - avgBudgetLostIS - avgRankLostIS}%` }}
+                                        />
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-6 mt-3 text-[10px] text-text-muted">
+                                    <span className="flex items-center gap-1.5">
+                                        <span className="w-2.5 h-2.5 rounded-sm bg-synced/70" /> Won: {avgImpressionShare.toFixed(1)}%
+                                    </span>
+                                    <span className="flex items-center gap-1.5">
+                                        <span className="w-2.5 h-2.5 rounded-sm bg-yellow-500/70" /> Lost Budget: {avgBudgetLostIS.toFixed(1)}%
+                                    </span>
+                                    <span className="flex items-center gap-1.5">
+                                        <span className="w-2.5 h-2.5 rounded-sm bg-red-500/70" /> Lost Rank: {avgRankLostIS.toFixed(1)}%
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Campaign Table */}
                         {aggregatedCampaigns.length > 0 && (
                             <div className="card p-6">
@@ -236,8 +327,8 @@ export default function GoogleAdsChannel() {
                                                             {campCpa > 0 ? formatCurrency(campCpa) : "—"}
                                                         </td>
                                                         <td className="p-3 text-[11px] text-right">
-                                                            <span className={`px-2 py-0.5 text-[9px] font-bold uppercase ${c.status === "ENABLED" || c.status === 2 ? "text-synced bg-synced/10" : "text-text-muted bg-argent/20"}`}>
-                                                                {c.status === "ENABLED" || c.status === 2 ? "activa" : c.status === "PAUSED" || c.status === 3 ? "pausada" : String(c.status || "—")}
+                                                            <span className={`px-2 py-0.5 text-[9px] font-bold uppercase ${c.status === "ENABLED" || String(c.status) === "2" ? "text-synced bg-synced/10" : "text-text-muted bg-argent/20"}`}>
+                                                                {c.status === "ENABLED" || String(c.status) === "2" ? "activa" : c.status === "PAUSED" || String(c.status) === "3" ? "pausada" : String(c.status || "—")}
                                                             </span>
                                                         </td>
                                                     </tr>

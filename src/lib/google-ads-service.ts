@@ -34,6 +34,21 @@ export interface GoogleAdsCampaignRow {
     ctr: number;
     cpc: number;
     costPerConversion: number;
+    // Expanded fields
+    allConversions: number;
+    allConversionsValue: number;
+    viewThroughConversions: number;
+    searchImpressionShare: number;
+    searchBudgetLostIS: number;
+    searchRankLostIS: number;
+    conversionRate: number;
+    cpm: number;
+    videoViews: number;
+    videoViewRate: number;
+    videoP25Rate: number;
+    videoP50Rate: number;
+    videoP75Rate: number;
+    videoP100Rate: number;
 }
 
 export interface GoogleAdsDailyAggregate {
@@ -99,6 +114,20 @@ export class GoogleAdsService {
                     metrics.clicks,
                     metrics.conversions,
                     metrics.conversions_value,
+                    metrics.all_conversions,
+                    metrics.all_conversions_value,
+                    metrics.view_through_conversions,
+                    metrics.search_impression_share,
+                    metrics.search_budget_lost_impression_share,
+                    metrics.search_rank_lost_impression_share,
+                    metrics.conversions_from_interactions_rate,
+                    metrics.average_cpm,
+                    metrics.video_views,
+                    metrics.video_view_rate,
+                    metrics.video_quartile_p25_rate,
+                    metrics.video_quartile_p50_rate,
+                    metrics.video_quartile_p75_rate,
+                    metrics.video_quartile_p100_rate,
                     segments.date
                 FROM campaign
                 WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
@@ -130,6 +159,21 @@ export class GoogleAdsService {
                 ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
                 cpc: clicks > 0 ? spend / clicks : 0,
                 costPerConversion: conversions > 0 ? spend / conversions : 0,
+                // Expanded fields
+                allConversions: row.metrics?.all_conversions || 0,
+                allConversionsValue: row.metrics?.all_conversions_value || 0,
+                viewThroughConversions: row.metrics?.view_through_conversions || 0,
+                searchImpressionShare: row.metrics?.search_impression_share || 0,
+                searchBudgetLostIS: row.metrics?.search_budget_lost_impression_share || 0,
+                searchRankLostIS: row.metrics?.search_rank_lost_impression_share || 0,
+                conversionRate: row.metrics?.conversions_from_interactions_rate || 0,
+                cpm: (row.metrics?.average_cpm || 0) / 1_000_000,
+                videoViews: row.metrics?.video_views || 0,
+                videoViewRate: row.metrics?.video_view_rate || 0,
+                videoP25Rate: row.metrics?.video_quartile_p25_rate || 0,
+                videoP50Rate: row.metrics?.video_quartile_p50_rate || 0,
+                videoP75Rate: row.metrics?.video_quartile_p75_rate || 0,
+                videoP100Rate: row.metrics?.video_quartile_p100_rate || 0,
             };
         });
     }
@@ -155,6 +199,18 @@ export class GoogleAdsService {
             const totalClicks = campaigns.reduce((s, c) => s + c.clicks, 0);
             const totalConversions = campaigns.reduce((s, c) => s + c.conversions, 0);
             const totalConversionsValue = campaigns.reduce((s, c) => s + c.conversionsValue, 0);
+            const totalAllConversions = campaigns.reduce((s, c) => s + c.allConversions, 0);
+            const totalAllConversionsValue = campaigns.reduce((s, c) => s + c.allConversionsValue, 0);
+            const totalVTC = campaigns.reduce((s, c) => s + c.viewThroughConversions, 0);
+            const totalVideoViews = campaigns.reduce((s, c) => s + c.videoViews, 0);
+
+            // Weighted average for impression share (weight by impressions)
+            const weightedIS = totalImpressions > 0
+                ? campaigns.reduce((s, c) => s + c.searchImpressionShare * c.impressions, 0) / totalImpressions : 0;
+            const weightedBudgetLost = totalImpressions > 0
+                ? campaigns.reduce((s, c) => s + c.searchBudgetLostIS * c.impressions, 0) / totalImpressions : 0;
+            const weightedRankLost = totalImpressions > 0
+                ? campaigns.reduce((s, c) => s + c.searchRankLostIS * c.impressions, 0) / totalImpressions : 0;
 
             aggregates.push({
                 date,
@@ -168,6 +224,16 @@ export class GoogleAdsService {
                     clicks: totalClicks,
                     ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
                     cpc: totalClicks > 0 ? totalSpend / totalClicks : 0,
+                    cpm: totalImpressions > 0 ? (totalSpend / totalImpressions) * 1000 : 0,
+                    // Expanded
+                    allConversions: totalAllConversions || undefined,
+                    allConversionsValue: totalAllConversionsValue || undefined,
+                    viewThroughConversions: totalVTC || undefined,
+                    searchImpressionShare: weightedIS || undefined,
+                    searchBudgetLostIS: weightedBudgetLost || undefined,
+                    searchRankLostIS: weightedRankLost || undefined,
+                    conversionRate: totalClicks > 0 ? (totalConversions / totalClicks) * 100 : 0,
+                    videoPlays: totalVideoViews || undefined,
                 },
                 campaigns,
             });
@@ -219,6 +285,12 @@ export class GoogleAdsService {
                         ctr: c.ctr,
                         cpc: c.cpc,
                         cpa: c.costPerConversion,
+                        allConversions: c.allConversions || undefined,
+                        viewThroughConversions: c.viewThroughConversions || undefined,
+                        searchImpressionShare: c.searchImpressionShare || undefined,
+                        searchBudgetLostIS: c.searchBudgetLostIS || undefined,
+                        searchRankLostIS: c.searchRankLostIS || undefined,
+                        conversionRate: c.conversionRate || undefined,
                     })),
                 },
                 syncedAt: new Date().toISOString(),

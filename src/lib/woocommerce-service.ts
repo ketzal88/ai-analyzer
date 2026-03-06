@@ -32,6 +32,7 @@ export interface WooCommerceOrder {
         email: string;
         first_name: string;
         last_name: string;
+        country?: string;
     };
     line_items: Array<{
         id: number;
@@ -68,6 +69,8 @@ export interface WooCommerceDailyAggregate {
         byAttribution: Array<{ source: string; orders: number; revenue: number }>;
         topProducts: Array<{ productId: number; title: string; unitsSold: number; revenue: number; orders: number }>;
         topDiscountCodes: Array<{ code: string; uses: number; totalDiscount: number }>;
+        byCountry: Array<{ country: string; orders: number; revenue: number }>;
+        refundDetail: { totalAmount: number; refundedItems: number };
         totalProducts: number;
         uniqueCustomers: number;
     };
@@ -277,6 +280,35 @@ export class WooCommerceService {
                 .sort((a, b) => b.uses - a.uses)
                 .slice(0, 5);
 
+            // Country breakdown
+            const countryMap = new Map<string, { orders: number; revenue: number }>();
+            for (const order of paidOrders) {
+                const country = order.billing?.country || "Unknown";
+                const existing = countryMap.get(country) || { orders: 0, revenue: 0 };
+                existing.orders++;
+                existing.revenue += parseFloat(order.total || "0");
+                countryMap.set(country, existing);
+            }
+            const byCountry = Array.from(countryMap.entries())
+                .map(([country, data]) => ({ country, ...data }))
+                .sort((a, b) => b.revenue - a.revenue)
+                .slice(0, 10);
+
+            // Refund detail aggregation
+            let totalRefundAmount = 0;
+            let refundedItems = 0;
+            for (const order of orders) {
+                if (order.refunds && order.refunds.length > 0) {
+                    for (const refund of order.refunds) {
+                        // Refund totals are negative in WooCommerce, so we take absolute value
+                        totalRefundAmount += Math.abs(parseFloat(refund.total || "0"));
+                    }
+                    refundedItems += order.refunds.length;
+                }
+            }
+            const refundDetail = { totalAmount: totalRefundAmount, refundedItems };
+            const refundRate = totalRevenue > 0 ? (totalRefundAmount / totalRevenue) * 100 : 0;
+
             aggregates.push({
                 date,
                 metrics: {
@@ -294,6 +326,8 @@ export class WooCommerceService {
                     cancelledOrders: cancelledOrders.length,
                     fulfilledOrders: fulfilledOrders.length,
                     fulfillmentRate,
+                    totalRefundAmount,
+                    refundRate,
                 },
                 rawData: {
                     source: 'woocommerce',
@@ -301,6 +335,8 @@ export class WooCommerceService {
                     byAttribution,
                     topProducts,
                     topDiscountCodes,
+                    byCountry,
+                    refundDetail,
                     totalProducts: totalItems,
                     uniqueCustomers: customerIds.size,
                 },

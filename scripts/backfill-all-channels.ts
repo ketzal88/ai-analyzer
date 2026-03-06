@@ -50,8 +50,26 @@ interface MetaInsightRow {
     frequency: string;
     ctr: string;
     cpc: string;
+    cpm: string;
+    cpp: string;
     actions?: Array<{ action_type: string; value: string }>;
     action_values?: Array<{ action_type: string; value: string }>;
+    cost_per_action_type?: Array<{ action_type: string; value: string }>;
+    inline_link_clicks?: string;
+    inline_link_click_ctr?: string;
+    cost_per_inline_link_click?: string;
+    unique_clicks?: string;
+    outbound_clicks?: any;
+    quality_ranking?: string;
+    engagement_rate_ranking?: string;
+    conversion_rate_ranking?: string;
+    video_play_actions?: Array<{ value: string }>;
+    video_p25_watched_actions?: Array<{ value: string }>;
+    video_p50_watched_actions?: Array<{ value: string }>;
+    video_p75_watched_actions?: Array<{ value: string }>;
+    video_p100_watched_actions?: Array<{ value: string }>;
+    video_30_sec_watched_actions?: Array<{ value: string }>;
+    video_avg_time_watched_actions?: Array<{ value: string }>;
 }
 
 function getAction(actions: MetaInsightRow["actions"], type: string): number {
@@ -65,7 +83,16 @@ async function syncMeta(clientId: string, adAccountId: string): Promise<SyncResu
     if (!META_ACCESS_TOKEN) return { channel: "META", status: "skipped", details: "No META_ACCESS_TOKEN" };
 
     const cleanId = adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`;
-    const fields = "spend,impressions,clicks,reach,frequency,ctr,cpc,actions,action_values";
+    const fields = [
+        "spend", "impressions", "clicks", "reach", "frequency", "ctr", "cpc", "cpm", "cpp",
+        "actions", "action_values", "cost_per_action_type",
+        "inline_link_clicks", "inline_link_click_ctr", "outbound_clicks", "cost_per_inline_link_click",
+        "unique_clicks", "unique_inline_link_clicks",
+        "quality_ranking", "engagement_rate_ranking", "conversion_rate_ranking",
+        "video_play_actions", "video_p25_watched_actions", "video_p50_watched_actions",
+        "video_p75_watched_actions", "video_p100_watched_actions",
+        "video_30_sec_watched_actions", "video_avg_time_watched_actions",
+    ].join(",");
     const timeRange = JSON.stringify({ since: START_DATE, until: END_DATE });
 
     let allRows: MetaInsightRow[] = [];
@@ -98,6 +125,12 @@ async function syncMeta(clientId: string, adAccountId: string): Promise<SyncResu
             const leads = getAction(row.actions, "lead") || getAction(row.actions, "offsite_conversion.fb_pixel_lead");
             const messages = getAction(row.actions, "onsite_conversion.messaging_first_reply");
             const conversions = purchases || leads || messages || 0;
+            const getCostPerAct = (type: string) => Number(row.cost_per_action_type?.find(a => a.action_type === type)?.value || 0);
+            const getVideoAct = (field: string) => Number((row as any)[field]?.[0]?.value || 0);
+
+            const addToCart = getAction(row.actions, "offsite_conversion.fb_pixel_add_to_cart") || getAction(row.actions, "add_to_cart");
+            const initiateCheckout = getAction(row.actions, "offsite_conversion.fb_pixel_initiate_checkout") || getAction(row.actions, "initiate_checkout");
+            const viewContent = getAction(row.actions, "offsite_conversion.fb_pixel_view_content") || getAction(row.actions, "view_content");
 
             const snapshot: ChannelDailySnapshot = {
                 clientId,
@@ -107,10 +140,32 @@ async function syncMeta(clientId: string, adAccountId: string): Promise<SyncResu
                     spend, revenue, conversions, impressions, clicks,
                     ctr: Number(row.ctr || 0),
                     cpc: Number(row.cpc || 0),
+                    cpm: Number(row.cpm || 0),
+                    cpp: Number(row.cpp || 0),
                     roas: spend > 0 ? revenue / spend : 0,
                     cpa: conversions > 0 ? spend / conversions : 0,
                     reach: Number(row.reach || 0),
                     frequency: Number(row.frequency || 0),
+                    inlineLinkClicks: Number(row.inline_link_clicks || 0),
+                    inlineLinkClickCtr: Number(row.inline_link_click_ctr || 0),
+                    costPerInlineLinkClick: Number(row.cost_per_inline_link_click || 0),
+                    uniqueClicks: Number(row.unique_clicks || 0),
+                    outboundClicks: Number(row.outbound_clicks?.[0]?.value || row.outbound_clicks || 0),
+                    addToCart: addToCart || undefined,
+                    initiateCheckout: initiateCheckout || undefined,
+                    viewContent: viewContent || undefined,
+                    costPerAddToCart: addToCart > 0 ? getCostPerAct("offsite_conversion.fb_pixel_add_to_cart") || getCostPerAct("add_to_cart") : undefined,
+                    costPerInitiateCheckout: initiateCheckout > 0 ? getCostPerAct("offsite_conversion.fb_pixel_initiate_checkout") || getCostPerAct("initiate_checkout") : undefined,
+                    qualityRanking: row.quality_ranking || undefined,
+                    engagementRateRanking: row.engagement_rate_ranking || undefined,
+                    conversionRateRanking: row.conversion_rate_ranking || undefined,
+                    videoPlays: getVideoAct("video_play_actions") || undefined,
+                    videoP25: getVideoAct("video_p25_watched_actions") || undefined,
+                    videoP50: getVideoAct("video_p50_watched_actions") || undefined,
+                    videoP75: getVideoAct("video_p75_watched_actions") || undefined,
+                    videoP100: getVideoAct("video_p100_watched_actions") || undefined,
+                    video30sViews: getVideoAct("video_30_sec_watched_actions") || undefined,
+                    videoAvgWatchTime: getVideoAct("video_avg_time_watched_actions") || undefined,
                 },
                 syncedAt: new Date().toISOString(),
             };

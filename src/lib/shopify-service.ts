@@ -50,6 +50,12 @@ export interface ShopifyOrder {
         sku: string;
         variant_title: string;
     }>;
+    billing_address?: {
+        country?: string;
+        country_code?: string;
+        province?: string;
+        city?: string;
+    };
     customer?: {
         id: number;
         email: string;
@@ -120,6 +126,13 @@ export interface ShopifyDailyAggregate {
         topProducts: ProductPerformance[];
         topDiscountCodes: Array<{ code: string; uses: number; totalDiscount: number }>;
         totalProducts: number;
+        byCountry: Array<{ country: string; orders: number; revenue: number }>;
+        customerCohorts: {
+            firstTime: { count: number; revenue: number; aov: number };
+            returning: { count: number; revenue: number; aov: number };
+            vip: { count: number; revenue: number; aov: number };
+        };
+        refundDetail: { totalAmount: number; refundedItems: number };
     };
 }
 
@@ -424,6 +437,67 @@ export class ShopifyService {
                 .sort((a, b) => b.uses - a.uses)
                 .slice(0, 5);
 
+            // Country aggregation
+            const countryMap = new Map<string, { orders: number; revenue: number }>();
+            for (const order of paidOrders) {
+                const country = order.billing_address?.country_code || order.billing_address?.country || "Unknown";
+                const existing = countryMap.get(country) || { orders: 0, revenue: 0 };
+                existing.orders++;
+                existing.revenue += parseFloat(order.total_price || "0");
+                countryMap.set(country, existing);
+            }
+            const byCountry = Array.from(countryMap.entries())
+                .map(([country, data]) => ({ country, ...data }))
+                .sort((a, b) => b.revenue - a.revenue)
+                .slice(0, 10);
+
+            // Customer cohorts
+            const firstTime = { count: 0, revenue: 0, aov: 0 };
+            const returning = { count: 0, revenue: 0, aov: 0 };
+            const vip = { count: 0, revenue: 0, aov: 0 };
+
+            for (const order of paidOrders) {
+                if (order.customer) {
+                    const orderRevenue = parseFloat(order.total_price || "0");
+                    const ordersCount = order.customer.orders_count;
+
+                    if (ordersCount <= 1) {
+                        firstTime.count++;
+                        firstTime.revenue += orderRevenue;
+                    } else if (ordersCount >= 2 && ordersCount <= 5) {
+                        returning.count++;
+                        returning.revenue += orderRevenue;
+                    } else {
+                        vip.count++;
+                        vip.revenue += orderRevenue;
+                    }
+                }
+            }
+
+            firstTime.aov = firstTime.count > 0 ? firstTime.revenue / firstTime.count : 0;
+            returning.aov = returning.count > 0 ? returning.revenue / returning.count : 0;
+            vip.aov = vip.count > 0 ? vip.revenue / vip.count : 0;
+
+            const customerCohorts = { firstTime, returning, vip };
+
+            // Refund detail
+            let totalRefundAmount = 0;
+            let refundedItems = 0;
+
+            for (const order of paidOrders) {
+                if (order.refunds && order.refunds.length > 0) {
+                    for (const refund of order.refunds) {
+                        for (const item of refund.refund_line_items) {
+                            totalRefundAmount += item.subtotal;
+                            refundedItems += item.quantity;
+                        }
+                    }
+                }
+            }
+
+            const refundDetail = { totalAmount: totalRefundAmount, refundedItems };
+            const refundRate = totalRevenue > 0 ? (totalRefundAmount / totalRevenue) * 100 : 0;
+
             aggregates.push({
                 date,
                 metrics: {
@@ -447,6 +521,8 @@ export class ShopifyService {
                     abandonedCheckouts: abandonedCount,
                     abandonedCheckoutValue: abandonedValue,
                     cartAbandonmentRate,
+                    totalRefundAmount,
+                    refundRate,
                 },
                 rawData: {
                     source: 'shopify',
@@ -455,6 +531,9 @@ export class ShopifyService {
                     topProducts,
                     topDiscountCodes,
                     totalProducts: totalItems,
+                    byCountry,
+                    customerCohorts,
+                    refundDetail,
                 },
             });
         }

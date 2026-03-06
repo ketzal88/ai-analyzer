@@ -421,6 +421,8 @@ export class KlaviyoService {
             unsubscribes: totalUnsubscribes,
             emailRevenue: totalCampaignRevenue + totalFlowRevenue,
             conversions: totalCampaignConversions + totalFlowConversions,
+            clickToOpenRate: totalOpens > 0 ? (totalClicks / totalOpens) * 100 : 0,
+            revenuePerRecipient: totalRecipients > 0 ? (totalCampaignRevenue + totalFlowRevenue) / totalRecipients : 0,
         };
 
         // Write a single snapshot for the period (using endDate as the key)

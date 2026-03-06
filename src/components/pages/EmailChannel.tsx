@@ -95,6 +95,8 @@ export default function EmailChannel() {
     const clickRate = totals.delivered > 0 ? (totals.clicks / totals.delivered) * 100 : 0;
     const bounceRate = totals.sent > 0 ? (totals.bounces / totals.sent) * 100 : 0;
     const conversionRate = totals.opens > 0 ? (totals.conversions / totals.opens) * 1000 : 0;
+    const ctor = totals.opens > 0 ? (totals.clicks / totals.opens) * 100 : 0;
+    const revenuePerRecipient = totals.sent > 0 ? totals.revenue / totals.sent : 0;
 
     // Detect source from rawData
     const source: 'perfit' | 'klaviyo' | null = snapshots[0]?.rawData?.source === 'klaviyo' ? 'klaviyo'
@@ -212,6 +214,29 @@ export default function EmailChannel() {
                                 subtitle={`${formatNumber(totals.conversions)} ventas asistidas`}
                                 color="text-synced"
                             />
+                        </div>
+
+                        {/* KPI Row 2 - Engagement Quality */}
+                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                            <KPICard
+                                label="CTOR"
+                                value={formatPct(ctor)}
+                                subtitle="Click-to-Open Rate"
+                                color={ctor > 15 ? "text-synced" : "text-text-primary"}
+                            />
+                            <KPICard
+                                label="Revenue / Recipient"
+                                value={formatCurrency(revenuePerRecipient)}
+                                subtitle="Revenue por envio"
+                            />
+                            {totals.unsubscribes > 0 && (
+                                <KPICard
+                                    label="Unsubscribes"
+                                    value={formatNumber(totals.unsubscribes)}
+                                    subtitle={`${formatPct(totals.sent > 0 ? (totals.unsubscribes / totals.sent) * 100 : 0)} del total`}
+                                    color={totals.unsubscribes > 100 ? "text-red-400" : "text-text-primary"}
+                                />
+                            )}
                         </div>
 
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

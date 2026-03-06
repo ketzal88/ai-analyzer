@@ -49,7 +49,17 @@ export async function GET(request: NextRequest) {
             try {
                 const cleanId = client.metaAdAccountId.startsWith("act_") ? client.metaAdAccountId : `act_${client.metaAdAccountId}`;
                 const timeRange = JSON.stringify({ since: yesterdayStr, until: yesterdayStr });
-                const fields = "spend,impressions,clicks,reach,frequency,ctr,cpc,actions,action_values";
+                // ── Account-level insights (expanded fields) ──
+                const fields = [
+                    "spend", "impressions", "clicks", "reach", "frequency", "ctr", "cpc", "cpm", "cpp",
+                    "actions", "action_values", "cost_per_action_type",
+                    "inline_link_clicks", "inline_link_click_ctr", "outbound_clicks", "cost_per_inline_link_click",
+                    "unique_clicks", "unique_inline_link_clicks",
+                    "quality_ranking", "engagement_rate_ranking", "conversion_rate_ranking",
+                    "video_play_actions", "video_p25_watched_actions", "video_p50_watched_actions",
+                    "video_p75_watched_actions", "video_p100_watched_actions",
+                    "video_30_sec_watched_actions", "video_avg_time_watched_actions",
+                ].join(",");
                 const metaUrl = `https://graph.facebook.com/${metaVersion}/${cleanId}/insights?level=account&time_increment=1&time_range=${encodeURIComponent(timeRange)}&fields=${fields}&access_token=${metaToken}`;
 
                 const metaRes = await fetch(metaUrl);
@@ -64,6 +74,9 @@ export async function GET(request: NextRequest) {
                 if (row) {
                     const getAct = (type: string) => Number(row.actions?.find((a: any) => a.action_type === type)?.value || 0);
                     const getActVal = (type: string) => Number(row.action_values?.find((a: any) => a.action_type === type)?.value || 0);
+                    const getCostPerAct = (type: string) => Number(row.cost_per_action_type?.find((a: any) => a.action_type === type)?.value || 0);
+                    const getVideoAct = (field: string) => Number(row[field]?.[0]?.value || 0);
+
                     const spend = Number(row.spend || 0);
                     const impressions = Number(row.impressions || 0);
                     const clicks = Number(row.clicks || 0);
@@ -72,6 +85,11 @@ export async function GET(request: NextRequest) {
                     const leads = getAct("lead") || getAct("offsite_conversion.fb_pixel_lead");
                     const messages = getAct("onsite_conversion.messaging_first_reply");
                     const conversions = purchases || leads || messages || 0;
+
+                    // Mid-funnel actions
+                    const addToCart = getAct("offsite_conversion.fb_pixel_add_to_cart") || getAct("add_to_cart");
+                    const initiateCheckout = getAct("offsite_conversion.fb_pixel_initiate_checkout") || getAct("initiate_checkout");
+                    const viewContent = getAct("offsite_conversion.fb_pixel_view_content") || getAct("view_content");
 
                     const metaSnapshot: ChannelDailySnapshot = {
                         clientId,
@@ -85,13 +103,74 @@ export async function GET(request: NextRequest) {
                             clicks,
                             ctr: Number(row.ctr || 0),
                             cpc: Number(row.cpc || 0),
+                            cpm: Number(row.cpm || 0),
+                            cpp: Number(row.cpp || 0),
                             roas: spend > 0 ? revenue / spend : 0,
                             cpa: conversions > 0 ? spend / conversions : 0,
                             reach: Number(row.reach || 0),
                             frequency: Number(row.frequency || 0),
+                            // Click quality
+                            inlineLinkClicks: Number(row.inline_link_clicks || 0),
+                            inlineLinkClickCtr: Number(row.inline_link_click_ctr || 0),
+                            costPerInlineLinkClick: Number(row.cost_per_inline_link_click || 0),
+                            uniqueClicks: Number(row.unique_clicks || 0),
+                            outboundClicks: Number(row.outbound_clicks?.[0]?.value || row.outbound_clicks || 0),
+                            // Mid-funnel
+                            addToCart: addToCart || undefined,
+                            initiateCheckout: initiateCheckout || undefined,
+                            viewContent: viewContent || undefined,
+                            costPerAddToCart: addToCart > 0 ? getCostPerAct("offsite_conversion.fb_pixel_add_to_cart") || getCostPerAct("add_to_cart") : undefined,
+                            costPerInitiateCheckout: initiateCheckout > 0 ? getCostPerAct("offsite_conversion.fb_pixel_initiate_checkout") || getCostPerAct("initiate_checkout") : undefined,
+                            // Quality signals
+                            qualityRanking: row.quality_ranking || undefined,
+                            engagementRateRanking: row.engagement_rate_ranking || undefined,
+                            conversionRateRanking: row.conversion_rate_ranking || undefined,
+                            // Video
+                            videoPlays: getVideoAct("video_play_actions") || undefined,
+                            videoP25: getVideoAct("video_p25_watched_actions") || undefined,
+                            videoP50: getVideoAct("video_p50_watched_actions") || undefined,
+                            videoP75: getVideoAct("video_p75_watched_actions") || undefined,
+                            videoP100: getVideoAct("video_p100_watched_actions") || undefined,
+                            video30sViews: getVideoAct("video_30_sec_watched_actions") || undefined,
+                            videoAvgWatchTime: getVideoAct("video_avg_time_watched_actions") || undefined,
                         },
                         syncedAt: new Date().toISOString(),
                     };
+
+                    // ── Campaign breakdown (separate API call) ──
+                    try {
+                        const campaignFields = "campaign_id,campaign_name,objective,spend,impressions,clicks,actions,action_values,ctr,cpc,cpm";
+                        const campaignUrl = `https://graph.facebook.com/${metaVersion}/${cleanId}/insights?level=campaign&time_increment=1&time_range=${encodeURIComponent(timeRange)}&fields=${campaignFields}&limit=500&access_token=${metaToken}`;
+                        const campRes = await fetch(campaignUrl);
+                        if (campRes.ok) {
+                            const campJson: any = await campRes.json();
+                            const campaigns = (campJson.data || []).map((c: any) => {
+                                const cGetAct = (type: string) => Number(c.actions?.find((a: any) => a.action_type === type)?.value || 0);
+                                const cGetActVal = (type: string) => Number(c.action_values?.find((a: any) => a.action_type === type)?.value || 0);
+                                const cSpend = Number(c.spend || 0);
+                                const cConversions = cGetAct("purchase") || cGetAct("offsite_conversion.fb_pixel_purchase") || cGetAct("lead") || cGetAct("offsite_conversion.fb_pixel_lead") || 0;
+                                const cRevenue = cGetActVal("purchase") || cGetActVal("offsite_conversion.fb_pixel_purchase") || 0;
+                                return {
+                                    id: c.campaign_id,
+                                    name: c.campaign_name,
+                                    objective: c.objective,
+                                    spend: cSpend,
+                                    impressions: Number(c.impressions || 0),
+                                    clicks: Number(c.clicks || 0),
+                                    conversions: cConversions,
+                                    revenue: cRevenue,
+                                    roas: cSpend > 0 ? cRevenue / cSpend : 0,
+                                    ctr: Number(c.ctr || 0),
+                                    cpc: Number(c.cpc || 0),
+                                    cpa: cConversions > 0 ? cSpend / cConversions : 0,
+                                };
+                            });
+                            metaSnapshot.rawData = { campaigns };
+                        }
+                    } catch {
+                        // Non-fatal: campaign breakdown is bonus data
+                    }
+
                     const docId = buildChannelSnapshotId(clientId, 'META', yesterdayStr);
                     await db.collection('channel_snapshots').doc(docId).set(metaSnapshot, { merge: true });
                     results.push({ clientId, clientName: client.name, status: "success", spend: Number(row.spend || 0) });

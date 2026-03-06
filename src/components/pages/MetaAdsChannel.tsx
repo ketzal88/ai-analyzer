@@ -105,16 +105,79 @@ export default function MetaAdsChannel() {
             impressions: acc.impressions + (s.metrics.impressions || 0),
             clicks: acc.clicks + (s.metrics.clicks || 0),
             reach: acc.reach + ((s.metrics as any).reach || 0),
+            inlineLinkClicks: acc.inlineLinkClicks + (s.metrics.inlineLinkClicks || 0),
+            uniqueClicks: acc.uniqueClicks + (s.metrics.uniqueClicks || 0),
+            addToCart: acc.addToCart + (s.metrics.addToCart || 0),
+            initiateCheckout: acc.initiateCheckout + (s.metrics.initiateCheckout || 0),
+            viewContent: acc.viewContent + (s.metrics.viewContent || 0),
+            videoPlays: acc.videoPlays + (s.metrics.videoPlays || 0),
+            videoP25: acc.videoP25 + (s.metrics.videoP25 || 0),
+            videoP50: acc.videoP50 + (s.metrics.videoP50 || 0),
+            videoP75: acc.videoP75 + (s.metrics.videoP75 || 0),
+            videoP100: acc.videoP100 + (s.metrics.videoP100 || 0),
+            // Weighted sums for averaging
+            cpmWeighted: acc.cpmWeighted + (s.metrics.cpm || 0) * (s.metrics.impressions || 0),
+            costPerInlineLinkClickWeighted: acc.costPerInlineLinkClickWeighted + (s.metrics.costPerInlineLinkClick || 0) * (s.metrics.inlineLinkClicks || 0),
         }),
-        { spend: 0, revenue: 0, conversions: 0, impressions: 0, clicks: 0, reach: 0 }
+        {
+            spend: 0, revenue: 0, conversions: 0, impressions: 0, clicks: 0, reach: 0,
+            inlineLinkClicks: 0, uniqueClicks: 0,
+            addToCart: 0, initiateCheckout: 0, viewContent: 0,
+            videoPlays: 0, videoP25: 0, videoP50: 0, videoP75: 0, videoP100: 0,
+            cpmWeighted: 0, costPerInlineLinkClickWeighted: 0,
+        }
     );
     const roas = totals.spend > 0 ? totals.revenue / totals.spend : 0;
     const cpa = totals.conversions > 0 ? totals.spend / totals.conversions : 0;
     const ctr = totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0;
     const cpc = totals.clicks > 0 ? totals.spend / totals.clicks : 0;
+    const avgCpm = totals.impressions > 0 ? totals.cpmWeighted / totals.impressions : 0;
+    const avgCostPerLinkClick = totals.inlineLinkClicks > 0 ? totals.costPerInlineLinkClickWeighted / totals.inlineLinkClicks : 0;
 
     // Sort snapshots by date ascending for the daily chart
     const sortedSnapshots = [...snapshots].sort((a, b) => a.date.localeCompare(b.date));
+
+    // Last snapshot quality rankings
+    const lastSnapshot = sortedSnapshots.length > 0 ? sortedSnapshots[sortedSnapshots.length - 1] : null;
+    const qualityRanking = lastSnapshot?.metrics.qualityRanking;
+    const engagementRateRanking = lastSnapshot?.metrics.engagementRateRanking;
+    const conversionRateRanking = lastSnapshot?.metrics.conversionRateRanking;
+    const hasQualityData = qualityRanking || engagementRateRanking || conversionRateRanking;
+
+    // Funnel data
+    const hasFunnelData = totals.addToCart > 0 || totals.viewContent > 0;
+
+    // Video data
+    const hasVideoData = totals.videoPlays > 0;
+
+    // Aggregate campaigns across all snapshots
+    const campaignMap = new Map<string, { name: string; objective: string; spend: number; conversions: number; revenue: number; impressions: number; clicks: number }>();
+    for (const s of snapshots) {
+        const campaigns = (s.rawData?.campaigns as any[]) || [];
+        for (const c of campaigns) {
+            const key = c.id || c.campaign_id || c.name;
+            const existing = campaignMap.get(key);
+            const revenue = c.revenue || c.conversionsValue || ((c.roas || 0) * (c.spend || 0));
+            if (existing) {
+                existing.spend += c.spend || 0;
+                existing.conversions += c.conversions || 0;
+                existing.revenue += revenue;
+                existing.impressions += c.impressions || 0;
+                existing.clicks += c.clicks || 0;
+            } else {
+                campaignMap.set(key, {
+                    name: c.name || c.campaign_name || c.campaignName || key,
+                    objective: c.objective || c.campaign_objective || "",
+                    spend: c.spend || 0,
+                    conversions: c.conversions || 0,
+                    revenue,
+                    impressions: c.impressions || 0,
+                    clicks: c.clicks || 0,
+                });
+            }
+        }
+    }
+    const aggregatedCampaigns = Array.from(campaignMap.values()).sort((a, b) => b.spend - a.spend);
 
     // Entity table logic
     const filteredRolling = useMemo(() => {
@@ -285,6 +348,181 @@ export default function MetaAdsChannel() {
                                 value={formatNumber(totals.reach, 0)}
                             />
                         </div>
+
+                        {/* KPI Row 3 — Extended Metrics */}
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                            <KPICard
+                                label="Link Clicks"
+                                value={formatNumber(totals.inlineLinkClicks, 0)}
+                                subtitle={avgCostPerLinkClick > 0 ? `Costo: ${formatCurrency(avgCostPerLinkClick)}` : undefined}
+                            />
+                            <KPICard
+                                label="CPM"
+                                value={avgCpm > 0 ? formatCurrency(avgCpm) : "\u2014"}
+                                subtitle="Costo por 1000 impresiones"
+                            />
+                            <KPICard
+                                label="CPC"
+                                value={cpc > 0 ? formatCurrency(cpc) : "\u2014"}
+                                subtitle="Costo por click"
+                            />
+                            <KPICard
+                                label="Clicks Unicos"
+                                value={formatNumber(totals.uniqueClicks, 0)}
+                            />
+                        </div>
+
+                        {/* Quality Ranking Badges */}
+                        {hasQualityData && (
+                            <div className="card p-6">
+                                <h2 className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4">
+                                    Quality Rankings
+                                </h2>
+                                <div className="grid grid-cols-3 gap-4">
+                                    <QualityBadge label="Quality" value={qualityRanking} />
+                                    <QualityBadge label="Engagement" value={engagementRateRanking} />
+                                    <QualityBadge label="Conversion" value={conversionRateRanking} />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Conversion Funnel */}
+                        {hasFunnelData && (
+                            <div className="card p-6">
+                                <h2 className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4">
+                                    Funnel de Conversion
+                                </h2>
+                                {(() => {
+                                    const funnelSteps = [
+                                        { label: "View Content", value: totals.viewContent },
+                                        { label: "Add to Cart", value: totals.addToCart },
+                                        { label: "Initiate Checkout", value: totals.initiateCheckout },
+                                        { label: "Purchase", value: totals.conversions },
+                                    ].filter(s => s.value > 0);
+                                    const maxVal = Math.max(...funnelSteps.map(s => s.value), 1);
+                                    return (
+                                        <div className="space-y-3">
+                                            {funnelSteps.map((step) => (
+                                                <div key={step.label} className="flex items-center gap-3">
+                                                    <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest w-32 shrink-0">{step.label}</span>
+                                                    <div className="flex-1 h-6 bg-argent/20 relative">
+                                                        <div className="h-full bg-classic/50" style={{ width: `${(step.value / maxVal) * 100}%` }} />
+                                                    </div>
+                                                    <span className="text-[11px] font-black text-text-primary font-mono w-16 text-right">{formatNumber(step.value, 0)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        )}
+
+                        {/* Video Performance */}
+                        {hasVideoData && (
+                            <div className="card p-6">
+                                <h2 className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4">
+                                    Video Performance
+                                </h2>
+                                {(() => {
+                                    const videoSteps = [
+                                        { label: "Plays", value: totals.videoPlays },
+                                        { label: "25%", value: totals.videoP25 },
+                                        { label: "50%", value: totals.videoP50 },
+                                        { label: "75%", value: totals.videoP75 },
+                                        { label: "100%", value: totals.videoP100 },
+                                    ];
+                                    const maxVal = Math.max(totals.videoPlays, 1);
+                                    // Compute avg watch time from last snapshot if available
+                                    const avgWatchTime = lastSnapshot?.metrics.videoAvgWatchTime;
+                                    return (
+                                        <div className="space-y-3">
+                                            {videoSteps.map((step) => {
+                                                const pct = totals.videoPlays > 0 ? (step.value / totals.videoPlays) * 100 : 0;
+                                                return (
+                                                    <div key={step.label} className="flex items-center gap-3">
+                                                        <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest w-16 shrink-0">{step.label}</span>
+                                                        <div className="flex-1 h-5 bg-argent/20 relative">
+                                                            <div className="h-full bg-purple-500/50" style={{ width: `${(step.value / maxVal) * 100}%` }} />
+                                                        </div>
+                                                        <span className="text-[11px] font-black text-text-primary font-mono w-20 text-right">
+                                                            {formatNumber(step.value, 0)}
+                                                        </span>
+                                                        <span className="text-[10px] text-text-muted font-mono w-12 text-right">
+                                                            {step.label !== "Plays" ? `${pct.toFixed(0)}%` : ""}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })}
+                                            {avgWatchTime != null && avgWatchTime > 0 && (
+                                                <p className="text-[10px] text-text-muted mt-2">
+                                                    Tiempo promedio de visualizacion: <span className="font-black text-text-primary font-mono">{avgWatchTime.toFixed(1)}s</span>
+                                                </p>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        )}
+
+                        {/* Campaign Breakdown */}
+                        {aggregatedCampaigns.length > 0 && (
+                            <div className="card p-6">
+                                <h2 className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4">
+                                    Campanas ({aggregatedCampaigns.length})
+                                </h2>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="border-b border-argent/50">
+                                                <th className="p-3 text-[10px] font-black text-text-muted uppercase tracking-widest">Campana</th>
+                                                <th className="p-3 text-[10px] font-black text-text-muted uppercase tracking-widest">Objetivo</th>
+                                                <th className="p-3 text-[10px] font-black text-text-muted uppercase tracking-widest text-right">Inversion</th>
+                                                <th className="p-3 text-[10px] font-black text-text-muted uppercase tracking-widest text-right">Conv.</th>
+                                                <th className="p-3 text-[10px] font-black text-text-muted uppercase tracking-widest text-right">Revenue</th>
+                                                <th className="p-3 text-[10px] font-black text-text-muted uppercase tracking-widest text-right">ROAS</th>
+                                                <th className="p-3 text-[10px] font-black text-text-muted uppercase tracking-widest text-right">CPA</th>
+                                                <th className="p-3 text-[10px] font-black text-text-muted uppercase tracking-widest text-right">CTR</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {aggregatedCampaigns.map((c, i) => {
+                                                const campRoas = c.spend > 0 ? c.revenue / c.spend : 0;
+                                                const campCpa = c.conversions > 0 ? c.spend / c.conversions : 0;
+                                                const campCtr = c.impressions > 0 ? (c.clicks / c.impressions) * 100 : 0;
+                                                return (
+                                                    <tr key={i} className="border-b border-argent/10 hover:bg-classic/[0.03]">
+                                                        <td className="p-3 text-[11px] text-text-primary font-medium max-w-[250px] truncate">{c.name}</td>
+                                                        <td className="p-3">
+                                                            {c.objective && (
+                                                                <span className="text-[9px] font-black uppercase tracking-widest bg-argent/20 text-text-secondary px-1.5 py-0.5">
+                                                                    {c.objective}
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className="p-3 text-[11px] text-text-secondary font-mono text-right">{formatCurrency(c.spend)}</td>
+                                                        <td className="p-3 text-[11px] text-text-secondary font-mono text-right">{formatNumber(c.conversions, 0)}</td>
+                                                        <td className="p-3 text-[11px] text-synced font-mono text-right">
+                                                            {c.revenue > 0 ? formatCurrency(c.revenue) : "\u2014"}
+                                                        </td>
+                                                        <td className="p-3 text-[11px] font-mono text-right">
+                                                            <span className={campRoas >= 3 ? "text-synced" : campRoas >= 1 ? "text-classic" : "text-red-400"}>
+                                                                {campRoas > 0 ? `${campRoas.toFixed(2)}x` : "\u2014"}
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-3 text-[11px] text-text-secondary font-mono text-right">
+                                                            {campCpa > 0 ? formatCurrency(campCpa) : "\u2014"}
+                                                        </td>
+                                                        <td className="p-3 text-[11px] text-text-secondary font-mono text-right">
+                                                            {campCtr > 0 ? `${campCtr.toFixed(2)}%` : "\u2014"}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Daily Trend */}
                         <div className="card p-6">
@@ -634,6 +872,23 @@ function SortIcon({ active, direction }: { active: boolean, direction: 'asc' | '
         <div className={`flex flex-col -space-y-1 transition-opacity ${active ? 'opacity-100' : 'opacity-20'}`}>
             <span className={`text-[8px] ${active && direction === 'asc' ? 'text-classic' : ''}`}>&#9650;</span>
             <span className={`text-[8px] ${active && direction === 'desc' ? 'text-classic' : ''}`}>&#9660;</span>
+        </div>
+    );
+}
+
+function QualityBadge({ label, value }: { label: string; value?: string }) {
+    if (!value) return (
+        <div className="p-4 bg-special/20 border border-argent/20 text-center">
+            <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">{label}</p>
+            <p className="text-[11px] font-bold text-text-muted mt-2">{"\u2014"}</p>
+        </div>
+    );
+    const colorClass = value.includes("ABOVE") ? "text-synced" : value === "AVERAGE" ? "text-yellow-400" : "text-red-400";
+    const displayValue = value.replace(/_/g, " ");
+    return (
+        <div className="p-4 bg-special/20 border border-argent/20 text-center hover:border-classic/30 transition-all">
+            <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">{label}</p>
+            <p className={`text-[11px] font-black mt-2 uppercase tracking-widest ${colorClass}`}>{displayValue}</p>
         </div>
     );
 }

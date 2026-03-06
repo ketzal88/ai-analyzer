@@ -31,7 +31,7 @@ export interface ChannelDailySnapshot {
  * Not all fields apply to all channels; undefined means "not applicable".
  */
 export interface UnifiedChannelMetrics {
-    // ── Ads (Meta + Google) ──────────────────────
+    // ── Ads Core (Meta + Google) ──────────────────
     spend?: number;
     revenue?: number;
     conversions?: number;
@@ -44,7 +44,54 @@ export interface UnifiedChannelMetrics {
     reach?: number;
     frequency?: number;
 
-    // ── Ecommerce (Tienda Nube / Shopify) ────────
+    // ── Ads Click Quality (Meta) ──────────────────
+    inlineLinkClicks?: number;        // Clicks to destination URL (excludes reactions/profile clicks)
+    inlineLinkClickCtr?: number;      // Destination click CTR %
+    costPerInlineLinkClick?: number;  // Cost per destination click
+    uniqueClicks?: number;            // Deduplicated click count
+    outboundClicks?: number;          // All outbound clicks
+
+    // ── Ads Cost Efficiency ───────────────────────
+    cpm?: number;                     // Cost per 1000 impressions (Meta + Google)
+    cpp?: number;                     // Meta: Cost per 1000 reach
+
+    // ── Ads Mid-Funnel (Meta) ─────────────────────
+    addToCart?: number;               // add_to_cart actions
+    initiateCheckout?: number;        // initiate_checkout actions
+    viewContent?: number;             // view_content actions
+    costPerAddToCart?: number;
+    costPerInitiateCheckout?: number;
+
+    // ── Ads Quality Signals (Meta) ────────────────
+    qualityRanking?: string;          // BELOW_AVERAGE | AVERAGE | ABOVE_AVERAGE
+    engagementRateRanking?: string;
+    conversionRateRanking?: string;
+
+    // ── Google Search Specific ────────────────────
+    searchImpressionShare?: number;   // % of available impressions won
+    searchBudgetLostIS?: number;      // % lost to budget cap
+    searchRankLostIS?: number;        // % lost to low ad rank
+    allConversions?: number;          // Includes cross-device conversions
+    allConversionsValue?: number;
+    viewThroughConversions?: number;  // Impression-assisted (no click)
+    conversionRate?: number;          // conversions / clicks %
+
+    // ── Video Metrics (Meta + Google) ─────────────
+    videoPlays?: number;
+    videoP25?: number;
+    videoP50?: number;
+    videoP75?: number;
+    videoP100?: number;
+    video30sViews?: number;           // Meta: standard video view (30s or full)
+    videoAvgWatchTime?: number;       // Meta: avg watch seconds
+
+    // ── Social Engagement (Meta) ──────────────────
+    postEngagement?: number;          // Total post interactions
+    postReactions?: number;
+    postComments?: number;
+    postShares?: number;
+
+    // ── Ecommerce (Tienda Nube / Shopify / WooCommerce) ────────
     orders?: number;
     avgOrderValue?: number;
     refunds?: number;
@@ -64,6 +111,8 @@ export interface UnifiedChannelMetrics {
     abandonedCheckouts?: number;
     abandonedCheckoutValue?: number;
     cartAbandonmentRate?: number;  // abandoned / (abandoned + orders) %
+    totalRefundAmount?: number;    // $ amount refunded
+    refundRate?: number;           // refundAmount / revenue %
 
     // ── Email (Perfit / Klaviyo) ──────────────────
     sent?: number;
@@ -75,6 +124,9 @@ export interface UnifiedChannelMetrics {
     bounces?: number;
     unsubscribes?: number;
     emailRevenue?: number;
+    clickToOpenRate?: number;      // CTOR: clicks / opens % (content quality)
+    revenuePerRecipient?: number;  // revenue / sent
+    spamComplaints?: number;       // ISP spam reports (Klaviyo)
 }
 
 /**

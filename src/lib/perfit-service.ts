@@ -279,6 +279,8 @@ export class PerfitService {
                     bounces: totalBounced,
                     emailRevenue: totalConversionsAmount,
                     conversions: totalConversions,
+                    clickToOpenRate: totalOpens > 0 ? (totalClicks / totalOpens) * 100 : 0,
+                    revenuePerRecipient: totalSent > 0 ? totalConversionsAmount / totalSent : 0,
                 },
                 campaigns: dayCampaigns.map(c => {
                     const sent = c.metrics?.sent || 0;
@@ -301,6 +303,7 @@ export class PerfitService {
                         conversionsAmount: c.metrics?.conversionsAmount || 0,
                         launchDate: c.launchDate || '',
                         thumbnail: c.thumbnail,
+                        tags: c.tags || [],
                     };
                 }),
             });

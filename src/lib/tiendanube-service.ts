@@ -50,6 +50,11 @@ export interface TiendaNubeDailyAggregate {
         totalProducts: number;
         topProducts?: Array<{ productId: number; title: string; unitsSold: number; revenue: number; orders: number }>;
         uniqueCustomers?: number;
+        customerCohorts?: {
+            firstTime: { count: number; revenue: number };
+            returning: { count: number; revenue: number };
+        };
+        byPaymentStatus?: { paid: number; pending: number; refunded: number };
     };
 }
 
@@ -192,6 +197,8 @@ export class TiendaNubeService {
 
             // Customer tracking
             const customerIds = new Set<number>();
+            const customerOrderCount = new Map<number, number>();
+            const customerRevenue = new Map<number, number>();
 
             // Attribution by storefront
             const byStorefront: Record<string, { orders: number; revenue: number }> = {};
@@ -221,7 +228,41 @@ export class TiendaNubeService {
                 }
 
                 // Customer
-                if (order.customer?.id) customerIds.add(order.customer.id);
+                if (order.customer?.id) {
+                    const customerId = order.customer.id;
+                    customerIds.add(customerId);
+                    customerOrderCount.set(customerId, (customerOrderCount.get(customerId) || 0) + 1);
+                    customerRevenue.set(customerId, (customerRevenue.get(customerId) || 0) + parseFloat(order.total || "0"));
+                }
+            }
+
+            // Customer cohorts
+            const customerCohorts = {
+                firstTime: { count: 0, revenue: 0 },
+                returning: { count: 0, revenue: 0 },
+            };
+            for (const [customerId, count] of customerOrderCount) {
+                const revenue = customerRevenue.get(customerId) || 0;
+                if (count === 1) {
+                    customerCohorts.firstTime.count++;
+                    customerCohorts.firstTime.revenue += revenue;
+                } else {
+                    customerCohorts.returning.count++;
+                    customerCohorts.returning.revenue += revenue;
+                }
+            }
+
+            // Payment status breakdown
+            const byPaymentStatus = { paid: 0, pending: 0, refunded: 0 };
+            for (const order of orders) {
+                const status = (order.payment_status || "").toLowerCase();
+                if (status === "paid" || status === "authorized") {
+                    byPaymentStatus.paid++;
+                } else if (status === "pending" || status === "voided") {
+                    byPaymentStatus.pending++;
+                } else if (status === "refunded") {
+                    byPaymentStatus.refunded++;
+                }
             }
 
             // Top products
@@ -249,6 +290,8 @@ export class TiendaNubeService {
                     totalProducts: totalItems,
                     topProducts,
                     uniqueCustomers: customerIds.size,
+                    customerCohorts,
+                    byPaymentStatus,
                 },
             });
         }
@@ -299,6 +342,8 @@ export class TiendaNubeService {
                     topProducts: agg.breakdown.topProducts,
                     totalProducts: agg.breakdown.totalProducts,
                     uniqueCustomers: agg.breakdown.uniqueCustomers,
+                    customerCohorts: agg.breakdown.customerCohorts,
+                    byPaymentStatus: agg.breakdown.byPaymentStatus,
                     source: 'tiendanube',
                 },
                 syncedAt: new Date().toISOString(),
