@@ -6,6 +6,7 @@ import { useClient } from "@/contexts/ClientContext";
 import { ChannelDailySnapshot } from "@/types/channel-snapshots";
 import { UnifiedDateRange, resolvePreset, formatRangeLabel } from "@/lib/date-utils";
 import DateRangePicker from "@/components/ui/DateRangePicker";
+import { useAnalyst } from "@/contexts/AnalystContext";
 import Link from "next/link";
 import { EntityRollingMetrics, EntityLevel } from "@/types/performance-snapshots";
 import { EntityClassification, FinalDecision, IntentStage, LearningState, FatigueState } from "@/types/classifications";
@@ -53,6 +54,7 @@ function KPICard({ label, value, subtitle, color }: KPICardProps) {
 
 
 export default function MetaAdsChannel() {
+    const { openAnalyst } = useAnalyst();
     const {
         selectedClientId: clientId,
         activeClients,
@@ -276,7 +278,10 @@ export default function MetaAdsChannel() {
                             Facebook & Instagram &bull; {formatRangeLabel(dateRange)}
                         </p>
                     </div>
-                    <DateRangePicker value={dateRange} onChange={setDateRange} />
+                    <div className="flex items-center gap-3">
+                        <DateRangePicker value={dateRange} onChange={setDateRange} />
+                        <button onClick={() => openAnalyst('meta_ads')} className="px-3 py-2 bg-classic text-stellar font-black text-[10px] uppercase tracking-widest hover:bg-classic/90 transition-all whitespace-nowrap">Analizar con IA</button>
+                    </div>
                 </header>
 
                 {isLoading && (

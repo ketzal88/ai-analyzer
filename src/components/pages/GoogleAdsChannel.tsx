@@ -6,6 +6,7 @@ import { useClient } from "@/contexts/ClientContext";
 import { ChannelDailySnapshot } from "@/types/channel-snapshots";
 import { UnifiedDateRange, resolvePreset, formatRangeLabel } from "@/lib/date-utils";
 import DateRangePicker from "@/components/ui/DateRangePicker";
+import { useAnalyst } from "@/contexts/AnalystContext";
 
 function formatCurrency(value: number | undefined, prefix = "$"): string {
     if (value === undefined || value === null) return "—";
@@ -49,6 +50,7 @@ function KPICard({ label, value, subtitle, color }: KPICardProps) {
 
 export default function GoogleAdsChannel() {
     const { selectedClientId: clientId } = useClient();
+    const { openAnalyst } = useAnalyst();
     const [snapshots, setSnapshots] = useState<ChannelDailySnapshot[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -184,7 +186,10 @@ export default function GoogleAdsChannel() {
                             Canal de Publicidad &bull; {formatRangeLabel(dateRange)}
                         </p>
                     </div>
-                    <DateRangePicker value={dateRange} onChange={setDateRange} />
+                    <div className="flex items-center gap-3">
+                        <DateRangePicker value={dateRange} onChange={setDateRange} />
+                        <button onClick={() => openAnalyst('google_ads')} className="px-3 py-2 bg-classic text-stellar font-black text-[10px] uppercase tracking-widest hover:bg-classic/90 transition-all whitespace-nowrap">Analizar con IA</button>
+                    </div>
                 </header>
 
                 {isLoading && (

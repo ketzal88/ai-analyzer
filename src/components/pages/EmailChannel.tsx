@@ -6,6 +6,7 @@ import { useClient } from "@/contexts/ClientContext";
 import { ChannelDailySnapshot } from "@/types/channel-snapshots";
 import { UnifiedDateRange, resolvePreset, formatRangeLabel } from "@/lib/date-utils";
 import DateRangePicker from "@/components/ui/DateRangePicker";
+import { useAnalyst } from "@/contexts/AnalystContext";
 
 function formatNumber(value: number | undefined, decimals = 0): string {
     if (value === undefined || value === null) return "—";
@@ -59,6 +60,7 @@ const AUTOMATION_TYPE_LABELS: Record<string, string> = {
 
 export default function EmailChannel() {
     const { selectedClientId: clientId } = useClient();
+    const { openAnalyst } = useAnalyst();
     const [snapshots, setSnapshots] = useState<ChannelDailySnapshot[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -153,8 +155,9 @@ export default function EmailChannel() {
                             {sourceName} &bull; {formatRangeLabel(dateRange)}
                         </p>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
                         <DateRangePicker value={dateRange} onChange={setDateRange} />
+                        <button onClick={() => openAnalyst('email')} className="px-3 py-2 bg-classic text-stellar font-black text-[10px] uppercase tracking-widest hover:bg-classic/90 transition-all whitespace-nowrap">Analizar con IA</button>
                         {accountInfo && (
                             <div className="text-right">
                                 <p className="text-[10px] text-text-muted font-bold uppercase tracking-widest">

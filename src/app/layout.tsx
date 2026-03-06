@@ -4,6 +4,8 @@ import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ClientProvider } from "@/contexts/ClientContext";
 import { ReportProvider } from "@/contexts/ReportContext";
+import { AnalystProvider } from "@/contexts/AnalystContext";
+import AnalystPanel from "@/components/ai-analyst/AnalystPanel";
 
 // Display font: page titles, section headers, metric values
 const spaceGrotesk = Space_Grotesk({
@@ -43,7 +45,10 @@ export default function RootLayout({
                 <AuthProvider>
                     <ClientProvider>
                         <ReportProvider>
-                            {children}
+                            <AnalystProvider>
+                                {children}
+                                <AnalystPanel />
+                            </AnalystProvider>
                         </ReportProvider>
                     </ClientProvider>
                 </AuthProvider>
