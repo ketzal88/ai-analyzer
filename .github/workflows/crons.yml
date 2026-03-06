@@ -2,42 +2,77 @@ name: App Crons
 
 on:
   schedule:
-    # Super Cron (Data Sync + Reports) - Daily at 10:00 UTC (7:00 AM ART approx)
-    - cron: '0 10 * * *'
+    # Channel Syncs - Daily at 09:00 UTC (6:00 AM ART)
+    - cron: '0 9 * * *'
+    # Fill Gaps - Daily at 09:30 UTC (after syncs finish)
+    - cron: '30 9 * * *'
     # Account Health - Every 6 hours
     - cron: '0 */6 * * *'
-    # Backfill Processor - Every hour (while queue is not empty)
-    - cron: '0 * * * *'
-  workflow_dispatch: # Allows manual trigger from GitHub UI
+  workflow_dispatch:
+    inputs:
+      job:
+        description: 'Which cron to run'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - sync-channels
+          - fill-gaps
+          - account-health
+
+env:
+  APP_URL: https://ai-analyzer-pink.vercel.app
 
 jobs:
-  trigger-crons:
+  sync-channels:
+    if: github.event.schedule == '0 9 * * *' || github.event_name == 'workflow_dispatch' && (github.event.inputs.job == 'all' || github.event.inputs.job == 'sync-channels')
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Cron Endpoint
+      - name: Sync Meta Ads
         run: |
-          # Determine which cron to run based on schedule or manual trigger
-          # For simplicity in this implementation, we check the hour
-          HOUR=$(date +%H)
-          MINUTE=$(date +%M)
-          
-          echo "Current UTC Time: $HOUR:$MINUTE"
-          
-          # 1. Super Cron (Data Sync)
-          if [ "$HOUR" == "10" ] && [ "$MINUTE" == "00" ] || [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "🚀 Triggering Super Cron..."
-            curl -X POST "https://ai-analyzer-pink.vercel.app/api/cron/data-sync" \
-              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
-          fi
-          
-          # 2. Account Health (0, 6, 12, 18 UTC)
-          if (( HOUR % 6 == 0 )) && [ "$MINUTE" == "00" ] || [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "🏥 Triggering Account Health..."
-            curl -X POST "https://ai-analyzer-pink.vercel.app/api/cron/account-health" \
-              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
-          fi
-          
-          # 3. Backfill Processor (Every hour)
-          echo "🔄 Triggering Backfill Batch..."
-          curl -X POST "https://ai-analyzer-pink.vercel.app/api/backfill" \
+          echo "📊 Triggering Meta Ads sync..."
+          curl -sS -f "${{ env.APP_URL }}/api/cron/sync-meta" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            || echo "⚠️ Meta sync failed (will retry via fill-gaps)"
+
+      - name: Sync Google Ads
+        run: |
+          echo "📊 Triggering Google Ads sync..."
+          curl -sS -f "${{ env.APP_URL }}/api/cron/sync-google" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            || echo "⚠️ Google sync failed (will retry via fill-gaps)"
+
+      - name: Sync Ecommerce
+        run: |
+          echo "🛒 Triggering Ecommerce sync..."
+          curl -sS -f "${{ env.APP_URL }}/api/cron/sync-ecommerce" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            || echo "⚠️ Ecommerce sync failed (will retry via fill-gaps)"
+
+      - name: Sync Email
+        run: |
+          echo "📧 Triggering Email sync..."
+          curl -sS -f "${{ env.APP_URL }}/api/cron/sync-email" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            || echo "⚠️ Email sync failed (will retry via fill-gaps)"
+
+  fill-gaps:
+    if: github.event.schedule == '30 9 * * *' || github.event_name == 'workflow_dispatch' && (github.event.inputs.job == 'all' || github.event.inputs.job == 'fill-gaps')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fill Gaps
+        run: |
+          echo "🔄 Triggering Fill Gaps..."
+          curl -sS -f "${{ env.APP_URL }}/api/cron/fill-gaps" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+
+  account-health:
+    if: github.event.schedule == '0 */6 * * *' || github.event_name == 'workflow_dispatch' && (github.event.inputs.job == 'all' || github.event.inputs.job == 'account-health')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Account Health Check
+        run: |
+          echo "🏥 Triggering Account Health..."
+          curl -sS -f "${{ env.APP_URL }}/api/cron/account-health" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

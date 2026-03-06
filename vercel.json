@@ -2,22 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
     {
-      "path": "/api/cron/sync-meta",
-      "schedule": "0 9 * * *"
-    },
-    {
-      "path": "/api/cron/sync-google",
-      "schedule": "0 9 * * *"
-    },
-    {
-      "path": "/api/cron/sync-ecommerce",
-      "schedule": "0 9 * * *"
-    },
-    {
-      "path": "/api/cron/sync-email",
-      "schedule": "0 9 * * *"
-    },
-    {
       "path": "/api/cron/data-sync",
       "schedule": "0 10 * * *"
     }

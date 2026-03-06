@@ -83,6 +83,11 @@ export class TiendaNubeService {
                 continue;
             }
 
+            if (response.status === 404) {
+                // TiendaNube returns 404 "Last page is 0" when no orders exist for the range
+                return [];
+            }
+
             if (response.status >= 500) {
                 // Server error — retry with backoff
                 await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
