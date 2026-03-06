@@ -19,7 +19,7 @@ export class EventService {
     /**
      * Log a system event. Persists to Firestore and optionally sends to Slack.
      */
-    static async log(event: Omit<SystemEvent, "id" | "timestamp">): Promise<string> {
+    static async log(event: Omit<SystemEvent, "id" | "timestamp">, options?: { skipSlackError?: boolean }): Promise<string> {
         const fullEvent: SystemEvent = {
             ...event,
             timestamp: new Date().toISOString(),
@@ -40,7 +40,7 @@ export class EventService {
         console.log(`${prefix} [${event.service}] ${event.message}`, event.clientId ? `(${event.clientId})` : "");
 
         // 3. Send to Slack if severity >= warning, respecting rate limit
-        if (event.severity !== "info") {
+        if (event.severity !== "info" && !options?.skipSlackError) {
             const shouldSend = this.checkRateLimit(event);
             if (shouldSend) {
                 try {

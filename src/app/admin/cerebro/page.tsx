@@ -70,7 +70,31 @@ const CREATIVE_CATEGORIES = [
     },
 ];
 
-type CerebroTab = "generators" | "engine" | "classifier" | "console" | "analyst";
+type CerebroTab = "generators" | "engine" | "classifier" | "console" | "analyst" | "library";
+
+// ─── Winning Ads Library Types ──────────────────────────────
+const HOOK_TYPES = [
+    { id: "curiosity", label: "Curiosidad" },
+    { id: "shock", label: "Shock" },
+    { id: "problem", label: "Problema" },
+    { id: "social-proof", label: "Social Proof" },
+    { id: "offer", label: "Oferta" },
+    { id: "question", label: "Pregunta" },
+] as const;
+
+const FORMAT_OPTIONS = ["VIDEO", "IMAGE", "CAROUSEL"] as const;
+
+interface WinningAd {
+    id: string;
+    angle: string;
+    format: string;
+    description: string;
+    whyItWorked: string;
+    keyElements: string[];
+    visualStyle: string;
+    addedAt: string;
+    active: boolean;
+}
 
 export default function CerebroDeWorker() {
     const [activeTab, setActiveTab] = useState<CerebroTab>("generators");
@@ -105,6 +129,7 @@ export default function CerebroDeWorker() {
         { id: "ecommerce", label: "Ecommerce" },
         { id: "email", label: "Email Marketing" },
         { id: "cross_channel", label: "Cross-Channel" },
+        { id: "creative_briefs", label: "Bajadas Creativas" },
     ] as const;
     const [analystChannel, setAnalystChannel] = useState<string>("meta_ads");
     const [analystPrompts, setAnalystPrompts] = useState<Record<string, { hasCustomPrompt: boolean; systemPrompt: string | null; updatedAt: string | null }>>({});
@@ -113,11 +138,25 @@ export default function CerebroDeWorker() {
     const [isAnalystLoading, setIsAnalystLoading] = useState(false);
     const [analystSaveStatus, setAnalystSaveStatus] = useState<string | null>(null);
 
+    // ─── Winning Ads Library State ───────────────────
+    const [libraryAds, setLibraryAds] = useState<WinningAd[]>([]);
+    const [isLibraryLoading, setIsLibraryLoading] = useState(false);
+    const [libraryForm, setLibraryForm] = useState({
+        angle: "curiosity",
+        format: "VIDEO" as string,
+        description: "",
+        whyItWorked: "",
+        keyElements: "",
+        visualStyle: "",
+    });
+    const [libraryFormOpen, setLibraryFormOpen] = useState(false);
+
     // ─── Data Fetching ────────────────────────────────
     useEffect(() => {
         if (activeTab === "generators") fetchPromptData();
         if (activeTab === "console") fetchClients();
         if (activeTab === "analyst") fetchAnalystPrompts();
+        if (activeTab === "library") fetchLibraryAds();
     }, [activeTab, selectedKey]);
 
     useEffect(() => {
@@ -249,6 +288,60 @@ export default function CerebroDeWorker() {
         finally { setIsActionLoading(false); }
     };
 
+    // ─── Library Actions ─────────────────────────────
+    const fetchLibraryAds = async () => {
+        setIsLibraryLoading(true);
+        try {
+            const res = await fetch("/api/admin/winning-ads?active=true");
+            const data = await res.json();
+            if (Array.isArray(data)) setLibraryAds(data);
+        } catch (e) { console.error("Error fetching library:", e); }
+        finally { setIsLibraryLoading(false); }
+    };
+
+    const handleAddLibraryAd = async () => {
+        if (!libraryForm.description.trim() || !libraryForm.whyItWorked.trim()) {
+            alert("Descripción y 'Por qué funcionó' son requeridos.");
+            return;
+        }
+        // Check max 3 per angle
+        const countForAngle = libraryAds.filter(a => a.angle === libraryForm.angle).length;
+        if (countForAngle >= 3) {
+            alert(`Ya hay 3 ads para el ángulo "${libraryForm.angle}". Eliminá uno antes de agregar otro.`);
+            return;
+        }
+        setIsActionLoading(true);
+        try {
+            const res = await fetch("/api/admin/winning-ads", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    ...libraryForm,
+                    keyElements: libraryForm.keyElements.split(",").map(s => s.trim()).filter(Boolean),
+                }),
+            });
+            if (res.ok) {
+                setLibraryForm({ angle: "curiosity", format: "VIDEO", description: "", whyItWorked: "", keyElements: "", visualStyle: "" });
+                setLibraryFormOpen(false);
+                await fetchLibraryAds();
+            } else {
+                const err = await res.json();
+                alert(`Error: ${err.error}`);
+            }
+        } catch (_e) { alert("Error al guardar."); }
+        finally { setIsActionLoading(false); }
+    };
+
+    const handleDeleteLibraryAd = async (id: string) => {
+        if (!confirm("Eliminar este ad de la biblioteca?")) return;
+        setIsActionLoading(true);
+        try {
+            await fetch(`/api/admin/winning-ads?id=${id}`, { method: "DELETE" });
+            await fetchLibraryAds();
+        } catch (_e) { alert("Error al eliminar."); }
+        finally { setIsActionLoading(false); }
+    };
+
     // ─── Actions ──────────────────────────────────────
     const handleSaveDraft = async () => {
         setIsActionLoading(true);
@@ -339,6 +432,7 @@ export default function CerebroDeWorker() {
         { id: "classifier", label: "Clasificador Creativo", icon: "M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" },
         { id: "console", label: "Consola de Pruebas", icon: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" },
         { id: "analyst", label: "AI Analyst", icon: "M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" },
+        { id: "library", label: "Ads Ganadores", icon: "M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" },
     ];
 
     const currentPromptMeta = PROMPT_KEYS.find(p => p.key === selectedKey);
@@ -862,6 +956,221 @@ export default function CerebroDeWorker() {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                                 Los prompts se cachean 5 minutos en el servidor. Los cambios tardan hasta 5 min en reflejarse en el chat del analyst.
+                            </p>
+                        </div>
+                    </div>
+                )}
+
+                {/* ═══════════════════ TAB 6: BIBLIOTECA ADS GANADORES ═══════════════════ */}
+                {activeTab === "library" && (
+                    <div className="space-y-6">
+                        <div className="bg-special/40 border border-argent/50 p-4 rounded-xl">
+                            <div className="flex items-center gap-2 mb-1">
+                                <span className="w-2 h-2 rounded-full bg-amber-400" />
+                                <span className="text-[10px] font-black text-text-primary uppercase tracking-widest">Biblioteca de Ads Ganadores</span>
+                            </div>
+                            <p className="text-small text-text-secondary">
+                                Ads ganadores históricos cross-client que alimentan las bajadas creativas. Máximo 3 por ángulo para mantener el contexto liviano.
+                            </p>
+                        </div>
+
+                        {/* Add button */}
+                        {!libraryFormOpen && (
+                            <button
+                                onClick={() => setLibraryFormOpen(true)}
+                                className="btn-classic px-6 py-2.5 text-[10px] flex items-center gap-2"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                                Agregar Ad Ganador
+                            </button>
+                        )}
+
+                        {/* Add Form */}
+                        {libraryFormOpen && (
+                            <div className="card border-classic/30 p-6 space-y-4">
+                                <div className="flex items-center justify-between mb-2">
+                                    <h3 className="text-[10px] font-black text-text-primary uppercase tracking-widest">Nuevo Ad Ganador</h3>
+                                    <button onClick={() => setLibraryFormOpen(false)} className="text-text-muted hover:text-text-primary text-lg">&times;</button>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[9px] font-black text-text-muted uppercase tracking-widest mb-1.5 block">Ángulo (Hook Type)</label>
+                                        <select
+                                            value={libraryForm.angle}
+                                            onChange={(e) => setLibraryForm(f => ({ ...f, angle: e.target.value }))}
+                                            className="w-full bg-stellar border border-argent rounded-lg px-3 py-2 text-body focus:border-classic outline-none"
+                                        >
+                                            {HOOK_TYPES.map(h => {
+                                                const count = libraryAds.filter(a => a.angle === h.id).length;
+                                                return (
+                                                    <option key={h.id} value={h.id} disabled={count >= 3}>
+                                                        {h.label} ({count}/3)
+                                                    </option>
+                                                );
+                                            })}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-black text-text-muted uppercase tracking-widest mb-1.5 block">Formato</label>
+                                        <select
+                                            value={libraryForm.format}
+                                            onChange={(e) => setLibraryForm(f => ({ ...f, format: e.target.value }))}
+                                            className="w-full bg-stellar border border-argent rounded-lg px-3 py-2 text-body focus:border-classic outline-none"
+                                        >
+                                            {FORMAT_OPTIONS.map(f => <option key={f} value={f}>{f}</option>)}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="text-[9px] font-black text-text-muted uppercase tracking-widest mb-1.5 block">Descripción del anuncio</label>
+                                    <textarea
+                                        value={libraryForm.description}
+                                        onChange={(e) => setLibraryForm(f => ({ ...f, description: e.target.value }))}
+                                        className="w-full h-20 bg-stellar border border-argent rounded-lg p-3 text-small font-mono focus:border-classic outline-none resize-none text-text-primary"
+                                        placeholder="UGC de mujer mostrando el producto con expresión de sorpresa..."
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="text-[9px] font-black text-text-muted uppercase tracking-widest mb-1.5 block">Por qué funcionó</label>
+                                    <textarea
+                                        value={libraryForm.whyItWorked}
+                                        onChange={(e) => setLibraryForm(f => ({ ...f, whyItWorked: e.target.value }))}
+                                        className="w-full h-20 bg-stellar border border-argent rounded-lg p-3 text-small font-mono focus:border-classic outline-none resize-none text-text-primary"
+                                        placeholder="Hook de curiosidad con cara + texto corto generó CTR 3.2%..."
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[9px] font-black text-text-muted uppercase tracking-widest mb-1.5 block">Elementos clave (separados por coma)</label>
+                                        <input
+                                            type="text"
+                                            value={libraryForm.keyElements}
+                                            onChange={(e) => setLibraryForm(f => ({ ...f, keyElements: e.target.value }))}
+                                            className="w-full bg-stellar border border-argent rounded-lg px-3 py-2 text-small font-mono focus:border-classic outline-none text-text-primary"
+                                            placeholder="cara, texto corto, producto visible, colores vibrantes"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-black text-text-muted uppercase tracking-widest mb-1.5 block">Estilo visual</label>
+                                        <input
+                                            type="text"
+                                            value={libraryForm.visualStyle}
+                                            onChange={(e) => setLibraryForm(f => ({ ...f, visualStyle: e.target.value }))}
+                                            className="w-full bg-stellar border border-argent rounded-lg px-3 py-2 text-small font-mono focus:border-classic outline-none text-text-primary"
+                                            placeholder="ugc, editorial, meme, flat-design..."
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="flex justify-end gap-2 pt-2">
+                                    <button
+                                        onClick={() => setLibraryFormOpen(false)}
+                                        className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-text-muted hover:text-text-primary transition-colors"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        onClick={handleAddLibraryAd}
+                                        disabled={isActionLoading}
+                                        className="btn-classic px-6 py-2 text-[10px]"
+                                    >
+                                        {isActionLoading ? "GUARDANDO..." : "GUARDAR"}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Ads grouped by angle */}
+                        {isLibraryLoading ? (
+                            <div className="p-20 text-center text-text-muted">Cargando biblioteca...</div>
+                        ) : (
+                            <div className="space-y-6">
+                                {HOOK_TYPES.map(hookType => {
+                                    const adsForAngle = libraryAds.filter(a => a.angle === hookType.id);
+                                    return (
+                                        <div key={hookType.id} className="card p-0 overflow-hidden border-argent">
+                                            <div className="flex items-center justify-between px-5 py-3 bg-special border-b border-argent">
+                                                <div className="flex items-center gap-3">
+                                                    <h3 className="text-[10px] font-black text-text-primary uppercase tracking-widest">{hookType.label}</h3>
+                                                    <span className="text-[9px] font-mono text-text-muted">{hookType.id}</span>
+                                                </div>
+                                                <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${adsForAngle.length >= 3
+                                                    ? "bg-amber-500/10 text-amber-400"
+                                                    : adsForAngle.length > 0
+                                                        ? "bg-synced/10 text-synced"
+                                                        : "bg-argent/20 text-text-muted"
+                                                    }`}>
+                                                    {adsForAngle.length}/3
+                                                </span>
+                                            </div>
+
+                                            {adsForAngle.length === 0 ? (
+                                                <div className="px-5 py-6 text-center text-[10px] text-text-muted italic">
+                                                    Sin ads para este ángulo
+                                                </div>
+                                            ) : (
+                                                <div className="divide-y divide-argent/50">
+                                                    {adsForAngle.map(ad => (
+                                                        <div key={ad.id} className="px-5 py-4 hover:bg-argent/5 transition-colors">
+                                                            <div className="flex items-start justify-between gap-4">
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className="flex items-center gap-2 mb-2">
+                                                                        <span className={`px-2 py-0.5 text-[8px] font-black uppercase rounded ${
+                                                                            ad.format === "VIDEO" ? "bg-classic/10 text-classic" :
+                                                                            ad.format === "CAROUSEL" ? "bg-amber-500/10 text-amber-400" :
+                                                                            "bg-synced/10 text-synced"
+                                                                        }`}>{ad.format}</span>
+                                                                        {ad.visualStyle && (
+                                                                            <span className="px-2 py-0.5 bg-argent/20 text-text-muted text-[8px] font-mono rounded">{ad.visualStyle}</span>
+                                                                        )}
+                                                                    </div>
+                                                                    <p className="text-[11px] text-text-primary font-mono leading-relaxed mb-1">{ad.description}</p>
+                                                                    <p className="text-[10px] text-text-secondary leading-relaxed">
+                                                                        <span className="font-bold text-text-muted">Por qué funcionó:</span> {ad.whyItWorked}
+                                                                    </p>
+                                                                    {ad.keyElements && ad.keyElements.length > 0 && (
+                                                                        <div className="flex flex-wrap gap-1 mt-2">
+                                                                            {ad.keyElements.map((el, i) => (
+                                                                                <span key={i} className="px-1.5 py-0.5 bg-classic/5 text-classic/80 text-[8px] font-mono rounded">{el}</span>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                <button
+                                                                    onClick={() => handleDeleteLibraryAd(ad.id)}
+                                                                    disabled={isActionLoading}
+                                                                    className="shrink-0 w-7 h-7 flex items-center justify-center text-text-muted hover:text-red-400
+                                                                               hover:bg-red-500/10 rounded transition-all text-sm"
+                                                                    title="Eliminar"
+                                                                >
+                                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                                    </svg>
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {/* Summary */}
+                        <div className="card bg-special/40 border-argent/30 p-4">
+                            <p className="text-[10px] text-text-muted font-bold uppercase tracking-widest flex items-center gap-2">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                Solo texto, sin imágenes. Máximo 3 por ángulo = 18 ads totales. Esto mantiene el contexto liviano para el AI Analyst.
                             </p>
                         </div>
                     </div>

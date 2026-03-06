@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import AppLayout from "@/components/layouts/AppLayout";
 import { useClient } from "@/contexts/ClientContext";
 import { SelectedCreative, CreativeSelectionResponse } from "@/types/creative-kpi";
@@ -9,6 +10,7 @@ import CreativeGrid from "@/components/creative/CreativeGrid";
 
 export default function CreativeIntelligencePage() {
     const { selectedClientId } = useClient();
+    const router = useRouter();
 
     // States
     const [data, setData] = useState<CreativeSelectionResponse | null>(null);
@@ -84,14 +86,17 @@ export default function CreativeIntelligencePage() {
                         </p>
                     </div>
 
-                    {data && (
-                        <div className="flex items-center gap-2 px-3 py-1.5 bg-special border border-argent rounded-lg">
-                            <div className={`w-2 h-2 rounded-full ${data.cacheHit ? "bg-synced" : "bg-classic"} animate-pulse`} />
-                            <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">
-                                {data.cacheHit ? "Datos en Cache" : "Cálculo en vivo"}
-                            </span>
-                        </div>
-                    )}
+                    <div className="flex items-center gap-3">
+                        <button onClick={() => router.push('/creative/briefs')} className="px-3 py-2 bg-classic text-stellar font-black text-[10px] uppercase tracking-widest hover:bg-classic/90 transition-all whitespace-nowrap">Generar Bajadas</button>
+                        {data && (
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-special border border-argent rounded-lg">
+                                <div className={`w-2 h-2 rounded-full ${data.cacheHit ? "bg-synced" : "bg-classic"} animate-pulse`} />
+                                <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">
+                                    {data.cacheHit ? "Datos en Cache" : "Cálculo en vivo"}
+                                </span>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Filters */}

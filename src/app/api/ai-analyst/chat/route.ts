@@ -21,7 +21,12 @@ import type { ChatRequestBody, ChannelId } from "@/lib/ai-analyst/types";
 
 export const maxDuration = 60; // 60s timeout for streaming responses
 
-const VALID_CHANNELS: ChannelId[] = ['meta_ads', 'google_ads', 'ecommerce', 'email', 'cross_channel'];
+const VALID_CHANNELS: ChannelId[] = ['meta_ads', 'google_ads', 'ecommerce', 'email', 'cross_channel', 'creative_briefs'];
+
+/** Channels that produce long-form structured output need more tokens */
+const HIGH_TOKEN_CHANNELS: ChannelId[] = ['creative_briefs'];
+const DEFAULT_MAX_TOKENS = 1024;
+const HIGH_MAX_TOKENS = 4096;
 const RATE_LIMIT_MAX = 30;        // requests per window
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 
@@ -103,9 +108,10 @@ export async function POST(request: NextRequest) {
   const readable = new ReadableStream({
     async start(controller) {
       try {
+        const maxTokens = HIGH_TOKEN_CHANNELS.includes(channelId) ? HIGH_MAX_TOKENS : DEFAULT_MAX_TOKENS;
         const stream = anthropic.messages.stream({
           model: "claude-sonnet-4-5-20250929",
-          max_tokens: 1024,
+          max_tokens: maxTokens,
           system: [
             {
               type: "text",

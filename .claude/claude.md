@@ -183,16 +183,18 @@ ANTHROPIC_API_KEY=...
 - **Pattern Detection**: `src/lib/creative-pattern-service.ts` — Detects winning patterns across creatives (format, messaging, audience correlations).
 
 ### Cerebro de Worker (AI Brain) — `/admin/cerebro`
-Centralized hub for ALL AI logic. 4 tabs:
+Centralized hub for ALL AI logic. 5 tabs:
 
 1. **Generadores IA**: 5 prompt types (Report, Creative Audit, Creative Variations, Recommendations, Concept Briefs). Each has editable System Prompt, Critical Instructions (previously hardcoded, now DB-overridable), User Template, and Output Schema.
 2. **Motor de Decisiones**: Per-client EngineConfig editor.
 3. **Clasificador Creativo**: Read-only view of 6 creative categories (see Creative Intelligence above).
 4. **Consola de Pruebas**: Unified test console for any prompt type + client.
+5. **AI Analyst**: Per-channel system prompt editor for the conversational AI Analyst. Reads/writes `brain_prompts/{channelId}` in Firestore. Shows default prompt from code, allows custom override, and reverts to default on reset. Custom prompts marked with amber dot. 5-minute server cache on prompt reads.
 
 - **Utility**: `src/lib/prompt-utils.ts` — `buildSystemPrompt()`, `getDefaultCriticalInstructions()`, `getDefaultOutputSchema()`, `PROMPT_KEYS`.
 - **Pattern**: `systemPrompt = baseSystem + (dbCriticalInstructions || defaultForKey)`. Backward-compatible: if no `criticalInstructions` in DB, uses the original hardcoded defaults.
 - **Prompt Keys**: `report`, `creative-audit`, `creative-variations`, `recommendations_v1`, `concept_briefs_v1`.
+- **AI Analyst APIs**: `GET/POST/DELETE /api/admin/brain-prompts` (CRUD for custom prompts), `GET /api/admin/brain-prompts/defaults` (built-in defaults from code).
 
 ### Ecommerce Integration (Shopify + Tienda Nube + WooCommerce)
 Multi-platform ecommerce data sync. All platforms write to the same `channel_snapshots` collection with `channel: 'ECOMMERCE'`.

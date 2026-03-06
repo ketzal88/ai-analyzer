@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { useAnalyst } from "@/contexts/AnalystContext";
 import { useClient } from "@/contexts/ClientContext";
 import { useAnalystChat } from "@/hooks/useAnalystChat";
@@ -99,7 +99,7 @@ export default function AnalystPanel() {
         </div>
       )}
 
-      {/* Messages or Suggested Questions */}
+      {/* Content area */}
       {messages.length === 0 && !isStreaming ? (
         <SuggestedQuestions channelId={channelId} onSelect={sendMessage} />
       ) : (

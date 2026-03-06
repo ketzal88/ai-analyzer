@@ -625,7 +625,7 @@ export class SlackService {
         message: string,
         health: AccountHealth
     ) {
-        const { channel, botToken, webhook } = await this.resolveChannel(clientId);
+        const { client, channel, botToken, webhook } = await this.resolveChannel(clientId);
 
         if (!botToken && !webhook) return;
 
@@ -670,7 +670,18 @@ export class SlackService {
             }
         ];
 
-        await this.postMessage(botToken, webhook, channel, blocks, `Account Health: ${clientName} — ${alertType}`);
+        const fallbackText = `Account Health: ${clientName} — ${alertType}`;
+
+        // Send to internal channel
+        if (channel) {
+            await this.postMessage(botToken, webhook, channel, blocks, fallbackText);
+        }
+
+        // Also send to public client channel (if configured and different from internal)
+        const publicChannel = client?.slackPublicChannel || null;
+        if (publicChannel && publicChannel !== channel) {
+            await this.postMessage(botToken, webhook, publicChannel, blocks, fallbackText);
+        }
     }
 
     // ═════════════════════════════════════════════════════════

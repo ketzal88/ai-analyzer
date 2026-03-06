@@ -256,7 +256,7 @@ export class AccountHealthService {
 
         // 4. Send alerts
         for (const alert of alerts) {
-            // Log to EventService
+            // Log to EventService (skip error channel — these are operational alerts, not code errors)
             await EventService.log({
                 type: "integration",
                 service: "meta",
@@ -270,7 +270,7 @@ export class AccountHealthService {
                     spendCapPct: health.spendCapPct,
                     spendCapAlertLevel: health.spendCapAlertLevel,
                 },
-            });
+            }, { skipSlackError: true });
 
             // Send dedicated Slack alert
             await SlackService.sendAccountHealthAlert(

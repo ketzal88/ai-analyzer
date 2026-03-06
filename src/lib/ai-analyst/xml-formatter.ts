@@ -22,6 +22,9 @@ import type {
   AutomationSummary,
   EmailCampaignSummary,
   CrossChannelInsights,
+  WinningAngleGroup,
+  WinningAdReference,
+  DiversityScoreSummary,
 } from './types';
 
 /**
@@ -144,6 +147,56 @@ function formatChannel(ch: AnalystChannelData): string {
       lines.push(`      <automation ${formatAutomation(a)} />`);
     }
     lines.push('    </automations>');
+  }
+
+  // Creative Briefs: winning patterns by angle
+  if (d.winningByAngle && d.winningByAngle.length > 0) {
+    lines.push('    <winning_patterns>');
+    for (const group of d.winningByAngle) {
+      lines.push(`      <by_angle name="${escapeXml(group.angle)}" count="${group.ads.length}">`);
+      for (const ad of group.ads) {
+        lines.push(`        <ad ${formatCreative(ad)} />`);
+      }
+      lines.push('      </by_angle>');
+    }
+    lines.push('    </winning_patterns>');
+  }
+
+  // Creative Briefs: library references (cross-client)
+  if (d.libraryReferences && d.libraryReferences.length > 0) {
+    lines.push('    <library_references>');
+    for (const ref of d.libraryReferences) {
+      const attrs = buildAttrs({
+        angle: ref.angle,
+        format: ref.format,
+        visual_style: ref.visualStyle,
+        description: ref.description,
+        why_it_worked: ref.whyItWorked,
+        key_elements: ref.keyElements.join(', '),
+        hook_rate: ref.metrics?.hookRate != null ? formatPct(ref.metrics.hookRate) : undefined,
+        ctr: ref.metrics?.ctr != null ? formatPct(ref.metrics.ctr) : undefined,
+        cpa: ref.metrics?.cpa != null ? round(ref.metrics.cpa) : undefined,
+      });
+      lines.push(`      <reference ${attrs} />`);
+    }
+    lines.push('    </library_references>');
+  }
+
+  // Creative Briefs: diversity score
+  if (d.diversityScore) {
+    const ds = d.diversityScore;
+    const attrs = buildAttrs({
+      score: round(ds.score),
+      dominant_style: ds.dominantStyle,
+      dominant_hook: ds.dominantHook,
+    });
+    let formatDist = '';
+    if (ds.formatDistribution) {
+      formatDist = ' ' + Object.entries(ds.formatDistribution)
+        .map(([k, v]) => `${k.toLowerCase()}="${v}"`)
+        .join(' ');
+    }
+    lines.push(`    <diversity_score ${attrs}${formatDist} />`);
   }
 
   // Cross-channel: per-channel summaries
@@ -289,6 +342,7 @@ function channelTag(id: string): string {
     ecommerce: 'ecommerce_channel',
     email: 'email_channel',
     cross_channel: 'cross_channel',
+    creative_briefs: 'creative_briefs_channel',
   };
   return tags[id] || id;
 }

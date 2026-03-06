@@ -15,7 +15,8 @@ export type ChannelId =
   | 'google_ads'
   | 'ecommerce'
   | 'email'
-  | 'cross_channel';
+  | 'cross_channel'
+  | 'creative_briefs';
 
 /** Future channels — type stubs only, no context builder logic yet */
 export type FutureChannelId = 'ga4' | 'mercadolibre';
@@ -30,6 +31,7 @@ export const CHANNEL_TO_FIRESTORE: Record<ChannelId, ChannelType | null> = {
   ecommerce: 'ECOMMERCE',
   email: 'EMAIL',
   cross_channel: null,
+  creative_briefs: 'META',
 };
 
 /** Human-readable channel names for UI */
@@ -39,6 +41,7 @@ export const CHANNEL_LABELS: Record<ChannelId, string> = {
   ecommerce: 'Ecommerce',
   email: 'Email Marketing',
   cross_channel: 'Cross-Channel',
+  creative_briefs: 'Bajadas Creativas',
 };
 
 // ── Date Range ─────────────────────────────────────────
@@ -101,6 +104,33 @@ export interface ChannelDetails {
   automations?: AutomationSummary[];
   topCampaigns?: EmailCampaignSummary[];
   channelSummaries?: Record<string, Record<string, number | undefined>>;
+  winningByAngle?: WinningAngleGroup[];
+  libraryReferences?: WinningAdReference[];
+  diversityScore?: DiversityScoreSummary;
+}
+
+// ── Creative Briefs Channel ────────────────────────────
+
+export interface WinningAngleGroup {
+  angle: string; // hookType from Creative DNA
+  ads: CreativeSummary[];
+}
+
+export interface WinningAdReference {
+  angle: string;
+  format: string;
+  description: string;
+  whyItWorked: string;
+  keyElements: string[];
+  visualStyle: string;
+  metrics?: { hookRate?: number; ctr?: number; cpa?: number };
+}
+
+export interface DiversityScoreSummary {
+  score: number;
+  dominantStyle?: string;
+  dominantHook?: string;
+  formatDistribution?: Record<string, number>;
 }
 
 export interface CampaignSummary {
@@ -219,5 +249,10 @@ export const SUGGESTED_QUESTIONS: Record<ChannelId, string[]> = {
     "Dame la foto completa de la cuenta",
     "¿Dónde está la mayor oportunidad de crecimiento?",
     "¿Cómo redistribuirías el presupuesto?",
+  ],
+  creative_briefs: [
+    "Necesito bajadas para [producto/promo]",
+    "Generá 10 conceptos para una promo de descuento",
+    "Quiero variaciones de nuestro mejor anuncio",
   ],
 };

@@ -28,6 +28,9 @@ import type {
   CreativeSummary,
   ProductSummary,
   CrossChannelInsights,
+  WinningAngleGroup,
+  WinningAdReference,
+  DiversityScoreSummary,
 } from "./types";
 import { CHANNEL_TO_FIRESTORE } from "./types";
 
@@ -154,6 +157,9 @@ async function buildSingleChannelData(
       break;
     case 'email':
       details = loadEmailDetails(currentSnaps);
+      break;
+    case 'creative_briefs':
+      details = await loadCreativeBriefDetails(clientId);
       break;
   }
 
@@ -549,6 +555,99 @@ function loadEmailDetails(snapshots: ChannelDailySnapshot[]): ChannelDetails {
     .slice(0, MAX_AUTOMATIONS);
 
   return { topCampaigns, automations };
+}
+
+// ── Creative Briefs Detail Loader ────────────────────────
+
+const MAX_ADS_PER_ANGLE = 3;
+const MAX_LIBRARY_REFS = 10;
+
+async function loadCreativeBriefDetails(clientId: string): Promise<ChannelDetails> {
+  // Load top creatives with DNA (reuse existing function)
+  const topCreatives = await loadTopCreatives(clientId);
+
+  // Load full DNA records for angle grouping
+  const dnaSnap = await db.collection('creative_dna')
+    .where('clientId', '==', clientId)
+    .get();
+
+  // Build hookType → adIds mapping from DNA
+  const angleMap = new Map<string, CreativeSummary[]>();
+  const dnaByAdId = new Map<string, any>();
+
+  for (const doc of dnaSnap.docs) {
+    const data = doc.data();
+    const adId = data.adId as string;
+    dnaByAdId.set(adId, data);
+    const hookType = data.vision?.hookType as string;
+    if (hookType) {
+      if (!angleMap.has(hookType)) angleMap.set(hookType, []);
+    }
+  }
+
+  // Place top creatives into angle groups
+  for (const creative of topCreatives) {
+    const dna = dnaByAdId.get(creative.adId);
+    const hookType = dna?.vision?.hookType as string;
+    if (hookType && angleMap.has(hookType)) {
+      const group = angleMap.get(hookType)!;
+      if (group.length < MAX_ADS_PER_ANGLE) {
+        group.push(creative);
+      }
+    }
+  }
+
+  // Build winning angle groups (only those with ads)
+  const winningByAngle: WinningAngleGroup[] = [];
+  for (const [angle, ads] of angleMap.entries()) {
+    if (ads.length > 0) {
+      winningByAngle.push({ angle, ads });
+    }
+  }
+
+  // Load diversity score for client
+  let diversityScore: DiversityScoreSummary | undefined;
+  try {
+    const divDoc = await db.collection('creative_diversity_scores').doc(clientId).get();
+    if (divDoc.exists) {
+      const d = divDoc.data()!;
+      diversityScore = {
+        score: d.score || 0,
+        dominantStyle: d.dominantStyle,
+        dominantHook: d.dominantHookType,
+        formatDistribution: d.formatDistribution,
+      };
+    }
+  } catch (_e) { /* optional data */ }
+
+  // Load winning ads library (cross-client references)
+  let libraryReferences: WinningAdReference[] = [];
+  try {
+    const libSnap = await db.collection('winning_ads_library')
+      .where('active', '==', true)
+      .limit(MAX_LIBRARY_REFS)
+      .get();
+
+    libraryReferences = libSnap.docs.map(doc => {
+      const d = doc.data();
+      return {
+        angle: d.angle || '',
+        format: d.format || '',
+        description: d.description || '',
+        whyItWorked: d.whyItWorked || '',
+        keyElements: d.keyElements || [],
+        visualStyle: d.visualStyle || '',
+        metrics: d.metrics,
+      };
+    });
+  } catch (_e) { /* collection may not exist yet */ }
+
+  return {
+    topCreatives,
+    winningByAngle,
+    libraryReferences,
+    diversityScore,
+  };
 }
 
 // ── Aggregation Utilities ───────────────────────────────

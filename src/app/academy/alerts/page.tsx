@@ -106,8 +106,9 @@ export default function AlertsAcademyPage() {
                             { href: "#account-health", num: "05", title: "Salud de Cuenta", desc: "Monitoreo automatico de Meta." },
                             { href: "#business-objectives", num: "06", title: "Objetivos de Negocio", desc: "Metricas por tipo de vertical." },
                             { href: "#control-panel", num: "07", title: "Cerebro de Worker", desc: "IA y logica configurable." },
-                            { href: "#brain-sync", num: "08", title: "Sincronizacion", desc: "Cronograma de operaciones diarias." },
-                            { href: "#technical-notes", num: "09", title: "Notas Tecnicas", desc: "Detalles de implementacion." },
+                            { href: "#ai-analyst", num: "08", title: "AI Analyst", desc: "Chat inteligente por canal." },
+                            { href: "#brain-sync", num: "09", title: "Sincronizacion", desc: "Cronograma de operaciones diarias." },
+                            { href: "#technical-notes", num: "10", title: "Notas Tecnicas", desc: "Detalles de implementacion." },
                         ].map((item) => (
                             <a key={item.href} href={item.href} className="flex items-start gap-3 p-4 hover:bg-stellar/50 transition-colors group">
                                 <span
@@ -611,6 +612,153 @@ export default function AlertsAcademyPage() {
                                 </p>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                {/* ── AI ANALYST ── */}
+                <div id="ai-analyst" className="mt-32 space-y-12 scroll-mt-24">
+                    <div>
+                        <h2 className="text-subheader text-text-primary mb-2">AI Analyst: Chat Inteligente por Canal</h2>
+                        <p className="text-body text-text-secondary max-w-2xl">
+                            Un analista conversacional que entiende tu data en tiempo real. Hacele preguntas sobre cualquier canal y recibis respuestas con contexto completo de tu cuenta — no es un chatbot generico, es un especialista entrenado en cada plataforma.
+                        </p>
+                    </div>
+
+                    {/* How it works */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {[
+                            {
+                                step: "01",
+                                title: "Abris el panel",
+                                desc: "Desde cualquier canal (Meta, Google, Ecommerce, Email) tocas 'Analizar con IA'. Se abre un chat a la derecha con preguntas sugeridas segun el canal."
+                            },
+                            {
+                                step: "02",
+                                title: "Preguntas lo que quieras",
+                                desc: "El analyst recibe automaticamente toda la data de tu cuenta: metricas, campanas, productos, atribucion. No necesitas copiar y pegar nada."
+                            },
+                            {
+                                step: "03",
+                                title: "Respuesta con contexto",
+                                desc: "La respuesta incluye benchmarks de la industria, diagnosticos especificos y recomendaciones accionables. Podes hacer follow-ups en la misma conversacion."
+                            }
+                        ].map((s) => (
+                            <div key={s.step} className="p-6 bg-special/30 border border-argent/40 hover:border-classic/30 transition-all duration-300">
+                                <span
+                                    className="text-classic text-2xl font-black block mb-3"
+                                    style={{ fontFamily: 'var(--font-jetbrains-mono), monospace' }}
+                                >
+                                    {s.step}
+                                </span>
+                                <h4 className="text-small font-bold text-text-primary mb-2">{s.title}</h4>
+                                <p className="text-tiny text-text-secondary leading-relaxed">{s.desc}</p>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Prompt Stacking Architecture */}
+                    <div className="p-10 bg-classic/5 border border-classic/20 relative overflow-hidden">
+                        <h3 className="text-small font-black text-classic uppercase mb-6 tracking-tighter flex items-center gap-2">
+                            <span className="w-1.5 h-6 bg-classic"></span>
+                            Como piensa el Analyst (Prompt Stacking)
+                        </h3>
+                        <p className="text-small text-text-secondary leading-relaxed mb-8 max-w-2xl">
+                            El Analyst no es un chatbot generico — tiene 4 capas de conocimiento que se apilan para cada conversacion. Esto es lo que lo hace un especialista y no un asistente generico.
+                        </p>
+
+                        <div className="space-y-4">
+                            {[
+                                {
+                                    layer: "1",
+                                    name: "Rol Base",
+                                    desc: "Define la personalidad: analista senior de performance marketing, responde en espanol, max 250 palabras, termina con recomendacion accionable.",
+                                    color: "border-blue-500/30 bg-blue-500/5",
+                                    tag: "FIJO"
+                                },
+                                {
+                                    layer: "2",
+                                    name: "Expertise del Canal",
+                                    desc: "Conocimiento profundo de cada plataforma. Para Meta: framework de 6 Elements, benchmarks de hook rate, diagnostico de fatiga. Para Google: Quality Score, Impression Share, GAQL. Para Ecommerce: LTV, abandoned carts, benchmarks LATAM. Para Email: deliverability, engagement rates, flows vs campaigns.",
+                                    color: "border-emerald-500/30 bg-emerald-500/5",
+                                    tag: "EDITABLE"
+                                },
+                                {
+                                    layer: "3",
+                                    name: "Contexto del Negocio",
+                                    desc: "Perfil del cliente: nombre, industria, growth mode, tolerancia a fatiga, funnel priority, LTV. Se inyecta automaticamente desde la configuracion del cliente.",
+                                    color: "border-amber-500/30 bg-amber-500/5",
+                                    tag: "AUTOMATICO"
+                                },
+                                {
+                                    layer: "4",
+                                    name: "Data en Vivo",
+                                    desc: "Metricas reales del periodo seleccionado: KPIs, campanas, productos top, atribucion, creativos. Se genera en cada conversacion a partir de la data sincronizada.",
+                                    color: "border-purple-500/30 bg-purple-500/5",
+                                    tag: "AUTOMATICO"
+                                }
+                            ].map((l) => (
+                                <div key={l.layer} className={`p-5 border ${l.color} flex items-start gap-5`}>
+                                    <span
+                                        className="text-classic text-lg font-black flex-shrink-0 mt-0.5"
+                                        style={{ fontFamily: 'var(--font-jetbrains-mono), monospace' }}
+                                    >
+                                        L{l.layer}
+                                    </span>
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-3 mb-1">
+                                            <h4 className="text-small font-bold text-text-primary">{l.name}</h4>
+                                            <span className="text-[9px] font-black text-text-muted border border-argent px-1.5 py-0.5 uppercase tracking-widest">
+                                                {l.tag}
+                                            </span>
+                                        </div>
+                                        <p className="text-tiny text-text-secondary leading-relaxed">{l.desc}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Channel specializations */}
+                    <div>
+                        <h3 className="text-small font-black text-text-primary uppercase mb-6 tracking-tighter">Especializaciones por Canal</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {[
+                                {
+                                    channel: "Meta Ads",
+                                    expertise: "Framework 6 Elements, hook rate > 25%, hold rate > 30%, diagnostico de fatiga creativa, CPM por vertical, optimizacion por objetivo (ventas, leads, WhatsApp).",
+                                    color: "border-blue-500/30"
+                                },
+                                {
+                                    channel: "Google Ads",
+                                    expertise: "Quality Score por componente, Impression Share diagnostics, tabla comparativa Search vs PMax vs Shopping vs Display, search terms analysis, video metrics.",
+                                    color: "border-emerald-500/30"
+                                },
+                                {
+                                    channel: "Ecommerce",
+                                    expertise: "Gross vs Net revenue, customer LTV por cohorte, abandoned carts (>70% normal LATAM), atribucion UTM, dependency de productos, metricas por plataforma (Shopify/TN/WooCommerce).",
+                                    color: "border-amber-500/30"
+                                },
+                                {
+                                    channel: "Email Marketing",
+                                    expertise: "Deliverability (bounce < 2%, spam < 0.1%), engagement benchmarks LATAM, diagnostic tree (Open Rate + Click Rate), campaigns vs flows revenue split, Klaviyo vs Perfit specifics.",
+                                    color: "border-purple-500/30"
+                                }
+                            ].map((ch) => (
+                                <div key={ch.channel} className={`p-6 border ${ch.color} bg-stellar/50`}>
+                                    <h4 className="text-small font-bold text-text-primary mb-2">{ch.channel}</h4>
+                                    <p className="text-tiny text-text-secondary leading-relaxed">{ch.expertise}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Customization note */}
+                    <div className="p-4 border border-argent/50 bg-special/30">
+                        <p className="text-tiny text-text-muted">
+                            <strong className="text-text-secondary">Personalizable:</strong> La Capa 2 (expertise del canal) se puede editar desde el Cerebro de Worker, pestana &quot;AI Analyst&quot;.
+                            Si modificas el prompt de un canal, se marca con un punto naranja y se usa tu version personalizada en lugar del default.
+                            Los cambios aplican a todas las conversaciones nuevas — las existentes mantienen el prompt con el que empezaron.
+                        </p>
                     </div>
                 </div>
 
