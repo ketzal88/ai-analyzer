@@ -19,7 +19,7 @@ export interface QuarterlyObjective {
     clientId: string;
     quarter: string;            // "Q2_2026"
     year: number;
-    quarterNumber: 1 | 2 | 3 | 4;
+    quarterNumber: 1 | 2 | 3;
     startDate: string;          // "2026-04-01"
     endDate: string;            // "2026-06-30"
 
@@ -126,12 +126,13 @@ export function buildObjectiveId(clientId: string, quarter: string): string {
     return `${clientId}__${quarter}`;
 }
 
-export function getCurrentQuarter(date: Date = new Date()): { quarter: string; number: 1 | 2 | 3 | 4; year: number; startDate: string; endDate: string } {
+export function getCurrentQuarter(date: Date = new Date()): { quarter: string; number: 1 | 2 | 3; year: number; startDate: string; endDate: string } {
     const year = date.getFullYear();
     const month = date.getMonth(); // 0-indexed
-    const qNum = (Math.floor(month / 3) + 1) as 1 | 2 | 3 | 4;
-    const startMonth = (qNum - 1) * 3;
-    const endMonth = startMonth + 2;
+    // Cuatrimestres: Q1=Ene-Abr(0-3), Q2=May-Ago(4-7), Q3=Sep-Dic(8-11)
+    const qNum = (Math.floor(month / 4) + 1) as 1 | 2 | 3;
+    const startMonth = (qNum - 1) * 4; // 0-indexed: 0, 4, 8
+    const endMonth = startMonth + 3;    // 0-indexed: 3, 7, 11
     const startDate = `${year}-${String(startMonth + 1).padStart(2, '0')}-01`;
     const lastDay = new Date(year, endMonth + 1, 0).getDate();
     const endDate = `${year}-${String(endMonth + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;

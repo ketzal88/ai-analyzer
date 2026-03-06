@@ -14,20 +14,21 @@ interface MetricDef {
     label: string;
     channels: string[];     // which integraciones enable this metric
     isInverse?: boolean;
+    isCurrency?: boolean;
 }
 
 const ALL_METRICS: MetricDef[] = [
     { key: "orders", label: "Órdenes", channels: ["ecommerce"] },
-    { key: "revenue", label: "Revenue", channels: ["meta", "google", "ecommerce"] },
-    { key: "spend", label: "Inversión Ads", channels: ["meta", "google"] },
+    { key: "revenue", label: "Revenue", channels: ["meta", "google", "ecommerce"], isCurrency: true },
+    { key: "spend", label: "Inversión Ads", channels: ["meta", "google"], isCurrency: true },
     { key: "conversions", label: "Conversiones", channels: ["meta", "google"] },
-    { key: "cpa", label: "CPA", channels: ["meta", "google"], isInverse: true },
+    { key: "cpa", label: "CPA", channels: ["meta", "google"], isInverse: true, isCurrency: true },
     { key: "clicks", label: "Clicks", channels: ["meta", "google"] },
     { key: "impressions", label: "Impresiones", channels: ["meta", "google"] },
     { key: "email_sent", label: "Emails Enviados", channels: ["email"] },
     { key: "email_opens", label: "Aperturas Email", channels: ["email"] },
     { key: "email_clicks", label: "Clicks Email", channels: ["email"] },
-    { key: "email_revenue", label: "Revenue Email", channels: ["email"] },
+    { key: "email_revenue", label: "Revenue Email", channels: ["email"], isCurrency: true },
 ];
 
 const CHANNEL_KEYS: { key: ChannelType; label: string; integration: string }[] = [
@@ -68,28 +69,64 @@ function formatNum(value: number): string {
     return value.toLocaleString("en-US", { maximumFractionDigits: 0 });
 }
 
-// ── Quarter Options ─────────────────────────────────
-function getQuarterOptions(): { value: string; label: string; year: number; num: 1|2|3|4; startDate: string; endDate: string }[] {
+// ── Quarter Options (Cuatrimestres: 3 quarters × 4 months) ──
+function getQuarterOptions(): { value: string; label: string; year: number; num: 1|2|3; startDate: string; endDate: string }[] {
     const now = new Date();
     const year = now.getFullYear();
-    const options: { value: string; label: string; year: number; num: 1|2|3|4; startDate: string; endDate: string }[] = [];
+    const options: { value: string; label: string; year: number; num: 1|2|3; startDate: string; endDate: string }[] = [];
 
     for (let y = year; y >= year - 1; y--) {
-        for (let q = 4; q >= 1; q--) {
-            const startMonth = (q - 1) * 3;
-            const endMonth = startMonth + 2;
+        for (let q = 3; q >= 1; q--) {
+            // Q1=Ene-Abr, Q2=May-Ago, Q3=Sep-Dic
+            const startMonth = (q - 1) * 4;       // 0, 4, 8 (0-indexed)
+            const endMonth = startMonth + 3;       // 3, 7, 11 (0-indexed)
             const lastDay = new Date(y, endMonth + 1, 0).getDate();
             options.push({
                 value: `Q${q}_${y}`,
                 label: `Q${q} ${y}`,
                 year: y,
-                num: q as 1|2|3|4,
+                num: q as 1|2|3,
                 startDate: `${y}-${String(startMonth + 1).padStart(2, '0')}-01`,
                 endDate: `${y}-${String(endMonth + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`,
             });
         }
     }
     return options;
+}
+
+// ── Formatted Input ─────────────────────────────────
+function FormattedInput({ value, onChange, disabled, placeholder, isCurrency }: {
+    value: number | undefined;
+    onChange: (v: number) => void;
+    disabled?: boolean;
+    placeholder?: string;
+    isCurrency?: boolean;
+}) {
+    const [isFocused, setIsFocused] = useState(false);
+    const [raw, setRaw] = useState('');
+
+    const formatted = value != null && value !== 0
+        ? (isCurrency ? '$' : '') + value.toLocaleString('es-AR', { maximumFractionDigits: 0 })
+        : '';
+
+    return (
+        <input
+            type={isFocused ? 'number' : 'text'}
+            value={isFocused ? raw : formatted}
+            onFocus={() => {
+                setIsFocused(true);
+                setRaw(value != null && value !== 0 ? String(value) : '');
+            }}
+            onBlur={() => {
+                setIsFocused(false);
+                onChange(parseFloat(raw) || 0);
+            }}
+            onChange={(e) => setRaw(e.target.value)}
+            disabled={disabled}
+            placeholder={placeholder}
+            className="w-full bg-stellar border border-argent text-text-primary p-1.5 text-[12px] font-mono disabled:opacity-30"
+        />
+    );
 }
 
 // ── Component ───────────────────────────────────────
@@ -237,7 +274,7 @@ export default function ObjectivesEditor() {
                 setChannelGoals(newChannelGoals);
             }
 
-            setMessage({ type: 'success', text: `Sugerencias basadas en ${data.snapshotCount} snapshots (${data.referenceRange?.start} → ${data.referenceRange?.end})` });
+            setMessage({ type: 'success', text: `Ritmo diario de ${data.daysWithData} días × ${data.quarterDays} días del Q = baseline. Target = +15%.` });
         } catch (err: any) {
             setMessage({ type: 'error', text: err.message });
         } finally {
@@ -313,13 +350,17 @@ export default function ObjectivesEditor() {
             const data = await res.json();
 
             const actuals: Record<string, number> = {};
-            for (const snap of (data.snapshots || [])) {
+            const snapshots = data.snapshots || [];
+            // Check if ecommerce data exists — if so, ecommerce is source of truth for revenue
+            const hasEcommerce = snapshots.some((s: any) => s.channel === 'ECOMMERCE');
+
+            for (const snap of snapshots) {
                 const ch = snap.channel as ChannelType;
                 const m = snap.metrics || {};
-                // Same mapping as cron semáforo
                 if (ch === 'META' || ch === 'GOOGLE') {
                     if (m.spend) actuals['spend'] = (actuals['spend'] || 0) + m.spend;
-                    if (m.revenue) actuals['revenue'] = (actuals['revenue'] || 0) + m.revenue;
+                    // Only use ads revenue if no ecommerce (ecommerce = real total)
+                    if (m.revenue && !hasEcommerce) actuals['revenue'] = (actuals['revenue'] || 0) + m.revenue;
                     if (m.conversions) actuals['conversions'] = (actuals['conversions'] || 0) + m.conversions;
                     if (m.clicks) actuals['clicks'] = (actuals['clicks'] || 0) + m.clicks;
                     if (m.impressions) actuals['impressions'] = (actuals['impressions'] || 0) + m.impressions;
@@ -420,6 +461,26 @@ export default function ObjectivesEditor() {
                         </select>
                     </div>
                 </header>
+
+                {/* How it works */}
+                <div className="bg-special border border-argent/40 p-4 grid grid-cols-1 sm:grid-cols-4 gap-4 text-[10px] text-text-muted">
+                    <div>
+                        <span className="font-black text-classic uppercase tracking-widest">Baseline</span>
+                        <p className="mt-1 leading-relaxed">Proyeccion del Q basada en el ritmo diario de los ultimos 60 dias. Promedio diario x dias del cuatrimestre.</p>
+                    </div>
+                    <div>
+                        <span className="font-black text-classic uppercase tracking-widest">Target</span>
+                        <p className="mt-1 leading-relaxed">Objetivo del cuatrimestre. Auto-sugerir aplica +15% sobre el baseline. Editable manualmente.</p>
+                    </div>
+                    <div>
+                        <span className="font-black text-classic uppercase tracking-widest">Pacing</span>
+                        <p className="mt-1 leading-relaxed"><b>Linear:</b> ritmo constante durante el Q. <b>Accelerating:</b> espera mas volumen hacia el final del periodo.</p>
+                    </div>
+                    <div>
+                        <span className="font-black text-classic uppercase tracking-widest">Semaforo</span>
+                        <p className="mt-1 leading-relaxed"><span className="text-emerald-500">Verde</span> = en ritmo (&ge;90%). <span className="text-yellow-500">Amarillo</span> = atencion (70-90%). <span className="text-red-500">Rojo</span> = en riesgo (&lt;70%).</p>
+                    </div>
+                </div>
 
                 {isLoading ? (
                     <div className="card p-12 flex items-center justify-center">
@@ -579,23 +640,21 @@ export default function ObjectivesEditor() {
                                                 </label>
                                             </div>
                                             <div className="col-span-3">
-                                                <input
-                                                    type="number"
-                                                    value={goal?.baseline ?? ''}
-                                                    onChange={(e) => updateGoal(m.key, 'baseline', parseFloat(e.target.value) || 0)}
+                                                <FormattedInput
+                                                    value={goal?.baseline}
+                                                    onChange={(v) => updateGoal(m.key, 'baseline', v)}
                                                     disabled={!hasGoal}
-                                                    placeholder="0"
-                                                    className="w-full bg-stellar border border-argent text-text-primary p-1.5 text-[12px] font-mono disabled:opacity-30"
+                                                    placeholder={m.isCurrency ? "$0" : "0"}
+                                                    isCurrency={m.isCurrency}
                                                 />
                                             </div>
                                             <div className="col-span-3">
-                                                <input
-                                                    type="number"
-                                                    value={goal?.target ?? ''}
-                                                    onChange={(e) => updateGoal(m.key, 'target', parseFloat(e.target.value) || 0)}
+                                                <FormattedInput
+                                                    value={goal?.target}
+                                                    onChange={(v) => updateGoal(m.key, 'target', v)}
                                                     disabled={!hasGoal}
-                                                    placeholder="0"
-                                                    className="w-full bg-stellar border border-argent text-text-primary p-1.5 text-[12px] font-mono disabled:opacity-30"
+                                                    placeholder={m.isCurrency ? "$0" : "0"}
+                                                    isCurrency={m.isCurrency}
                                                 />
                                             </div>
                                             <div className="col-span-2">
@@ -647,12 +706,11 @@ export default function ObjectivesEditor() {
                                                         .map(m => (
                                                             <div key={m.key}>
                                                                 <label className="text-[9px] text-text-muted uppercase">{m.label}</label>
-                                                                <input
-                                                                    type="number"
-                                                                    value={channelGoals[ch.key]?.[m.key]?.target ?? ''}
-                                                                    onChange={(e) => updateChannelGoal(ch.key, m.key, parseFloat(e.target.value) || 0)}
-                                                                    placeholder={goals[m.key]?.target?.toString() || '0'}
-                                                                    className="w-full mt-0.5 bg-stellar border border-argent text-text-primary p-1.5 text-[11px] font-mono"
+                                                                <FormattedInput
+                                                                    value={channelGoals[ch.key]?.[m.key]?.target}
+                                                                    onChange={(v) => updateChannelGoal(ch.key, m.key, v)}
+                                                                    placeholder={m.isCurrency ? "$0" : "0"}
+                                                                    isCurrency={m.isCurrency}
                                                                 />
                                                             </div>
                                                         ))}

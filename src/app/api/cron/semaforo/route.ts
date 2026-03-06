@@ -58,8 +58,11 @@ export async function GET(request: NextRequest) {
                 const snapshots = snapshotsSnap.docs.map(d => d.data() as ChannelDailySnapshot);
 
                 // Accumulate actuals per metric across all channels
+                // Revenue dedup: ECOMMERCE is source of truth when present (total sales).
+                // Ads revenue (META/GOOGLE) is platform-attributed and would double-count.
                 const actuals: Record<string, number> = {};
                 const channelActuals: Partial<Record<ChannelType, Record<string, number>>> = {};
+                const hasEcommerce = snapshots.some(s => s.channel === 'ECOMMERCE');
 
                 for (const snap of snapshots) {
                     const ch = snap.channel;
@@ -68,6 +71,12 @@ export async function GET(request: NextRequest) {
                     // Map channel metrics to objective metric names
                     const mappings = getMetricMappings(ch, snap.metrics);
                     for (const [metricName, value] of Object.entries(mappings)) {
+                        // Skip ads revenue in combined total when ecommerce exists
+                        if (metricName === 'revenue' && hasEcommerce && (ch === 'META' || ch === 'GOOGLE')) {
+                            // Still track per-channel for channel breakdown
+                            channelActuals[ch]![metricName] = (channelActuals[ch]![metricName] || 0) + value;
+                            continue;
+                        }
                         actuals[metricName] = (actuals[metricName] || 0) + value;
                         channelActuals[ch]![metricName] = (channelActuals[ch]![metricName] || 0) + value;
                     }

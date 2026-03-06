@@ -1,20 +1,50 @@
 "use client";
 
 import React, { useState } from "react";
+import Image from "next/image";
 import AppLayout from "@/components/layouts/AppLayout";
-import { AdAccount } from "@/types";
+import { Client, Team } from "@/types";
 
-interface AccountSelectorProps {
-    accounts?: AdAccount[];
-    isLoading?: boolean;
-    error?: string | null;
+interface ChannelLogo {
+    src: string;
+    alt: string;
+    title: string;
 }
 
-import { Client } from "@/types";
+function getClientChannels(client: Client): ChannelLogo[] {
+    const channels: ChannelLogo[] = [];
+
+    if (client.integraciones?.meta || client.metaAdAccountId) {
+        channels.push({ src: "/img/logos/meta.png", alt: "Meta", title: "Meta Ads" });
+    }
+    if (client.integraciones?.google || client.googleAdsId) {
+        channels.push({ src: "/img/logos/google.png", alt: "Google", title: "Google Ads" });
+    }
+
+    const ecom = client.integraciones?.ecommerce;
+    if (ecom === "tiendanube") {
+        channels.push({ src: "/img/logos/tiendanube.png", alt: "TN", title: "Tienda Nube" });
+    } else if (ecom === "shopify") {
+        channels.push({ src: "/img/logos/shopify.png", alt: "Shopify", title: "Shopify" });
+    } else if (ecom === "woocommerce") {
+        channels.push({ src: "/img/logos/woocomerce.png", alt: "Woo", title: "WooCommerce" });
+    }
+
+    const email = client.integraciones?.email;
+    if (email === "klaviyo") {
+        channels.push({ src: "/img/logos/klaviyo.png", alt: "Klaviyo", title: "Klaviyo" });
+    } else if (email === "perfit") {
+        channels.push({ src: "/img/logos/perfit.png", alt: "Perfit", title: "Perfit" });
+    }
+
+    return channels;
+}
 
 export default function AccountSelector() {
     const [clients, setClients] = useState<Client[]>([]);
+    const [teams, setTeams] = useState<Team[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
+    const [filterTeam, setFilterTeam] = useState("all");
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -35,16 +65,19 @@ export default function AccountSelector() {
 
     React.useEffect(() => {
         fetchClients();
+        fetch("/api/teams").then(r => r.json()).then(setTeams).catch(() => {});
     }, []);
 
     const handleSelect = (clientId: string) => {
         window.location.href = `/dashboard?clientId=${clientId}`;
     };
 
-    const filteredClients = clients.filter(client =>
-        client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        client.metaAdAccountId?.includes(searchQuery)
-    );
+    const filteredClients = clients.filter(client => {
+        const matchesSearch = client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            client.metaAdAccountId?.includes(searchQuery);
+        const matchesTeam = filterTeam === "all" || client.team === filterTeam;
+        return matchesSearch && matchesTeam;
+    });
 
     const totalClients = clients.length;
     const isEmpty = !isLoading && !error && clients.length === 0;
@@ -85,6 +118,21 @@ export default function AccountSelector() {
                             className="w-full pl-12"
                         />
                     </div>
+                    {teams.length > 0 && (
+                        <div className="flex items-center gap-2">
+                            <span className="text-body text-text-secondary whitespace-nowrap">Equipo:</span>
+                            <select
+                                value={filterTeam}
+                                onChange={e => setFilterTeam(e.target.value)}
+                                className="bg-stellar font-medium text-text-primary focus:outline-none cursor-pointer border border-argent rounded-md px-3 py-2"
+                            >
+                                <option value="all" className="bg-stellar text-text-primary">Todos</option>
+                                {teams.map(t => (
+                                    <option key={t.id} value={t.id} className="bg-stellar text-text-primary">{t.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
                 </div>
 
                 {/* Content Area */}
@@ -136,7 +184,7 @@ export default function AccountSelector() {
                                         Platform IDs
                                     </th>
                                     <th className="text-center px-6 py-4 text-small font-bold text-text-muted uppercase tracking-wider">
-                                        Integrations
+                                        Canales
                                     </th>
                                     <th className="text-center px-6 py-4 text-small font-bold text-text-muted uppercase tracking-wider">
                                         Status
@@ -165,10 +213,24 @@ export default function AccountSelector() {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <div className="flex items-center justify-center gap-3">
-                                                <span className={`w-2 h-2 rounded-full ${client.metaAdAccountId ? "bg-synced" : "bg-text-muted/20"}`} title="Meta Connect" />
-                                                <span className={`w-2 h-2 rounded-full ${client.isEcommerce ? "bg-synced" : "bg-text-muted/20"}`} title="Ecommerce" />
-                                                <span className={`w-2 h-2 rounded-full ${client.isGoogle ? "bg-classic" : "bg-text-muted/20"}`} title="Google Ads" />
+                                            <div className="flex items-center justify-center gap-2">
+                                                {getClientChannels(client).length > 0 ? getClientChannels(client).map((ch) => (
+                                                    <div
+                                                        key={ch.alt}
+                                                        className="w-6 h-6 relative flex-shrink-0 rounded bg-white/5 border border-argent/50"
+                                                        title={ch.title}
+                                                    >
+                                                        <Image
+                                                            src={ch.src}
+                                                            alt={ch.alt}
+                                                            width={40}
+                                                            height={40}
+                                                            className="w-full h-full object-contain"
+                                                        />
+                                                    </div>
+                                                )) : (
+                                                    <span className="text-tiny text-text-muted">—</span>
+                                                )}
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 text-center">

@@ -12,11 +12,11 @@ import { db } from "@/lib/firebase-admin";
 import { Client } from "@/types";
 import { buildChannelSnapshotId, ChannelDailySnapshot } from "@/types/channel-snapshots";
 
-/** Get the start of the current quarter (Q1=Jan1, Q2=Apr1, Q3=Jul1, Q4=Oct1) */
+/** Get the start of the current cuatrimestre (Q1=Jan1, Q2=May1, Q3=Sep1) */
 function getQuarterStart(): string {
     const now = new Date();
     const month = now.getMonth(); // 0-indexed
-    const quarterStartMonth = Math.floor(month / 3) * 3;
+    const quarterStartMonth = Math.floor(month / 4) * 4;
     const start = new Date(now.getFullYear(), quarterStartMonth, 1);
     return start.toISOString().split("T")[0];
 }

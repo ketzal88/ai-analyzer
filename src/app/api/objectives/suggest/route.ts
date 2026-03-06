@@ -6,40 +6,54 @@ import { ChannelType } from "@/lib/channel-brain-interface";
 /**
  * GET /api/objectives/suggest?clientId=xxx&quarter=Q1_2026
  *
- * Reads channel_snapshots from the previous quarter (or current quarter for retroactive)
- * and suggests baseline + target values for each metric.
+ * Baseline logic:
+ * 1. Take last 60 days of data → compute daily average per metric
+ * 2. Multiply by days in the target quarter → projected quarter total = baseline
+ * 3. Target = baseline * 1.15
  */
 export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const clientId = searchParams.get("clientId");
-    const quarter = searchParams.get("quarter"); // e.g. "Q1_2026"
+    const quarter = searchParams.get("quarter");
 
     if (!clientId || !quarter) {
         return NextResponse.json({ error: "clientId and quarter are required" }, { status: 400 });
     }
 
     try {
-        // Parse quarter to get date range for reference data
-        const { referenceStart, referenceEnd } = getReferenceRange(quarter);
+        // Parse target quarter to know how many days it has
+        const { quarterStart, quarterEnd, quarterDays } = getQuarterDates(quarter);
 
-        // Fetch channel_snapshots for the reference period
+        // Reference window: last 60 days from today
+        const today = new Date();
+        const sixtyDaysAgo = new Date(today);
+        sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+        const refStart = sixtyDaysAgo.toISOString().split("T")[0];
+        const refEnd = today.toISOString().split("T")[0];
+
+        // Fetch snapshots for the 60-day window
         const snap = await db.collection("channel_snapshots")
             .where("clientId", "==", clientId)
-            .where("date", ">=", referenceStart)
-            .where("date", "<=", referenceEnd)
+            .where("date", ">=", refStart)
+            .where("date", "<=", refEnd)
             .get();
 
         const snapshots = snap.docs.map(d => d.data() as ChannelDailySnapshot);
 
+        if (snapshots.length === 0) {
+            return NextResponse.json({ error: "No hay data en los últimos 60 días" }, { status: 404 });
+        }
+
+        // Count actual unique days with data (not calendar days)
+        const uniqueDates = new Set(snapshots.map(s => s.date));
+        const daysWithData = uniqueDates.size;
+
         // Aggregate metrics by channel
         const channelTotals: Partial<Record<ChannelType, Record<string, number>>> = {};
-        const daysByChannel: Partial<Record<ChannelType, number>> = {};
 
         for (const s of snapshots) {
             const ch = s.channel;
             if (!channelTotals[ch]) channelTotals[ch] = {};
-            if (!daysByChannel[ch]) daysByChannel[ch] = 0;
-            daysByChannel[ch]!++;
 
             const mappings = mapMetrics(ch, s.metrics);
             for (const [key, val] of Object.entries(mappings)) {
@@ -47,29 +61,33 @@ export async function GET(request: NextRequest) {
             }
         }
 
-        // Calculate total days in reference period
-        const refDays = Math.max(
-            1,
-            (new Date(referenceEnd).getTime() - new Date(referenceStart).getTime()) / (1000 * 60 * 60 * 24) + 1
-        );
-
-        // Aggregate all channels into combined metrics
+        // Combined metrics with revenue dedup
         const combined: Record<string, number> = {};
-        for (const chMetrics of Object.values(channelTotals)) {
+        const hasEcommerce = !!channelTotals['ECOMMERCE'];
+
+        for (const [ch, chMetrics] of Object.entries(channelTotals)) {
             for (const [key, val] of Object.entries(chMetrics!)) {
+                if (key === 'revenue' && hasEcommerce && (ch === 'META' || ch === 'GOOGLE')) {
+                    continue;
+                }
                 combined[key] = (combined[key] || 0) + val;
             }
         }
 
-        // Project to quarterly (90 days)
-        const projectionFactor = 90 / refDays;
-        const suggestions: Record<string, { baseline: number; suggestedTarget: number; isInverse: boolean; refDays: number; refTotal: number }> = {};
+        // Baseline = (total in 60d / days with data) * days in quarter
+        const suggestions: Record<string, {
+            baseline: number;
+            suggestedTarget: number;
+            isInverse: boolean;
+            dailyAvg: number;
+            daysWithData: number;
+            quarterDays: number;
+        }> = {};
 
         for (const [metric, total] of Object.entries(combined)) {
             const isInverse = metric === 'cpa';
 
             if (isInverse) {
-                // CPA: compute as spend/conversions, target = 10% lower
                 const cpa = combined['conversions'] > 0
                     ? combined['spend'] / combined['conversions']
                     : 0;
@@ -77,31 +95,35 @@ export async function GET(request: NextRequest) {
                     baseline: Math.round(cpa * 100) / 100,
                     suggestedTarget: Math.round(cpa * 0.90 * 100) / 100,
                     isInverse: true,
-                    refDays,
-                    refTotal: cpa,
+                    dailyAvg: cpa,
+                    daysWithData,
+                    quarterDays,
                 };
             } else {
-                const projected = total * projectionFactor;
+                const dailyAvg = total / daysWithData;
+                const baseline = dailyAvg * quarterDays;
                 suggestions[metric] = {
-                    baseline: Math.round(projected),
-                    suggestedTarget: Math.round(projected * 1.15),
+                    baseline: Math.round(baseline),
+                    suggestedTarget: Math.round(baseline * 1.15),
                     isInverse: false,
-                    refDays,
-                    refTotal: total,
+                    dailyAvg: Math.round(dailyAvg),
+                    daysWithData,
+                    quarterDays,
                 };
             }
         }
 
-        // Also provide per-channel breakdowns for channel goals
+        // Per-channel breakdowns
         const channelSuggestions: Partial<Record<ChannelType, Record<string, { baseline: number; suggestedTarget: number }>>> = {};
         for (const [ch, metrics] of Object.entries(channelTotals)) {
             channelSuggestions[ch as ChannelType] = {};
             for (const [metric, total] of Object.entries(metrics!)) {
-                if (metric === 'cpa') continue; // skip derived metric at channel level
-                const projected = total * projectionFactor;
+                if (metric === 'cpa') continue;
+                const dailyAvg = total / daysWithData;
+                const baseline = dailyAvg * quarterDays;
                 channelSuggestions[ch as ChannelType]![metric] = {
-                    baseline: Math.round(projected),
-                    suggestedTarget: Math.round(projected * 1.15),
+                    baseline: Math.round(baseline),
+                    suggestedTarget: Math.round(baseline * 1.15),
                 };
             }
         }
@@ -109,7 +131,9 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({
             suggestions,
             channelSuggestions,
-            referenceRange: { start: referenceStart, end: referenceEnd },
+            referenceRange: { start: refStart, end: refEnd },
+            daysWithData,
+            quarterDays,
             snapshotCount: snapshots.length,
         });
 
@@ -119,42 +143,29 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * Get the reference date range to use for baseline calculation.
- * Uses the same quarter's data if it has started, otherwise previous quarter.
+ * Get target quarter date range and number of days.
+ * Cuatrimestres: Q1=Ene-Abr, Q2=May-Ago, Q3=Sep-Dic (4 months each)
  */
-function getReferenceRange(quarter: string): { referenceStart: string; referenceEnd: string } {
+function getQuarterDates(quarter: string): { quarterStart: string; quarterEnd: string; quarterDays: number } {
     const match = quarter.match(/Q(\d)_(\d{4})/);
     if (!match) throw new Error(`Invalid quarter format: ${quarter}`);
 
     const qNum = parseInt(match[1]);
     const year = parseInt(match[2]);
-    const today = new Date().toISOString().split("T")[0];
+    const startMonth = (qNum - 1) * 4;     // 0, 4, 8 (0-indexed)
+    const endMonth = startMonth + 3;        // 3, 7, 11 (0-indexed)
+    const lastDay = new Date(year, endMonth + 1, 0).getDate();
 
-    // Target quarter dates
-    const startMonth = (qNum - 1) * 3;
-    const qStart = `${year}-${String(startMonth + 1).padStart(2, '0')}-01`;
+    const quarterStart = `${year}-${String(startMonth + 1).padStart(2, '0')}-01`;
+    const quarterEnd = `${year}-${String(endMonth + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
-    // If we're inside or past this quarter, use its own data up to today
-    if (today >= qStart) {
-        return { referenceStart: qStart, referenceEnd: today };
-    }
+    const days = (new Date(quarterEnd).getTime() - new Date(quarterStart).getTime()) / (1000 * 60 * 60 * 24) + 1;
 
-    // Otherwise use previous quarter
-    let prevQ = qNum - 1;
-    let prevYear = year;
-    if (prevQ === 0) { prevQ = 4; prevYear--; }
-    const prevStartMonth = (prevQ - 1) * 3;
-    const prevEndMonth = prevStartMonth + 2;
-    const lastDay = new Date(prevYear, prevEndMonth + 1, 0).getDate();
-
-    return {
-        referenceStart: `${prevYear}-${String(prevStartMonth + 1).padStart(2, '0')}-01`,
-        referenceEnd: `${prevYear}-${String(prevEndMonth + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`,
-    };
+    return { quarterStart, quarterEnd, quarterDays: days };
 }
 
 /**
- * Map channel metrics to objective metric names (same as cron semáforo)
+ * Map channel metrics to objective metric names
  */
 function mapMetrics(channel: ChannelType, metrics: ChannelDailySnapshot['metrics']): Record<string, number> {
     const result: Record<string, number> = {};

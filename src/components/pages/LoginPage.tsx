@@ -53,7 +53,7 @@ export default function LoginPage() {
                     <div className="mb-8">
                         <h1 className="text-hero text-text-primary mb-2">Sign In</h1>
                         <p className="text-body text-text-secondary">
-                            Access your Meta Ads diagnostic suite.
+                            Access your multi-channel marketing intelligence suite.
                         </p>
                     </div>
 

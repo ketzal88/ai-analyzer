@@ -36,4 +36,5 @@ next-env.d.ts
 # screenshots
 *.png
 !public/img/*.png
+!public/img/**/*.png
 .agents/mcp.json
