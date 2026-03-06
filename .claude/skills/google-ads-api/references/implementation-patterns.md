@@ -67,6 +67,68 @@ const weightedIS = totalImpressions > 0
     : 0;
 ```
 
+## Weighted Averages for Video Quartiles
+
+Same pattern as impression share, but weighted by `videoViews`:
+
+```typescript
+let wVideoP25 = 0, wVideoP50 = 0, wVideoP75 = 0, wVideoP100 = 0;
+let totalVideoViews = 0;
+
+for (const campaign of campaigns) {
+    const views = campaign.videoViews || 0;
+    wVideoP25 += (campaign.videoP25Rate || 0) * views;
+    wVideoP50 += (campaign.videoP50Rate || 0) * views;
+    wVideoP75 += (campaign.videoP75Rate || 0) * views;
+    wVideoP100 += (campaign.videoP100Rate || 0) * views;
+    totalVideoViews += views;
+}
+
+const avgP25 = totalVideoViews > 0 ? wVideoP25 / totalVideoViews : 0;
+// ... same for P50, P75, P100
+```
+
+## Fetching Search Terms
+
+Separate GAQL query on `search_term_view`. Run in parallel with campaign metrics:
+
+```typescript
+const [campaignResults, searchTerms] = await Promise.all([
+    fetchCampaignMetrics(customerId, startDate, endDate),
+    fetchSearchTerms(customerId, startDate, endDate),
+]);
+```
+
+**Important**: `search_term_view` only works for Search/Shopping campaigns. Always wrap in try/catch:
+
+```typescript
+static async fetchSearchTerms(customerId: string, startDate: string, endDate: string, limit = 50) {
+    const customer = this.getCustomer(customerId);
+    try {
+        const results = await customer.query(`
+            SELECT search_term_view.search_term, metrics.impressions, metrics.clicks,
+                   metrics.conversions, metrics.conversions_value, metrics.cost_micros
+            FROM search_term_view
+            WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
+            ORDER BY metrics.cost_micros DESC LIMIT ${limit}
+        `);
+        return results.map(r => ({
+            searchTerm: r.search_term_view?.search_term || '',
+            impressions: Number(r.metrics?.impressions || 0),
+            clicks: Number(r.metrics?.clicks || 0),
+            conversions: Number(r.metrics?.conversions || 0),
+            conversionsValue: Number(r.metrics?.conversions_value || 0),
+            spend: (Number(r.metrics?.cost_micros) || 0) / 1_000_000,
+        }));
+    } catch (err: any) {
+        console.warn(`Search terms query failed: ${err?.errors?.[0]?.message || err?.message}`);
+        return []; // Graceful fallback
+    }
+}
+```
+
+Stored in `rawData.searchTerms` on the channel snapshot.
+
 ## Writing to Firestore
 
 ```typescript
@@ -100,4 +162,15 @@ FROM campaign
 WHERE segments.date BETWEEN '2025-01-01' AND '2025-01-31'
   AND campaign.status != 'REMOVED'
 ORDER BY segments.date DESC
+```
+
+## Search Terms GAQL Query
+
+```sql
+SELECT search_term_view.search_term, metrics.impressions, metrics.clicks,
+       metrics.conversions, metrics.conversions_value, metrics.cost_micros
+FROM search_term_view
+WHERE segments.date BETWEEN '2025-01-01' AND '2025-01-31'
+ORDER BY metrics.cost_micros DESC
+LIMIT 50
 ```

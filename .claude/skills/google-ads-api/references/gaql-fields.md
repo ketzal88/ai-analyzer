@@ -54,6 +54,41 @@ Complete reference of Google Ads API fields used in this project.
 | `metrics.video_quartile_p75_rate` | `double` | 75% quartile. |
 | `metrics.video_quartile_p100_rate` | `double` | 100% completion. |
 
+**Aggregation**: Use weighted average by `video_views` per campaign (not simple average) when computing daily totals.
+
+## Search Term View
+
+Resource for actual user search queries. **Only available for Search and Shopping campaigns** — throws errors on Display, Video, and PMax.
+
+| GAQL Field | Type | Description |
+|---|---|---|
+| `search_term_view.search_term` | `string` | Actual search query the user typed |
+
+All standard `metrics.*` fields are available (impressions, clicks, conversions, cost_micros, etc.)
+
+### Query Example
+
+```sql
+SELECT search_term_view.search_term, metrics.impressions, metrics.clicks,
+       metrics.conversions, metrics.conversions_value, metrics.cost_micros
+FROM search_term_view
+WHERE segments.date BETWEEN '2025-01-01' AND '2025-01-31'
+ORDER BY metrics.cost_micros DESC
+LIMIT 50
+```
+
+### Error Handling
+
+Always wrap in try/catch — fails on non-Search campaigns:
+```typescript
+try {
+    results = await customer.query(searchTermQuery);
+} catch (err: any) {
+    console.warn(`Search terms query failed: ${err?.errors?.[0]?.message || err?.message}`);
+    return []; // Graceful fallback
+}
+```
+
 ## Segments
 
 | GAQL Field | Type | Gotchas |
@@ -64,9 +99,10 @@ Complete reference of Google Ads API fields used in this project.
 
 1. **cost_micros and average_cpm are both in micros** — always divide by `1_000_000`.
 2. **Impression share fields** return 0 for non-Search campaigns — use weighted average.
-3. **Video metrics** return 0 for non-video campaigns.
+3. **Video metrics** return 0 for non-video campaigns — aggregate with weighted average by video_views.
 4. **Conversion values can be fractional** due to data-driven attribution.
 5. **Segments multiply rows** — each segment creates a Cartesian product.
 6. **Enum values are UPPERCASE strings** in WHERE clauses: `'ENABLED'`, not `'enabled'`.
 7. **No NULL handling** — missing values return 0 or empty string.
 8. **Date format** is `YYYY-MM-DD` with single quotes in GAQL.
+9. **`search_term_view`** only works for Search/Shopping campaigns — always wrap in try/catch.

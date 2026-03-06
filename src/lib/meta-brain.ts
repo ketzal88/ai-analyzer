@@ -13,7 +13,7 @@
  * - PerformanceService: Rolling metric computation
  *
  * What MetaBrain adds:
- * 1. Reads from new dashbo_snapshots structure (with fallback to old structure)
+ * 1. Reads from daily_entity_snapshots
  * 2. Maps outputs to standardized ChannelSignals interface
  * 3. Prepares signals for future Master Brain correlation
  *
@@ -94,65 +94,9 @@ export class MetaBrain extends ChannelBrain {
   }
 
   /**
-   * Read Meta snapshots from dashbo_snapshots (with fallback)
-   *
-   * Phase 1 Strategy:
-   * - Try reading from dashbo_snapshots/{clientId}/{date}/meta (new structure)
-   * - Fallback to daily_entity_snapshots (old structure) if new doesn't exist
-   * - This dual-read ensures zero downtime during migration
+   * Read Meta snapshots from daily_entity_snapshots
    */
   protected async readSnapshot(
-    clientId: string,
-    dateRange: { start: string; end: string }
-  ): Promise<DailyEntitySnapshot[]> {
-    // Try new structure first
-    const newData = await this.readFromDashboSnapshots(clientId, dateRange);
-    if (newData.length > 0) {
-      return newData;
-    }
-
-    // Fallback to old structure
-    console.log(`[MetaBrain] dashbo_snapshots not found for ${clientId}, falling back to daily_entity_snapshots`);
-    return await this.readFromLegacyStructure(clientId, dateRange);
-  }
-
-  /**
-   * Read from new dashbo_snapshots structure
-   */
-  private async readFromDashboSnapshots(
-    clientId: string,
-    dateRange: { start: string; end: string }
-  ): Promise<DailyEntitySnapshot[]> {
-    const allSnapshots: DailyEntitySnapshot[] = [];
-
-    // Read all dates in range
-    const dates = this.getDatesBetween(dateRange.start, dateRange.end);
-
-    for (const date of dates) {
-      const docRef = db.doc(`dashbo_snapshots/${clientId}/${date}/meta`);
-      const doc = await docRef.get();
-
-      if (doc.exists) {
-        const data = doc.data();
-        // Structure: { account: [...], campaign: [...], adset: [...], ad: [...] }
-        if (data) {
-          allSnapshots.push(
-            ...(data.account || []),
-            ...(data.campaign || []),
-            ...(data.adset || []),
-            ...(data.ad || [])
-          );
-        }
-      }
-    }
-
-    return allSnapshots;
-  }
-
-  /**
-   * Read from legacy daily_entity_snapshots structure
-   */
-  private async readFromLegacyStructure(
     clientId: string,
     dateRange: { start: string; end: string }
   ): Promise<DailyEntitySnapshot[]> {
@@ -163,25 +107,6 @@ export class MetaBrain extends ChannelBrain {
       .get();
 
     return snapshot.docs.map(d => d.data() as DailyEntitySnapshot);
-  }
-
-  /**
-   * Helper: Get array of dates between start and end (YYYY-MM-DD)
-   */
-  private getDatesBetween(start: string, end: string): string[] {
-    const dates: string[] = [];
-    const current = new Date(start);
-    const endDate = new Date(end);
-
-    while (current <= endDate) {
-      const year = current.getFullYear();
-      const month = String(current.getMonth() + 1).padStart(2, '0');
-      const day = String(current.getDate()).padStart(2, '0');
-      dates.push(`${year}-${month}-${day}`);
-      current.setDate(current.getDate() + 1);
-    }
-
-    return dates;
   }
 
   /**
@@ -343,7 +268,7 @@ export class MetaBrain extends ChannelBrain {
       meta_frecuencia_promedio: r.frequency_7d,
       meta_pixel_purchases: r.purchases_7d,
       meta_valor_compra: r.purchase_value_7d,
-      meta_budget_pace: 0,  // Placeholder — requires BU data from Dashbo (Phase 2)
+      meta_budget_pace: 0,  // Placeholder (Phase 2)
       meta_has_bleeding_campaigns: hasBleeding,
       meta_has_scaling_opportunities: hasScaling,
       meta_top_ad_id: topAd?.entityId || null,

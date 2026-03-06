@@ -1,17 +1,15 @@
 /**
- * Date Utilities — Worker Brain V2
+ * Date Utilities
  *
  * Standardized date handling for all Channel Brains.
  *
  * Key Features:
  * - Timezone-aware date range construction
- * - Dashbo date format parsing ("YYYYMMDD" → Date)
  * - Standard windows: today, yesterday, last7days, last30days, mtd
  *
  * Critical for:
  * - International clients (respect their timezone for "yesterday")
- * - Dashbo MCP integration (uses "YYYYMMDD" format in responses)
- * - Consistent date logic across Meta/Google/GA4/Ecommerce brains
+ * - Consistent date logic across Meta/Google/Ecommerce/Email brains
  */
 
 /**
@@ -101,35 +99,6 @@ export function buildDateRanges(now: Date = new Date()): DateRanges {
       end: formatDate(yesterday)
     }
   };
-}
-
-/**
- * Parse Dashbo date format to Date object
- *
- * Dashbo MCP returns dates as "YYYYMMDD" strings (e.g., "20260224").
- * This function converts them to Date objects for processing.
- *
- * @param raw - Date string in YYYYMMDD format
- * @returns Date object
- *
- * @example
- * parseDashboDate("20260224")  // Date(2026, 1, 24)  // Note: month is 0-indexed
- * parseDashboDate("20260101")  // Date(2026, 0, 1)
- */
-export function parseDashboDate(raw: string): Date {
-  if (raw.length !== 8) {
-    throw new Error(`Invalid Dashbo date format: "${raw}". Expected YYYYMMDD (8 digits).`);
-  }
-
-  const year = parseInt(raw.slice(0, 4), 10);
-  const month = parseInt(raw.slice(4, 6), 10) - 1;  // 0-indexed
-  const day = parseInt(raw.slice(6, 8), 10);
-
-  if (isNaN(year) || isNaN(month) || isNaN(day)) {
-    throw new Error(`Invalid Dashbo date: "${raw}". Could not parse year/month/day.`);
-  }
-
-  return new Date(year, month, day);
 }
 
 /**

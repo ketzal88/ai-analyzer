@@ -3,7 +3,7 @@
  *
  * GET /api/admin/rename-clients
  *
- * Renames clients in Firestore to match Dashbo names.
+ * Renames clients in Firestore.
  * Also updates slugs accordingly.
  */
 

@@ -15,11 +15,8 @@
       "Bash(npx tsx:*)",
       "Bash(npm install:*)",
       "Bash(curl:*)",
-      "mcp__claude_ai_Dashbo__dashbo_list_clients",
-      "mcp__claude_ai_Dashbo__dashbo_list_client_available_fields",
       "Bash(node -e:*)",
       "Bash(npm run dev:*)",
-      "mcp__claude_ai_Dashbo__dashbo_query_data",
       "Bash(git ls-tree:*)",
       "Bash(npx next build:*)",
       "Bash(npx tsx scripts/update-clients-from-csv.ts:*)",
@@ -39,7 +36,14 @@
       "Bash(find:*)",
       "Bash(npx firebase deploy:*)",
       "WebFetch(domain:console.firebase.google.com)",
-      "Bash(cut:*)"
+      "Bash(cut:*)",
+      "Bash(xxd:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git cherry-pick:*)",
+      "Bash(npm ls:*)",
+      "Bash(git stash push:*)"
     ]
   }
 }
