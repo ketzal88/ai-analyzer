@@ -22,7 +22,7 @@ on:
           - account-health
 
 env:
-  APP_URL: https://ai-analyzer-pink.vercel.app
+  APP_URL: https://ai-analyzer-dusky-phi.vercel.app
 
 jobs:
   sync-channels:
