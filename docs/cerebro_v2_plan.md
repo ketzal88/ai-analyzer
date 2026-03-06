@@ -268,6 +268,62 @@ ATENCIÓN HOY (N alertas)
 
 ---
 
+## Cómo retomar este plan
+
+### Instrucción para Claude
+
+Si estás leyendo esto en una nueva sesión, seguí estos pasos:
+
+1. **Leé el CLAUDE.md** (`.claude/CLAUDE.md`) — Es el master reference de todo el proyecto. Tiene la arquitectura actual, colecciones de Firestore, tipos, servicios, crons, y convenciones.
+
+2. **Entendé el patrón existente antes de crear nada nuevo**:
+   - Leé `src/lib/alert-engine.ts` — El `evaluate()` es el patrón que TODOS los brains deben seguir: función pura, datos como parámetros, zero DB access, retorna resultados.
+   - Leé `src/types/channel-snapshots.ts` — Los tipos `UnifiedChannelMetrics` y `ChannelDailySnapshot` son el input de los brains.
+   - Leé `src/types/engine-config.ts` — `EngineConfig` tiene los thresholds configurables por cliente.
+
+3. **Verificá el estado actual** antes de empezar:
+   - `git status` para ver si hay cambios sin commitear
+   - Revisá `vercel.json` para ver los crons activos
+   - Revisá `src/types/index.ts` para ver el estado actual de `ClientConfig` e `integraciones`
+   - Confirmá que `channel_snapshots` tiene datos ejecutando: la app debería tener datos de META, GOOGLE, ECOMMERCE, EMAIL
+
+4. **Identificá la phase actual**: Revisá el campo "Estado" al inicio de este documento y el log de progreso abajo.
+
+5. **Convenciones del proyecto**:
+   - Framework: Next.js 14 App Router + TypeScript
+   - DB: Firebase/Firestore con `ignoreUndefinedProperties: true`
+   - Styling: Tailwind CSS (Stitch Design System, tokens en `src/lib/design-tokens.ts`)
+   - IDs de documentos en Firestore: formato `{clientId}__{entity}__{date}` con doble underscore
+   - Crons validan auth via `Authorization: Bearer {CRON_SECRET}` o header `x-cron-secret`
+   - Cada cron loguea a `cron_executions` via `EventService`
+   - Los servicios de sync exponen `syncToChannelSnapshots(clientId, startDate, endDate)`
+
+6. **NO hagas**:
+   - No rompas las alertas existentes de Meta (16 tipos en AlertEngine) — refactorizalas dentro de MetaBrain
+   - No cambies el formato de IDs de `channel_snapshots`
+   - No hagas que los brains accedan a Firestore directamente — son funciones puras
+   - No crees colecciones nuevas si podés usar `channel_snapshots` con un nuevo `channel` type
+
+### Archivos clave para leer antes de cada phase
+
+| Phase | Leer primero |
+|-------|-------------|
+| 1 (GA4 + Interface) | `src/lib/google-ads-service.ts` (patrón de sync), `src/app/api/cron/sync-google/route.ts` (patrón de cron), `src/lib/channel-backfill-service.ts` |
+| 2 (Meta/Google/Ecom Brains) | `src/lib/alert-engine.ts` (refactorizar), `src/lib/client-snapshot-service.ts` (consume alertas), `src/lib/creative-classifier.ts` |
+| 3 (GA4 + Email Brains) | `src/lib/klaviyo-service.ts`, `src/lib/perfit-service.ts` (entender métricas de email) |
+| 4 (Master Brain) | Todos los brains creados en phases 2-3, `src/lib/performance-service.ts` (rolling metrics pattern) |
+| 5 (Prompts + Briefing) | `src/lib/prompt-utils.ts`, `src/lib/slack-service.ts` (formato actual de digests) |
+| 6 (Overview + UI) | `src/components/pages/EcommerceChannel.tsx` (patrón de dashboard), `src/configs/navConfig.ts` |
+
+### Log de progreso
+
+| Fecha | Phase | Acción | Commit |
+|-------|-------|--------|--------|
+| 2026-03-05 | - | Plan creado | - |
+| | | | |
+
+---
+
 ## Contexto de referencia
 
 - Plan original: `docs/worker_brain_v2_master_plan_1.md`
@@ -275,3 +331,8 @@ ATENCIÓN HOY (N alertas)
 - AlertEngine (patrón de referencia): `src/lib/alert-engine.ts`
 - Crons actuales: `vercel.json`
 - Client config: `src/types/index.ts`
+- Channel backfill: `src/lib/channel-backfill-service.ts`
+- Slack service: `src/lib/slack-service.ts`
+- Prompt utils: `src/lib/prompt-utils.ts`
+- Design tokens: `src/lib/design-tokens.ts`
+- Nav config: `src/configs/navConfig.ts`
