@@ -70,7 +70,7 @@ const CREATIVE_CATEGORIES = [
     },
 ];
 
-type CerebroTab = "generators" | "engine" | "classifier" | "console";
+type CerebroTab = "generators" | "engine" | "classifier" | "console" | "analyst";
 
 export default function CerebroDeWorker() {
     const [activeTab, setActiveTab] = useState<CerebroTab>("generators");
@@ -98,15 +98,43 @@ export default function CerebroDeWorker() {
     const [testResult, setTestResult] = useState<any>(null);
     const [testPromptKey, setTestPromptKey] = useState(PROMPT_KEYS[0].key);
 
+    // ─── AI Analyst Prompts State ──────────────────────
+    const ANALYST_CHANNELS = [
+        { id: "meta_ads", label: "Meta Ads" },
+        { id: "google_ads", label: "Google Ads" },
+        { id: "ecommerce", label: "Ecommerce" },
+        { id: "email", label: "Email Marketing" },
+        { id: "cross_channel", label: "Cross-Channel" },
+    ] as const;
+    const [analystChannel, setAnalystChannel] = useState<string>("meta_ads");
+    const [analystPrompts, setAnalystPrompts] = useState<Record<string, { hasCustomPrompt: boolean; systemPrompt: string | null; updatedAt: string | null }>>({});
+    const [analystDefaults, setAnalystDefaults] = useState<Record<string, string>>({});
+    const [analystEditValue, setAnalystEditValue] = useState("");
+    const [isAnalystLoading, setIsAnalystLoading] = useState(false);
+    const [analystSaveStatus, setAnalystSaveStatus] = useState<string | null>(null);
+
     // ─── Data Fetching ────────────────────────────────
     useEffect(() => {
         if (activeTab === "generators") fetchPromptData();
         if (activeTab === "console") fetchClients();
+        if (activeTab === "analyst") fetchAnalystPrompts();
     }, [activeTab, selectedKey]);
 
     useEffect(() => {
         if (activeTab === "engine" && selectedClientId) fetchEngineConfig(selectedClientId);
     }, [activeTab, selectedClientId]);
+
+    // When analyst channel changes, update the editor
+    useEffect(() => {
+        if (activeTab !== "analyst") return;
+        const data = analystPrompts[analystChannel];
+        if (data?.hasCustomPrompt && data.systemPrompt) {
+            setAnalystEditValue(data.systemPrompt);
+        } else if (analystDefaults[analystChannel]) {
+            setAnalystEditValue(analystDefaults[analystChannel]);
+        }
+        setAnalystSaveStatus(null);
+    }, [analystChannel, analystPrompts, analystDefaults, activeTab]);
 
     const fetchClients = async () => {
         try {
@@ -163,6 +191,62 @@ export default function CerebroDeWorker() {
             if (res.ok) setEngineConfig(await res.json());
         } catch (e) { console.error("Error fetching engine config:", e); }
         finally { setIsConfigLoading(false); }
+    };
+
+    const fetchAnalystPrompts = async () => {
+        setIsAnalystLoading(true);
+        try {
+            const [promptsRes, defaultsRes] = await Promise.all([
+                fetch("/api/admin/brain-prompts"),
+                fetch("/api/admin/brain-prompts/defaults"),
+            ]);
+            const promptsData = await promptsRes.json();
+            const defaultsData = await defaultsRes.json();
+
+            if (Array.isArray(promptsData)) {
+                const map: Record<string, any> = {};
+                for (const p of promptsData) map[p.channelId] = p;
+                setAnalystPrompts(map);
+            }
+            if (defaultsData && typeof defaultsData === "object") {
+                setAnalystDefaults(defaultsData);
+            }
+        } catch (e) { console.error("Error fetching analyst prompts:", e); }
+        finally { setIsAnalystLoading(false); }
+    };
+
+    const handleSaveAnalystPrompt = async () => {
+        setIsActionLoading(true);
+        setAnalystSaveStatus(null);
+        try {
+            const res = await fetch("/api/admin/brain-prompts", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ channelId: analystChannel, systemPrompt: analystEditValue }),
+            });
+            if (res.ok) {
+                setAnalystSaveStatus("saved");
+                await fetchAnalystPrompts();
+            } else {
+                const err = await res.json();
+                alert(`Error: ${err.error}`);
+            }
+        } catch (e) { alert("Error al guardar."); }
+        finally { setIsActionLoading(false); }
+    };
+
+    const handleResetAnalystPrompt = async () => {
+        if (!confirm("Revertir al prompt por defecto? Se perderá la versión custom.")) return;
+        setIsActionLoading(true);
+        try {
+            const res = await fetch(`/api/admin/brain-prompts?id=${analystChannel}`, { method: "DELETE" });
+            if (res.ok) {
+                setAnalystEditValue(analystDefaults[analystChannel] || "");
+                setAnalystSaveStatus("reset");
+                await fetchAnalystPrompts();
+            }
+        } catch (e) { alert("Error al resetear."); }
+        finally { setIsActionLoading(false); }
     };
 
     // ─── Actions ──────────────────────────────────────
@@ -254,6 +338,7 @@ export default function CerebroDeWorker() {
         { id: "engine", label: "Motor de Decisiones", icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" },
         { id: "classifier", label: "Clasificador Creativo", icon: "M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" },
         { id: "console", label: "Consola de Pruebas", icon: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" },
+        { id: "analyst", label: "AI Analyst", icon: "M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" },
     ];
 
     const currentPromptMeta = PROMPT_KEYS.find(p => p.key === selectedKey);
@@ -653,6 +738,132 @@ export default function CerebroDeWorker() {
                                 </div>
                             </div>
                         )}
+                    </div>
+                )}
+
+                {/* ═══════════════════ TAB 5: AI ANALYST PROMPTS ═══════════════════ */}
+                {activeTab === "analyst" && (
+                    <div className="space-y-6">
+                        <div className="bg-special/40 border border-argent/50 p-4 rounded-xl">
+                            <div className="flex items-center gap-2 mb-1">
+                                <span className="w-2 h-2 rounded-full bg-classic" />
+                                <span className="text-[10px] font-black text-text-primary uppercase tracking-widest">AI Analyst — Prompts por Canal</span>
+                            </div>
+                            <p className="text-small text-text-secondary">
+                                Edita los system prompts que usa el AI Analyst para cada canal. Incluyen benchmarks, frameworks de diagnostico y reglas especializadas. Si guardas una version custom, sobreescribe el default del codigo.
+                            </p>
+                        </div>
+
+                        {/* Channel Selector */}
+                        <div className="flex flex-wrap gap-2">
+                            {ANALYST_CHANNELS.map(ch => {
+                                const data = analystPrompts[ch.id];
+                                return (
+                                    <button
+                                        key={ch.id}
+                                        onClick={() => setAnalystChannel(ch.id)}
+                                        className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${analystChannel === ch.id
+                                            ? "bg-classic/20 text-classic border border-classic/30"
+                                            : "bg-special border border-argent text-text-muted hover:text-text-primary"
+                                            }`}
+                                    >
+                                        {ch.label}
+                                        {data?.hasCustomPrompt && (
+                                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400" title="Custom prompt" />
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {isAnalystLoading ? (
+                            <div className="p-20 text-center text-text-muted">Cargando prompts...</div>
+                        ) : (
+                            <div className="card p-0 overflow-hidden border-argent">
+                                {/* Header */}
+                                <header className="bg-special border-b border-argent p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                                    <div>
+                                        <h2 className="text-small font-black text-text-primary uppercase tracking-widest">
+                                            {ANALYST_CHANNELS.find(c => c.id === analystChannel)?.label}
+                                        </h2>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            {analystPrompts[analystChannel]?.hasCustomPrompt ? (
+                                                <>
+                                                    <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 text-[8px] font-black uppercase rounded-full">
+                                                        Custom en Firestore
+                                                    </span>
+                                                    {analystPrompts[analystChannel]?.updatedAt && (
+                                                        <span className="text-[9px] text-text-muted">
+                                                            {new Date(analystPrompts[analystChannel].updatedAt!).toLocaleString()}
+                                                        </span>
+                                                    )}
+                                                </>
+                                            ) : (
+                                                <span className="px-2 py-0.5 bg-synced/10 text-synced text-[8px] font-black uppercase rounded-full">
+                                                    Usando default del codigo
+                                                </span>
+                                            )}
+                                            {analystSaveStatus === "saved" && (
+                                                <span className="px-2 py-0.5 bg-synced/20 text-synced text-[8px] font-black uppercase rounded-full animate-in fade-in duration-300">
+                                                    Guardado
+                                                </span>
+                                            )}
+                                            {analystSaveStatus === "reset" && (
+                                                <span className="px-2 py-0.5 bg-classic/20 text-classic text-[8px] font-black uppercase rounded-full animate-in fade-in duration-300">
+                                                    Revertido a default
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        {analystPrompts[analystChannel]?.hasCustomPrompt && (
+                                            <button
+                                                onClick={handleResetAnalystPrompt}
+                                                disabled={isActionLoading}
+                                                className="px-4 py-2 text-[10px] font-black uppercase tracking-widest bg-red-500/10 text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500/20 transition-colors"
+                                            >
+                                                Revertir a Default
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={handleSaveAnalystPrompt}
+                                            disabled={isActionLoading}
+                                            className="btn-classic px-6 py-2 text-[10px]"
+                                        >
+                                            {isActionLoading ? "GUARDANDO..." : "GUARDAR EN FIRESTORE"}
+                                        </button>
+                                    </div>
+                                </header>
+
+                                {/* Editor */}
+                                <div className="p-6">
+                                    <textarea
+                                        value={analystEditValue}
+                                        onChange={(e) => setAnalystEditValue(e.target.value)}
+                                        className="w-full h-[500px] bg-stellar border border-argent rounded-xl p-4 text-[12px] font-mono leading-relaxed focus:border-classic outline-none resize-none text-text-primary"
+                                        placeholder="System prompt para el AI Analyst..."
+                                    />
+                                    <div className="mt-3 flex items-center justify-between">
+                                        <p className="text-[9px] text-text-muted">
+                                            Este prompt se envia como system message a Claude junto con los datos del canal en formato XML. Incluye benchmarks, reglas de diagnostico y formato de respuesta.
+                                        </p>
+                                        <span className="text-[9px] text-text-muted font-mono">
+                                            {analystEditValue.length.toLocaleString()} chars
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Info card */}
+                        <div className="card bg-special/40 border-argent/30 p-4">
+                            <p className="text-[10px] text-text-muted font-bold uppercase tracking-widest flex items-center gap-2">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                Los prompts se cachean 5 minutos en el servidor. Los cambios tardan hasta 5 min en reflejarse en el chat del analyst.
+                            </p>
+                        </div>
                     </div>
                 )}
             </div>

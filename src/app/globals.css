@@ -28,6 +28,33 @@
     border-radius: 9999px !important;
   }
 
+  /* Custom scrollbars — Stitch dark theme */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #27272A #0F0F10;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: #0F0F10;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: #27272A;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: #3f3f46;
+  }
+
+  *::-webkit-scrollbar-corner {
+    background: #0F0F10;
+  }
+
   input, select, textarea {
     @apply bg-second border border-argent px-4 py-3 text-body text-text-primary
            placeholder:text-text-muted focus:outline-none focus:border-classic transition-colors;

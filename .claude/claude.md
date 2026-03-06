@@ -330,7 +330,26 @@ Multi-turn conversational AI panel that analyzes channel data in real-time using
 
 **Token Budget:** ~30k max context. Limits: 15 campaigns, 10 creatives, 10 products, 10 email campaigns, 10 automations. Nulls omitted, floats rounded to 2 decimals.
 
-**Prompts:** Stored in `brain_prompts/{channelId}` Firestore collection. Each prompt defines the analyst's role, diagnostic rules, and response format (Spanish, max 250 words, end with actionable recommendation). Editable via Firestore without code deploys.
+**Prompts — Prompt Stacking Architecture:**
+
+The AI Analyst uses a "prompt stacking" approach where deep domain expertise is baked into each channel's system prompt. This eliminates the need for tool use in most diagnostic scenarios.
+
+| Layer | Source | Content |
+|-------|--------|---------|
+| 1. Base Role | `prompts.ts` defaults / `brain_prompts/{channelId}` | Analyst persona, diagnostic rules, benchmarks |
+| 2. Domain Expertise | `prompts.ts` defaults | Industry benchmarks, optimization playbooks, platform gotchas |
+| 3. Business Context | `context-builder.ts` → XML | Client config, targets, growth mode, funnel priority |
+| 4. Live Data | `context-builder.ts` → XML | Metrics, campaigns, creatives, products, attribution |
+
+Each channel prompt includes:
+- **Benchmarks table**: Concrete numbers for good/bad/excellent per metric
+- **Diagnostic frameworks**: Decision trees (e.g., "if X metric bad + Y metric good → problem is Z")
+- **Optimization playbooks**: Actionable recommendations per scenario
+- **Platform-specific knowledge**: Gotchas for Shopify/TN/WC (ecommerce), Klaviyo/Perfit (email), Search/PMax/Display (Google)
+
+Prompts stored in `brain_prompts/{channelId}` Firestore collection override the built-in defaults. Editable via Firestore without code deploys.
+
+**Future: Tool Use (Option B):** Plan documented in `docs/plan_ai_analyst_tool_use.md`. Would add Anthropic tool_use for real-time drill-down queries beyond the static context. Low priority — prompt stacking covers ~90% of use cases.
 
 **Integration:** "Analizar con IA" button in header of MetaAdsChannel, GoogleAdsChannel, EcommerceChannel, EmailChannel. Opens panel with `openAnalyst('channel_id')`. `AnalystProvider` wraps app in `layout.tsx`.
 
