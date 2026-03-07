@@ -51,6 +51,25 @@ export default function MetaAdsChannel() {
     const [error, setError] = useState<string | null>(null);
     const [dateRange, setDateRange] = useState<UnifiedDateRange>(() => resolvePreset("mtd"));
 
+    // Media Mix state
+    const [mediaMix, setMediaMix] = useState<{
+        totalActive: number;
+        byFormat: Record<string, number>;
+        monthlySpendUSD: number;
+        currency: string;
+        recommendedAds: number;
+        adsToRotate: number;
+        adsMissing: number;
+        targetBased?: {
+            targetRevenue: number;
+            targetRoas: number;
+            neededSpendUSD: number;
+            recommendedAds: number;
+            adsToRotate: number;
+            adsMissing: number;
+        } | null;
+    } | null>(null);
+
     // Entity table state
     const rollingMetrics = performanceData?.rolling || [];
     const classifications = performanceData?.classifications || [];
@@ -87,6 +106,15 @@ export default function MetaAdsChannel() {
             .catch(err => setError(err.message))
             .finally(() => setIsLoading(false));
     }, [clientId, dateRange.start, dateRange.end]);
+
+    // Fetch media mix data (active ads count + format breakdown)
+    useEffect(() => {
+        if (!clientId) return;
+        fetch(`/api/meta/media-mix?clientId=${clientId}`)
+            .then(r => r.json())
+            .then(data => { if (!data.error) setMediaMix(data); })
+            .catch(() => {});
+    }, [clientId]);
 
     // Aggregate totals
     const totals = snapshots.reduce(
@@ -479,6 +507,92 @@ export default function MetaAdsChannel() {
                                         </div>
                                     );
                                 })()}
+                            </div>
+                        )}
+
+                        {/* Media Mix — Active Ads */}
+                        {mediaMix && mediaMix.totalActive > 0 && (
+                            <div className="card p-6">
+                                <h2 className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-6">
+                                    Active Ads &mdash; Media Mix
+                                </h2>
+                                <div className="flex flex-col lg:flex-row gap-8">
+                                    {/* Gauge + Count */}
+                                    <div className="flex flex-col items-center justify-center min-w-[200px]">
+                                        <MediaMixGauge byFormat={mediaMix.byFormat} total={mediaMix.totalActive} />
+                                    </div>
+                                    {/* Format breakdown */}
+                                    <div className="flex-1 space-y-3">
+                                        {[
+                                            { key: "VIDEO", label: "Videos", color: "#6366f1" },
+                                            { key: "IMAGE", label: "Images", color: "#8b5cf6" },
+                                            { key: "CAROUSEL", label: "Carousel", color: "#a78bfa" },
+                                            { key: "CATALOG", label: "DPA / DCO", color: "#c4b5fd" },
+                                        ].map(({ key, label, color }) => {
+                                            const count = mediaMix.byFormat[key] || 0;
+                                            const pct = mediaMix.totalActive > 0 ? Math.round((count / mediaMix.totalActive) * 100) : 0;
+                                            return (
+                                                <div key={key} className="flex items-center gap-3">
+                                                    <span className="w-3 h-3 shrink-0 rounded-sm" style={{ backgroundColor: color }} />
+                                                    <span className="text-[11px] text-text-secondary font-medium w-24">{label}</span>
+                                                    <div className="flex-1 h-4 bg-argent/20 relative">
+                                                        <div className="h-full transition-all" style={{ width: `${pct}%`, backgroundColor: color, opacity: 0.6 }} />
+                                                    </div>
+                                                    <span className="text-[12px] font-black text-text-primary font-mono w-10 text-right">{count}</span>
+                                                    <span className="text-[10px] text-text-muted font-mono w-10 text-right">{pct}%</span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* Recommendation metrics */}
+                                <div className="mt-6 pt-6 border-t border-argent/20">
+                                    <p className="text-[9px] text-text-muted uppercase tracking-widest mb-3 font-bold">
+                                        Basado en spend mensual {mediaMix.currency === "ARS" ? `(${formatCurrency(mediaMix.monthlySpendUSD)} USD)` : `(${formatCurrency(mediaMix.monthlySpendUSD)} USD)`}
+                                    </p>
+                                    <div className="grid grid-cols-3 gap-4">
+                                        <div className="bg-argent/10 p-4">
+                                            <p className="text-[9px] text-text-muted uppercase tracking-widest font-bold">ADS Recomendados</p>
+                                            <p className="text-2xl font-black text-text-primary font-mono mt-1">{mediaMix.recommendedAds}</p>
+                                        </div>
+                                        <div className="bg-argent/10 p-4">
+                                            <p className="text-[9px] text-text-muted uppercase tracking-widest font-bold">Rotar x Semana (20%)</p>
+                                            <p className="text-2xl font-black text-text-primary font-mono mt-1">{mediaMix.adsToRotate}</p>
+                                        </div>
+                                        <div className="bg-argent/10 p-4">
+                                            <p className="text-[9px] text-text-muted uppercase tracking-widest font-bold">ADS Faltantes</p>
+                                            <p className={`text-2xl font-black font-mono mt-1 ${mediaMix.adsMissing > 0 ? "text-red-400" : "text-synced"}`}>
+                                                {mediaMix.adsMissing > 0 ? mediaMix.adsMissing : mediaMix.adsMissing === 0 ? "0" : `+${Math.abs(mediaMix.adsMissing)}`}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Target-based recommendation (if configured) */}
+                                {mediaMix.targetBased && (
+                                    <div className="mt-4 pt-4 border-t border-argent/10">
+                                        <p className="text-[9px] text-text-muted uppercase tracking-widest mb-3 font-bold">
+                                            Basado en objetivo de facturacion ({formatCurrency(mediaMix.targetBased.targetRevenue)} a {mediaMix.targetBased.targetRoas}x ROAS &rarr; spend necesario: {formatCurrency(mediaMix.targetBased.neededSpendUSD)} USD)
+                                        </p>
+                                        <div className="grid grid-cols-3 gap-4">
+                                            <div className="bg-classic/5 border border-classic/20 p-4">
+                                                <p className="text-[9px] text-text-muted uppercase tracking-widest font-bold">ADS Recomendados</p>
+                                                <p className="text-2xl font-black text-classic font-mono mt-1">{mediaMix.targetBased.recommendedAds}</p>
+                                            </div>
+                                            <div className="bg-classic/5 border border-classic/20 p-4">
+                                                <p className="text-[9px] text-text-muted uppercase tracking-widest font-bold">Rotar x Semana (20%)</p>
+                                                <p className="text-2xl font-black text-classic font-mono mt-1">{mediaMix.targetBased.adsToRotate}</p>
+                                            </div>
+                                            <div className="bg-classic/5 border border-classic/20 p-4">
+                                                <p className="text-[9px] text-text-muted uppercase tracking-widest font-bold">ADS Faltantes</p>
+                                                <p className={`text-2xl font-black font-mono mt-1 ${mediaMix.targetBased.adsMissing > 0 ? "text-red-400" : "text-synced"}`}>
+                                                    {mediaMix.targetBased.adsMissing > 0 ? mediaMix.targetBased.adsMissing : mediaMix.targetBased.adsMissing === 0 ? "0" : `+${Math.abs(mediaMix.targetBased.adsMissing)}`}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -884,6 +998,53 @@ export default function MetaAdsChannel() {
 }
 
 // ─── Helper Components ─────────────────────────────────────
+
+function MediaMixGauge({ byFormat, total }: { byFormat: Record<string, number>; total: number }) {
+    const formats = [
+        { key: "VIDEO", color: "#6366f1" },
+        { key: "IMAGE", color: "#8b5cf6" },
+        { key: "CAROUSEL", color: "#a78bfa" },
+        { key: "CATALOG", color: "#c4b5fd" },
+    ];
+    // Build conic gradient for a semi-circle (180deg arc)
+    const segments: string[] = [];
+    let cumPct = 0;
+    for (const { key, color } of formats) {
+        const count = byFormat[key] || 0;
+        const pct = total > 0 ? (count / total) * 100 : 0;
+        if (pct > 0) {
+            const startDeg = (cumPct / 100) * 180;
+            const endDeg = ((cumPct + pct) / 100) * 180;
+            segments.push(`${color} ${startDeg}deg ${endDeg}deg`);
+            cumPct += pct;
+        }
+    }
+    // Fill remaining with transparent
+    if (cumPct < 100) {
+        const startDeg = (cumPct / 100) * 180;
+        segments.push(`rgba(255,255,255,0.08) ${startDeg}deg 180deg`);
+    }
+    // Background (unused half)
+    segments.push(`transparent 180deg 360deg`);
+    const gradient = `conic-gradient(from 180deg, ${segments.join(", ")})`;
+
+    return (
+        <div className="relative w-[180px] h-[100px] overflow-hidden">
+            <div
+                className="w-[180px] h-[180px] rounded-full"
+                style={{
+                    background: gradient,
+                    mask: "radial-gradient(circle at center, transparent 55%, black 56%)",
+                    WebkitMask: "radial-gradient(circle at center, transparent 55%, black 56%)",
+                }}
+            />
+            <div className="absolute inset-0 flex flex-col items-center justify-end pb-1">
+                <span className="text-3xl font-black text-text-primary font-mono leading-none">{total}</span>
+                <span className="text-[8px] font-black text-text-muted uppercase tracking-[0.2em] mt-0.5">ADS RUNNING</span>
+            </div>
+        </div>
+    );
+}
 
 function SortIcon({ active, direction }: { active: boolean, direction: 'asc' | 'desc' }) {
     return (
