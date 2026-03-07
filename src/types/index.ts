@@ -340,6 +340,8 @@ export interface Client {
         email: 'klaviyo' | 'perfit' | null;          // Email marketing — Phase 6
     };
 
+    ga4PropertyId?: string;  // GA4 property ID (numeric, e.g. "123456789")
+
     // Worker Brain V2: Channel-specific targets
     targets?: {
         cpa_meta?: number;                  // CPA target for Meta

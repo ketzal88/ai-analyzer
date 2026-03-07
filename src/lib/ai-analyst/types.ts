@@ -13,13 +13,14 @@ import { ChannelType } from "@/lib/channel-brain-interface";
 export type ChannelId =
   | 'meta_ads'
   | 'google_ads'
+  | 'ga4'
   | 'ecommerce'
   | 'email'
   | 'cross_channel'
   | 'creative_briefs';
 
 /** Future channels — type stubs only, no context builder logic yet */
-export type FutureChannelId = 'ga4' | 'mercadolibre';
+export type FutureChannelId = 'mercadolibre';
 
 /** All channel IDs (active + future) */
 export type AllChannelId = ChannelId | FutureChannelId;
@@ -28,6 +29,7 @@ export type AllChannelId = ChannelId | FutureChannelId;
 export const CHANNEL_TO_FIRESTORE: Record<ChannelId, ChannelType | null> = {
   meta_ads: 'META',
   google_ads: 'GOOGLE',
+  ga4: 'GA4',
   ecommerce: 'ECOMMERCE',
   email: 'EMAIL',
   cross_channel: null,
@@ -38,6 +40,7 @@ export const CHANNEL_TO_FIRESTORE: Record<ChannelId, ChannelType | null> = {
 export const CHANNEL_LABELS: Record<ChannelId, string> = {
   meta_ads: 'Meta Ads',
   google_ads: 'Google Ads',
+  ga4: 'Google Analytics 4',
   ecommerce: 'Ecommerce',
   email: 'Email Marketing',
   cross_channel: 'Cross-Channel',
@@ -107,6 +110,32 @@ export interface ChannelDetails {
   winningByAngle?: WinningAngleGroup[];
   libraryReferences?: WinningAdReference[];
   diversityScore?: DiversityScoreSummary;
+  // GA4
+  trafficSources?: GA4TrafficSourceSummary[];
+  topLandingPages?: GA4LandingPageSummary[];
+  deviceBreakdown?: GA4DeviceSummary[];
+}
+
+export interface GA4TrafficSourceSummary {
+  name: string;
+  sessions: number;
+  conversions: number;
+  revenue: number;
+  bounceRate: number;
+}
+
+export interface GA4LandingPageSummary {
+  path: string;
+  sessions: number;
+  bounceRate: number;
+  conversions: number;
+}
+
+export interface GA4DeviceSummary {
+  category: string;
+  sessions: number;
+  bounceRate: number;
+  conversions: number;
 }
 
 // ── Creative Briefs Channel ────────────────────────────
@@ -249,6 +278,11 @@ export const SUGGESTED_QUESTIONS: Record<ChannelId, string[]> = {
     "Dame la foto completa de la cuenta",
     "¿Dónde está la mayor oportunidad de crecimiento?",
     "¿Cómo redistribuirías el presupuesto?",
+  ],
+  ga4: [
+    "¿Por qué está tan alta la tasa de rebote?",
+    "¿Qué landing pages están perdiendo más conversiones?",
+    "Comparame el tráfico orgánico vs pago",
   ],
   creative_briefs: [
     "Necesito bajadas para [producto/promo]",

@@ -45,7 +45,9 @@
       "Bash(npm ls:*)",
       "Bash(git stash push:*)",
       "Bash(git merge:*)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(git worktree add:*)",
+      "Bash(./node_modules/.bin/tsc:*)"
     ]
   }
 }

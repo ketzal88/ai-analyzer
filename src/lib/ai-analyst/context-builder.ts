@@ -152,6 +152,9 @@ async function buildSingleChannelData(
     case 'google_ads':
       details = loadGoogleDetails(currentSnaps);
       break;
+    case 'ga4':
+      details = loadGA4Details(currentSnaps);
+      break;
     case 'ecommerce':
       details = loadEcommerceDetails(currentSnaps);
       break;
@@ -425,6 +428,66 @@ function loadGoogleDetails(snapshots: ChannelDailySnapshot[]): ChannelDetails {
     .slice(0, MAX_CAMPAIGNS);
 
   return { campaigns };
+}
+
+function loadGA4Details(snapshots: ChannelDailySnapshot[]): ChannelDetails {
+  // Aggregate traffic sources across snapshots
+  const sourceMap = new Map<string, { sessions: number; conversions: number; revenue: number; wBounce: number }>();
+  const pageMap = new Map<string, { sessions: number; conversions: number; wBounce: number }>();
+  const deviceMap = new Map<string, { sessions: number; conversions: number; wBounce: number }>();
+
+  for (const snap of snapshots) {
+    for (const src of ((snap.rawData?.trafficSources as any[]) || [])) {
+      const key = `${src.source} / ${src.medium}`;
+      const ex = sourceMap.get(key);
+      if (ex) {
+        ex.sessions += src.sessions || 0;
+        ex.conversions += src.conversions || 0;
+        ex.revenue += src.revenue || 0;
+        ex.wBounce += (src.bounceRate || 0) * (src.sessions || 0);
+      } else {
+        sourceMap.set(key, { sessions: src.sessions || 0, conversions: src.conversions || 0, revenue: src.revenue || 0, wBounce: (src.bounceRate || 0) * (src.sessions || 0) });
+      }
+    }
+    for (const p of ((snap.rawData?.topLandingPages as any[]) || [])) {
+      const key = p.pagePath;
+      const ex = pageMap.get(key);
+      if (ex) {
+        ex.sessions += p.sessions || 0;
+        ex.conversions += p.conversions || 0;
+        ex.wBounce += (p.bounceRate || 0) * (p.sessions || 0);
+      } else {
+        pageMap.set(key, { sessions: p.sessions || 0, conversions: p.conversions || 0, wBounce: (p.bounceRate || 0) * (p.sessions || 0) });
+      }
+    }
+    for (const d of ((snap.rawData?.deviceBreakdown as any[]) || [])) {
+      const key = d.category;
+      const ex = deviceMap.get(key);
+      if (ex) {
+        ex.sessions += d.sessions || 0;
+        ex.conversions += d.conversions || 0;
+        ex.wBounce += (d.bounceRate || 0) * (d.sessions || 0);
+      } else {
+        deviceMap.set(key, { sessions: d.sessions || 0, conversions: d.conversions || 0, wBounce: (d.bounceRate || 0) * (d.sessions || 0) });
+      }
+    }
+  }
+
+  const trafficSources = Array.from(sourceMap.entries())
+    .map(([name, d]) => ({ name, sessions: d.sessions, conversions: d.conversions, revenue: d.revenue, bounceRate: d.sessions > 0 ? d.wBounce / d.sessions : 0 }))
+    .sort((a, b) => b.sessions - a.sessions)
+    .slice(0, 15);
+
+  const topLandingPages = Array.from(pageMap.entries())
+    .map(([path, d]) => ({ path, sessions: d.sessions, conversions: d.conversions, bounceRate: d.sessions > 0 ? d.wBounce / d.sessions : 0 }))
+    .sort((a, b) => b.sessions - a.sessions)
+    .slice(0, 10);
+
+  const deviceBreakdown = Array.from(deviceMap.entries())
+    .map(([category, d]) => ({ category, sessions: d.sessions, conversions: d.conversions, bounceRate: d.sessions > 0 ? d.wBounce / d.sessions : 0 }))
+    .sort((a, b) => b.sessions - a.sessions);
+
+  return { trafficSources, topLandingPages, deviceBreakdown };
 }
 
 function loadEcommerceDetails(snapshots: ChannelDailySnapshot[]): ChannelDetails {

@@ -30,6 +30,10 @@ function getClientChannels(client: Client): ChannelLogo[] {
         channels.push({ src: "/img/logos/woocomerce.png", alt: "Woo", title: "WooCommerce" });
     }
 
+    if (client.integraciones?.ga4) {
+        channels.push({ src: "/img/logos/analytics logo.png", alt: "GA4", title: "Google Analytics 4" });
+    }
+
     const email = client.integraciones?.email;
     if (email === "klaviyo") {
         channels.push({ src: "/img/logos/klaviyo.png", alt: "Klaviyo", title: "Klaviyo" });

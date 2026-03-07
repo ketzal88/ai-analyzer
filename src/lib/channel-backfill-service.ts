@@ -28,7 +28,7 @@ function getYesterday(): string {
     return d.toISOString().split("T")[0];
 }
 
-export type BackfillChannel = "META" | "GOOGLE" | "ECOMMERCE" | "EMAIL";
+export type BackfillChannel = "META" | "GOOGLE" | "GA4" | "ECOMMERCE" | "EMAIL";
 
 export interface ChannelBackfillResult {
     channel: BackfillChannel;
@@ -58,6 +58,11 @@ export class ChannelBackfillService {
         // Google
         if (client.integraciones?.google && client.googleAdsId) {
             results.push(await this.backfillGoogle(clientId, client.googleAdsId));
+        }
+
+        // GA4
+        if (client.integraciones?.ga4 && client.ga4PropertyId) {
+            results.push(await this.backfillGA4(clientId, client.ga4PropertyId));
         }
 
         // Ecommerce
@@ -91,6 +96,10 @@ export class ChannelBackfillService {
             case "GOOGLE":
                 if (!client.googleAdsId) return { channel, status: "skipped", error: "No googleAdsId" };
                 return this.backfillGoogle(clientId, client.googleAdsId);
+
+            case "GA4":
+                if (!client.ga4PropertyId) return { channel, status: "skipped", error: "No ga4PropertyId" };
+                return this.backfillGA4(clientId, client.ga4PropertyId);
 
             case "ECOMMERCE":
                 if (!client.integraciones?.ecommerce) return { channel, status: "skipped", error: "No ecommerce platform" };
@@ -237,6 +246,18 @@ export class ChannelBackfillService {
             return { channel: "GOOGLE", status: "success", daysWritten };
         } catch (e: any) {
             return { channel: "GOOGLE", status: "failed", error: e.message };
+        }
+    }
+
+    private static async backfillGA4(clientId: string, propertyId: string): Promise<ChannelBackfillResult> {
+        try {
+            const { GA4Service } = await import("@/lib/ga4-service");
+            const startDate = getQuarterStart();
+            const endDate = getYesterday();
+            const { daysWritten } = await GA4Service.syncToChannelSnapshots(clientId, propertyId, startDate, endDate);
+            return { channel: "GA4", status: "success", daysWritten };
+        } catch (e: any) {
+            return { channel: "GA4", status: "failed", error: e.message };
         }
     }
 

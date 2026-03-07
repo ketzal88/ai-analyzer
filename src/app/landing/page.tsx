@@ -38,10 +38,17 @@ const channels = [
         color: "text-amber-400",
         border: "border-amber-400/30",
     },
+    {
+        name: "Google Analytics 4",
+        logos: [{ src: "/img/logos/analytics logo.png", alt: "GA4" }],
+        desc: "Sessions, bounce rate, funnel ecommerce, traffic sources, landing pages y devices.",
+        color: "text-orange-400",
+        border: "border-orange-400/30",
+    },
 ];
 
 const features = [
-    { icon: "01", title: "4 Canales Unificados", desc: "Meta, Google, Ecommerce y Email en un solo dashboard. Datos cruzados, visión completa." },
+    { icon: "01", title: "5 Canales Unificados", desc: "Meta, Google, Ecommerce, Email y GA4 en un solo dashboard. Datos cruzados, visión completa." },
     { icon: "02", title: "AI Analyst Conversacional", desc: "Chateá con Claude sobre tus datos. Preguntá lo que quieras, recibís análisis en tiempo real." },
     { icon: "03", title: "16 Tipos de Alertas", desc: "CPA Spike, Budget Bleed, Fatiga, Oportunidades de Escala, Hook Kill, y más. Priorizadas por severidad." },
     { icon: "04", title: "Multi-Cliente", desc: "Gestioná múltiples cuentas con configuración independiente. Umbrales, alertas y lógica por cliente." },
@@ -66,6 +73,7 @@ const integrations = [
     { name: "WooCommerce", type: "Ecommerce", logo: "/img/logos/woocomerce.png" },
     { name: "Klaviyo", type: "Email", logo: "/img/logos/klaviyo.png" },
     { name: "Perfit", type: "Email", logo: "/img/logos/perfit.png" },
+    { name: "GA4", type: "Analytics", logo: "/img/logos/analytics logo.png" },
 ];
 
 const verticals = [
@@ -119,6 +127,8 @@ export default function LandingPage() {
                             <span>Ecommerce</span>
                             <span className="text-argent">+</span>
                             <span>Email</span>
+                            <span className="text-argent">+</span>
+                            <span>GA4</span>
                         </div>
                         <h1
                             className="text-5xl md:text-6xl lg:text-7xl font-black leading-[0.95] tracking-tighter mb-8"
@@ -130,7 +140,7 @@ export default function LandingPage() {
                         <p
                             className="text-zinc-400 text-lg md:text-xl leading-relaxed max-w-xl mb-10 font-medium"
                         >
-                            Worker Brain conecta Meta Ads, Google Ads, tu tienda online y email marketing
+                            Worker Brain conecta Meta Ads, Google Ads, GA4, tu tienda online y email marketing
                             en una plataforma unificada con inteligencia artificial. Análisis automatizado,
                             alertas inteligentes y un AI Analyst que responde tus preguntas en tiempo real.
                         </p>
@@ -194,7 +204,7 @@ export default function LandingPage() {
                     className="text-3xl md:text-4xl font-black tracking-tighter mb-4"
                     style={{ fontFamily: 'var(--font-space-grotesk), sans-serif' }}
                 >
-                    Cuatro canales. <span className="text-classic">Una verdad.</span>
+                    Cinco canales. <span className="text-classic">Una verdad.</span>
                 </h2>
                 <p className="text-zinc-500 text-sm mb-16 max-w-lg">
                     Cada canal tiene métricas, alertas y análisis específicos. Todo unificado en una sola plataforma.
@@ -248,7 +258,7 @@ export default function LandingPage() {
                             </p>
                             <div className="space-y-4">
                                 {[
-                                    "Análisis por canal: Meta, Google, Ecommerce, Email",
+                                    "Análisis por canal: Meta, Google, GA4, Ecommerce, Email",
                                     "Visión cross-channel con datos cruzados",
                                     "Conversaciones multi-turno con memoria",
                                     "Prompts personalizables desde el Cerebro",
@@ -305,8 +315,8 @@ export default function LandingPage() {
                         {
                             step: "01",
                             title: "Conectá tus canales",
-                            desc: "Meta Ads, Google Ads, tu tienda (Shopify, Tienda Nube o WooCommerce) y tu plataforma de email (Klaviyo o Perfit). Sync automático diario.",
-                            detail: "7 INTEGRACIONES NATIVAS"
+                            desc: "Meta Ads, Google Ads, GA4, tu tienda (Shopify, Tienda Nube o WooCommerce) y tu plataforma de email (Klaviyo o Perfit). Sync automático diario.",
+                            detail: "8 INTEGRACIONES NATIVAS"
                         },
                         {
                             step: "02",
@@ -430,13 +440,13 @@ export default function LandingPage() {
                         className="text-3xl md:text-4xl font-black tracking-tighter mb-4"
                         style={{ fontFamily: 'var(--font-space-grotesk), sans-serif' }}
                     >
-                        7 integraciones <span className="text-classic">nativas.</span>
+                        8 integraciones <span className="text-classic">nativas.</span>
                     </h2>
                     <p className="text-zinc-500 text-sm mb-16 max-w-lg">
                         Conectá tu stack completo. Sync automático diario, sin configuración manual.
                     </p>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
                         {integrations.map((int, i) => (
                             <div key={i} className="border border-argent p-4 flex flex-col items-center gap-3 hover:border-classic/30 transition-all">
                                 <div className="w-10 h-10 bg-white/10 border border-argent/50 flex items-center justify-center p-2">
@@ -510,6 +520,7 @@ export default function LandingPage() {
                                 { key: "google_ads", label: "Google Ads Analyst" },
                                 { key: "ecommerce", label: "Ecommerce Analyst" },
                                 { key: "email", label: "Email Marketing Analyst" },
+                                { key: "ga4", label: "GA4 Analyst" },
                                 { key: "cross_channel", label: "Cross-Channel Analyst" },
                             ].map((item, i) => (
                                 <div key={i} className="flex items-center justify-between border border-argent/50 px-4 py-3 hover:border-classic/30 transition-all">
@@ -524,7 +535,7 @@ export default function LandingPage() {
                             ))}
                         </div>
                         <div className="mt-6 pt-4 border-t border-argent/50">
-                            <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">5 canales AI con prompts personalizables</span>
+                            <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">6 canales AI con prompts personalizables</span>
                         </div>
                     </div>
                 </div>
@@ -544,7 +555,7 @@ export default function LandingPage() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                         {[
                             { role: "Media Buyers", desc: "Automatizá el análisis repetitivo de ads y enfocate en las decisiones estratégicas. Recibí alertas antes de que los problemas escalen.", stat: "16+", statLabel: "alertas automáticas" },
-                            { role: "Agencias", desc: "Gestioná múltiples clientes con configuración independiente. Todos los canales unificados. Escalá operaciones sin contratar más analistas.", stat: "4", statLabel: "canales en un solo lugar" },
+                            { role: "Agencias", desc: "Gestioná múltiples clientes con configuración independiente. Todos los canales unificados. Escalá operaciones sin contratar más analistas.", stat: "5", statLabel: "canales en un solo lugar" },
                             { role: "Directores", desc: "Transparencia total sobre cómo piensa la AI. Audita, editá y personalizá la lógica desde el Cerebro de Worker. Chateá con el AI Analyst.", stat: "100%", statLabel: "control sobre la lógica AI" },
                         ].map((profile, i) => (
                             <div key={i} className="border border-argent p-8 bg-stellar">

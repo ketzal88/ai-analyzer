@@ -26,6 +26,7 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
         isGoogle: initialData?.isGoogle ?? false,
         metaAdAccountId: initialData?.metaAdAccountId || "",
         googleAdsId: initialData?.googleAdsId || "",
+        ga4PropertyId: initialData?.ga4PropertyId || "",
         perfitApiKey: initialData?.perfitApiKey || "",
         klaviyoApiKey: initialData?.klaviyoApiKey || "",
         klaviyoPublicKey: initialData?.klaviyoPublicKey || "",
@@ -73,6 +74,9 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
     const [configData, setConfigData] = useState<EngineConfig | null>(null);
     const [loadingConfig, setLoadingConfig] = useState(false);
     const [teams, setTeams] = useState<Team[]>([]);
+    const [ga4Properties, setGa4Properties] = useState<{ propertyId: string; displayName: string; accountName: string }[]>([]);
+    const [ga4PropsLoading, setGa4PropsLoading] = useState(false);
+    const [ga4PropsError, setGa4PropsError] = useState<string | null>(null);
 
     // Fetch teams list
     useEffect(() => {
@@ -94,6 +98,26 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
             setConfigData(getDefaultEngineConfig("new-client"));
         }
     }, [isEditing, initialData?.id]);
+
+    // Fetch GA4 properties when GA4 is toggled on
+    useEffect(() => {
+        if (!formData.integraciones?.ga4) return;
+        if (ga4Properties.length > 0) return; // already loaded
+        setGa4PropsLoading(true);
+        setGa4PropsError(null);
+        fetch("/api/integrations/ga4/list-properties")
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    setGa4PropsError(data.error);
+                    setGa4Properties([]);
+                } else {
+                    setGa4Properties(data);
+                }
+            })
+            .catch(() => setGa4PropsError("No se pudo conectar"))
+            .finally(() => setGa4PropsLoading(false));
+    }, [formData.integraciones?.ga4]);
 
     // Auto-generate slug from name
     useEffect(() => {
@@ -127,6 +151,12 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
 
         if (formData.integraciones?.google && !formData.googleAdsId) {
             setError("Google Ads Customer ID is required when Google Ads is enabled.");
+            setLoading(false);
+            return;
+        }
+
+        if (formData.integraciones?.ga4 && !formData.ga4PropertyId) {
+            setError("GA4 Property ID is required when GA4 is enabled.");
             setLoading(false);
             return;
         }
@@ -753,6 +783,75 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
                                     />
                                 </div>
                                 <p className="text-tiny text-text-muted">Uses global OAuth credentials.</p>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* GA4 */}
+                    <div className="p-4 border border-argent rounded-lg space-y-3">
+                        <label className="flex items-center gap-3 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={formData.integraciones?.ga4 || false}
+                                onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    setFormData({
+                                        ...formData,
+                                        integraciones: { ...formData.integraciones!, ga4: checked },
+                                        ...(checked ? {} : { ga4PropertyId: "" }),
+                                    });
+                                }}
+                                className="w-4 h-4 rounded border-argent text-classic focus:ring-0"
+                            />
+                            <span className="text-body font-bold text-text-primary">Google Analytics 4</span>
+                        </label>
+                        {formData.integraciones?.ga4 && (
+                            <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                                {/* Dropdown selector */}
+                                {ga4PropsLoading ? (
+                                    <div className="flex items-center gap-2 py-2">
+                                        <div className="w-4 h-4 border-2 border-classic/30 border-t-classic rounded-full animate-spin" />
+                                        <span className="text-tiny text-text-muted">Cargando propiedades GA4...</span>
+                                    </div>
+                                ) : ga4Properties.length > 0 ? (
+                                    <div>
+                                        <label className="block text-tiny text-text-muted mb-1 font-bold">SELECCIONAR PROPIEDAD</label>
+                                        <select
+                                            value={formData.ga4PropertyId || ""}
+                                            onChange={(e) => setFormData({ ...formData, ga4PropertyId: e.target.value })}
+                                            className="w-full bg-stellar border border-argent rounded px-3 py-2 text-small text-text-primary focus:border-classic outline-none"
+                                        >
+                                            <option value="">— Elegir propiedad —</option>
+                                            {ga4Properties.map((p) => (
+                                                <option key={p.propertyId} value={p.propertyId}>
+                                                    {p.displayName} ({p.propertyId}) — {p.accountName}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                ) : null}
+                                {/* Manual fallback input — always visible */}
+                                <div>
+                                    <label className="block text-tiny text-text-muted mb-1 font-bold">
+                                        {ga4Properties.length > 0 ? "O INGRESAR PROPERTY ID MANUAL" : "PROPERTY ID"}
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.ga4PropertyId || ""}
+                                        onChange={(e) => setFormData({ ...formData, ga4PropertyId: e.target.value })}
+                                        placeholder="123456789"
+                                        className="w-full bg-stellar border border-argent rounded px-3 py-2 text-small text-text-primary font-mono placeholder:text-text-muted/50 focus:border-classic outline-none"
+                                    />
+                                </div>
+                                {ga4PropsError && (
+                                    <p className="text-tiny text-yellow-500">Selector no disponible: {ga4PropsError}. Ingresá el ID manualmente.</p>
+                                )}
+                                <p className="text-tiny text-text-muted">
+                                    {ga4Properties.length > 0
+                                        ? "Seleccioná del listado o ingresá el ID manualmente."
+                                        : "GA4 Admin → Property Settings → Property ID. Uses global Service Account."
+                                    }
+                                </p>
                             </div>
                         )}
                     </div>

@@ -199,6 +199,33 @@ function formatChannel(ch: AnalystChannelData): string {
     lines.push(`    <diversity_score ${attrs}${formatDist} />`);
   }
 
+  // GA4: traffic sources
+  if (d.trafficSources && d.trafficSources.length > 0) {
+    lines.push('    <traffic_sources>');
+    for (const src of d.trafficSources) {
+      lines.push(`      <source ${buildAttrs({ name: src.name, sessions: src.sessions, conversions: src.conversions, revenue: round(src.revenue), bounce_rate: formatPct(src.bounceRate) })} />`);
+    }
+    lines.push('    </traffic_sources>');
+  }
+
+  // GA4: landing pages
+  if (d.topLandingPages && d.topLandingPages.length > 0) {
+    lines.push('    <top_landing_pages>');
+    for (const p of d.topLandingPages) {
+      lines.push(`      <page ${buildAttrs({ path: p.path, sessions: p.sessions, bounce_rate: formatPct(p.bounceRate), conversions: p.conversions })} />`);
+    }
+    lines.push('    </top_landing_pages>');
+  }
+
+  // GA4: device breakdown
+  if (d.deviceBreakdown && d.deviceBreakdown.length > 0) {
+    lines.push('    <devices>');
+    for (const dev of d.deviceBreakdown) {
+      lines.push(`      <device ${buildAttrs({ category: dev.category, sessions: dev.sessions, bounce_rate: formatPct(dev.bounceRate), conversions: dev.conversions })} />`);
+    }
+    lines.push('    </devices>');
+  }
+
   // Cross-channel: per-channel summaries
   if (d.channelSummaries) {
     for (const [chName, summary] of Object.entries(d.channelSummaries)) {

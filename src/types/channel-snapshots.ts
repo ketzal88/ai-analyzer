@@ -127,6 +127,24 @@ export interface UnifiedChannelMetrics {
     clickToOpenRate?: number;      // CTOR: clicks / opens % (content quality)
     revenuePerRecipient?: number;  // revenue / sent
     spamComplaints?: number;       // ISP spam reports (Klaviyo)
+
+    // ── GA4 Web Analytics ────────────────────────
+    sessions?: number;
+    totalUsers?: number;
+    newUsers?: number;
+    pageviews?: number;
+    bounceRate?: number;           // % (0-100)
+    avgSessionDuration?: number;   // seconds
+    engagedSessions?: number;
+    engagementRate?: number;       // % (0-100)
+    sessionsPerUser?: number;
+    pageviewsPerSession?: number;
+    // GA4 Ecommerce Funnel
+    viewItem?: number;             // view_item events
+    beginCheckout?: number;        // begin_checkout events
+    ecommercePurchases?: number;   // purchase events
+    purchaseRevenue?: number;      // GA4-reported revenue
+    ecommerceConversionRate?: number; // purchases/sessions %
 }
 
 /**

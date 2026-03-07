@@ -78,6 +78,11 @@ interface ChannelSummary {
     emailRevenue?: number;
     orders?: number;
     aov?: number;
+    // GA4
+    sessions?: number;
+    totalUsers?: number;
+    bounceRate?: number;
+    avgSessionDuration?: number;
 }
 
 function aggregateChannels(channelData: Record<string, ChannelDailySnapshot[]>): ChannelSummary[] {
@@ -137,11 +142,27 @@ function aggregateChannels(channelData: Record<string, ChannelDailySnapshot[]>):
         });
     }
 
+    const ga4Snaps = channelData["GA4"] || [];
+    if (ga4Snaps.length > 0) {
+        const sessions = ga4Snaps.reduce((s, x) => s + (x.metrics.sessions || 0), 0);
+        const totalUsers = ga4Snaps.reduce((s, x) => s + (x.metrics.totalUsers || 0), 0);
+        const totalBounce = ga4Snaps.reduce((s, x) => s + (x.metrics.bounceRate || 0) * (x.metrics.sessions || 0), 0);
+        const bounceRate = sessions > 0 ? totalBounce / sessions : 0;
+        const totalDuration = ga4Snaps.reduce((s, x) => s + (x.metrics.avgSessionDuration || 0) * (x.metrics.sessions || 0), 0);
+        const avgSessionDuration = sessions > 0 ? totalDuration / sessions : 0;
+        summaries.push({
+            channel: "GA4", label: "GA4", href: "/ga4",
+            spend: 0, revenue: 0, conversions: 0,
+            roas: 0, days: ga4Snaps.length,
+            sessions, totalUsers, bounceRate, avgSessionDuration,
+        });
+    }
+
     return summaries;
 }
 
 function fetchChannels(clientId: string, startDate: string, endDate: string): Promise<Record<string, ChannelDailySnapshot[]>> {
-    const channels = ["META", "GOOGLE", "ECOMMERCE", "EMAIL"];
+    const channels = ["META", "GOOGLE", "ECOMMERCE", "EMAIL", "GA4"];
     return Promise.all(
         channels.map(ch =>
             fetch(`/api/channel-snapshots?clientId=${clientId}&channel=${ch}&startDate=${startDate}&endDate=${endDate}`)
@@ -322,7 +343,7 @@ export default function OverviewDashboard() {
                                 <h2 className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4">
                                     Canales Activos
                                 </h2>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div className={`grid grid-cols-1 md:grid-cols-2 ${summaries.length > 4 ? "lg:grid-cols-5" : "lg:grid-cols-4"} gap-4`}>
                                     {summaries.map(s => {
                                         const p = prev(s.channel);
                                         return (
@@ -368,6 +389,15 @@ export default function OverviewDashboard() {
                                                             {(s.emailRevenue || 0) > 0 && (
                                                                 <DeltaRow label="Revenue" value={s.emailRevenue || 0} prevValue={p?.emailRevenue || 0} formatted={formatCurrency(s.emailRevenue || 0)} color="text-synced" />
                                                             )}
+                                                        </div>
+                                                    )}
+
+                                                    {s.channel === "GA4" && (
+                                                        <div className="space-y-2">
+                                                            <DeltaRow label="Sessions" value={s.sessions || 0} prevValue={p?.sessions || 0} formatted={formatNumber(s.sessions || 0)} />
+                                                            <DeltaRow label="Users" value={s.totalUsers || 0} prevValue={p?.totalUsers || 0} formatted={formatNumber(s.totalUsers || 0)} />
+                                                            <DeltaRow label="Bounce Rate" value={s.bounceRate || 0} prevValue={p?.bounceRate || 0} formatted={formatPct(s.bounceRate || 0)} isInverse />
+                                                            <DeltaRow label="Avg Duration" value={s.avgSessionDuration || 0} prevValue={p?.avgSessionDuration || 0} formatted={`${Math.round(s.avgSessionDuration || 0)}s`} />
                                                         </div>
                                                     )}
                                                 </div>
