@@ -47,7 +47,9 @@
       "Bash(git merge:*)",
       "Bash(echo:*)",
       "Bash(git worktree add:*)",
-      "Bash(./node_modules/.bin/tsc:*)"
+      "Bash(./node_modules/.bin/tsc:*)",
+      "Bash(git worktree remove:*)",
+      "Bash(git branch:*)"
     ]
   }
 }

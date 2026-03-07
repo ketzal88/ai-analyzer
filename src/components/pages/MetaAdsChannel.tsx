@@ -57,6 +57,7 @@ export default function MetaAdsChannel() {
         byFormat: Record<string, number>;
         monthlySpendUSD: number;
         currency: string;
+        spendSource?: "objective" | "last_month";
         recommendedAds: number;
         adsToRotate: number;
         adsMissing: number;
@@ -524,10 +525,10 @@ export default function MetaAdsChannel() {
                                     {/* Format breakdown */}
                                     <div className="flex-1 space-y-3">
                                         {[
-                                            { key: "VIDEO", label: "Videos", color: "#6366f1" },
-                                            { key: "IMAGE", label: "Images", color: "#8b5cf6" },
-                                            { key: "CAROUSEL", label: "Carousel", color: "#a78bfa" },
-                                            { key: "CATALOG", label: "DPA / DCO", color: "#c4b5fd" },
+                                            { key: "VIDEO", label: "Videos", color: "#3b82f6" },
+                                            { key: "IMAGE", label: "Images", color: "#f59e0b" },
+                                            { key: "CAROUSEL", label: "Carousel", color: "#06b6d4" },
+                                            { key: "CATALOG", label: "DPA / DCO", color: "#f43f5e" },
                                         ].map(({ key, label, color }) => {
                                             const count = mediaMix.byFormat[key] || 0;
                                             const pct = mediaMix.totalActive > 0 ? Math.round((count / mediaMix.totalActive) * 100) : 0;
@@ -549,7 +550,7 @@ export default function MetaAdsChannel() {
                                 {/* Recommendation metrics */}
                                 <div className="mt-6 pt-6 border-t border-argent/20">
                                     <p className="text-[9px] text-text-muted uppercase tracking-widest mb-3 font-bold">
-                                        Basado en spend mensual {mediaMix.currency === "ARS" ? `(${formatCurrency(mediaMix.monthlySpendUSD)} USD)` : `(${formatCurrency(mediaMix.monthlySpendUSD)} USD)`}
+                                        {mediaMix.spendSource === "objective" ? "Basado en objetivo de spend" : "Basado en spend mes anterior"} ({formatCurrency(mediaMix.monthlySpendUSD)} USD)
                                     </p>
                                     <div className="grid grid-cols-3 gap-4">
                                         <div className="bg-argent/10 p-4">
@@ -1001,12 +1002,13 @@ export default function MetaAdsChannel() {
 
 function MediaMixGauge({ byFormat, total }: { byFormat: Record<string, number>; total: number }) {
     const formats = [
-        { key: "VIDEO", color: "#6366f1" },
-        { key: "IMAGE", color: "#8b5cf6" },
-        { key: "CAROUSEL", color: "#a78bfa" },
-        { key: "CATALOG", color: "#c4b5fd" },
+        { key: "VIDEO", color: "#3b82f6" },
+        { key: "IMAGE", color: "#f59e0b" },
+        { key: "CAROUSEL", color: "#06b6d4" },
+        { key: "CATALOG", color: "#f43f5e" },
     ];
-    // Build conic gradient for a semi-circle (180deg arc)
+    // Build conic gradient for a semi-circle arc (left → right across top)
+    // from 270deg = start at 9 o'clock, 0-180deg fills left→top→right
     const segments: string[] = [];
     let cumPct = 0;
     for (const { key, color } of formats) {
@@ -1019,14 +1021,14 @@ function MediaMixGauge({ byFormat, total }: { byFormat: Record<string, number>; 
             cumPct += pct;
         }
     }
-    // Fill remaining with transparent
+    // Fill remaining arc with subtle bg
     if (cumPct < 100) {
         const startDeg = (cumPct / 100) * 180;
         segments.push(`rgba(255,255,255,0.08) ${startDeg}deg 180deg`);
     }
-    // Background (unused half)
+    // Hide bottom half
     segments.push(`transparent 180deg 360deg`);
-    const gradient = `conic-gradient(from 180deg, ${segments.join(", ")})`;
+    const gradient = `conic-gradient(from 270deg, ${segments.join(", ")})`;
 
     return (
         <div className="relative w-[180px] h-[100px] overflow-hidden">
