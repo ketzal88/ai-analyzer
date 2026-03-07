@@ -28,7 +28,7 @@ function getYesterday(): string {
     return d.toISOString().split("T")[0];
 }
 
-export type BackfillChannel = "META" | "GOOGLE" | "GA4" | "ECOMMERCE" | "EMAIL";
+export type BackfillChannel = "META" | "GOOGLE" | "GA4" | "ECOMMERCE" | "EMAIL" | "LEADS";
 
 export interface ChannelBackfillResult {
     channel: BackfillChannel;
@@ -75,6 +75,11 @@ export class ChannelBackfillService {
             results.push(await this.backfillEmail(clientId, client));
         }
 
+        // Leads
+        if (client.integraciones?.leads) {
+            results.push(await this.backfillLeads(clientId));
+        }
+
         return results;
     }
 
@@ -108,6 +113,10 @@ export class ChannelBackfillService {
             case "EMAIL":
                 if (!client.integraciones?.email) return { channel, status: "skipped", error: "No email platform" };
                 return this.backfillEmail(clientId, client);
+
+            case "LEADS":
+                if (!client.integraciones?.leads) return { channel, status: "skipped", error: "No leads integration" };
+                return this.backfillLeads(clientId);
 
             default:
                 return { channel, status: "skipped", error: `Unknown channel: ${channel}` };
@@ -321,6 +330,17 @@ export class ChannelBackfillService {
             return { channel: "EMAIL", status: "skipped", error: `Unknown provider: ${client.integraciones?.email}` };
         } catch (e: any) {
             return { channel: "EMAIL", status: "failed", error: e.message };
+        }
+    }
+    private static async backfillLeads(clientId: string): Promise<ChannelBackfillResult> {
+        try {
+            const { LeadsService } = await import("@/lib/leads-service");
+            const startDate = getQuarterStart();
+            const endDate = getYesterday();
+            const { daysWritten } = await LeadsService.syncToChannelSnapshots(clientId, startDate, endDate);
+            return { channel: "LEADS", status: "success", daysWritten };
+        } catch (e: any) {
+            return { channel: "LEADS", status: "failed", error: e.message };
         }
     }
 }

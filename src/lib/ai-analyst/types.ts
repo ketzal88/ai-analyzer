@@ -16,6 +16,7 @@ export type ChannelId =
   | 'ga4'
   | 'ecommerce'
   | 'email'
+  | 'leads'
   | 'cross_channel'
   | 'creative_briefs';
 
@@ -32,6 +33,7 @@ export const CHANNEL_TO_FIRESTORE: Record<ChannelId, ChannelType | null> = {
   ga4: 'GA4',
   ecommerce: 'ECOMMERCE',
   email: 'EMAIL',
+  leads: 'LEADS',
   cross_channel: null,
   creative_briefs: 'META',
 };
@@ -43,6 +45,7 @@ export const CHANNEL_LABELS: Record<ChannelId, string> = {
   ga4: 'Google Analytics 4',
   ecommerce: 'Ecommerce',
   email: 'Email Marketing',
+  leads: 'Leads / CRM',
   cross_channel: 'Cross-Channel',
   creative_briefs: 'Bajadas Creativas',
 };
@@ -114,6 +117,10 @@ export interface ChannelDetails {
   trafficSources?: GA4TrafficSourceSummary[];
   topLandingPages?: GA4LandingPageSummary[];
   deviceBreakdown?: GA4DeviceSummary[];
+  // Leads / CRM
+  funnelStages?: LeadsFunnelStageSummary[];
+  closerPerformance?: LeadsCloserSummary[];
+  utmAttribution?: LeadsUtmSummary[];
 }
 
 export interface GA4TrafficSourceSummary {
@@ -136,6 +143,32 @@ export interface GA4DeviceSummary {
   sessions: number;
   bounceRate: number;
   conversions: number;
+}
+
+// ── Leads Channel ────────────────────────────────────────
+
+export interface LeadsFunnelStageSummary {
+  stage: string;
+  count: number;
+  pct: number;
+}
+
+export interface LeadsCloserSummary {
+  closer: string;
+  totalLeads: number;
+  qualified: number;
+  attended: number;
+  newClients: number;
+  revenue: number;
+  closeRate: number;
+}
+
+export interface LeadsUtmSummary {
+  campaign: string;
+  totalLeads: number;
+  qualified: number;
+  qualificationRate: number;
+  revenue: number;
 }
 
 // ── Creative Briefs Channel ────────────────────────────
@@ -278,6 +311,11 @@ export const SUGGESTED_QUESTIONS: Record<ChannelId, string[]> = {
     "Dame la foto completa de la cuenta",
     "¿Dónde está la mayor oportunidad de crecimiento?",
     "¿Cómo redistribuirías el presupuesto?",
+  ],
+  leads: [
+    "¿Qué anuncio genera los leads más calificados?",
+    "¿Cómo mejorar la tasa de asistencia?",
+    "Comparame el rendimiento de los closers",
   ],
   ga4: [
     "¿Por qué está tan alta la tasa de rebote?",

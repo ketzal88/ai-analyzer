@@ -8,7 +8,7 @@ import { NextResponse } from "next/server";
 import { DEFAULT_PROMPTS } from "@/lib/ai-analyst/prompts";
 import type { ChannelId } from "@/lib/ai-analyst/types";
 
-const CHANNEL_IDS: ChannelId[] = ["meta_ads", "google_ads", "ga4", "ecommerce", "email", "cross_channel", "creative_briefs"];
+const CHANNEL_IDS: ChannelId[] = ["meta_ads", "google_ads", "ga4", "ecommerce", "email", "leads", "cross_channel", "creative_briefs"];
 
 export async function GET() {
   const defaults: Record<string, string> = {};

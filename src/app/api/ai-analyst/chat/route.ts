@@ -21,7 +21,7 @@ import type { ChatRequestBody, ChannelId } from "@/lib/ai-analyst/types";
 
 export const maxDuration = 60; // 60s timeout for streaming responses
 
-const VALID_CHANNELS: ChannelId[] = ['meta_ads', 'google_ads', 'ecommerce', 'email', 'cross_channel', 'creative_briefs'];
+const VALID_CHANNELS: ChannelId[] = ['meta_ads', 'google_ads', 'ecommerce', 'email', 'leads', 'cross_channel', 'creative_briefs'];
 
 /** Channels that produce long-form structured output need more tokens */
 const HIGH_TOKEN_CHANNELS: ChannelId[] = ['creative_briefs'];

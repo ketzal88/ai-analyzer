@@ -31,6 +31,9 @@ import type {
   WinningAngleGroup,
   WinningAdReference,
   DiversityScoreSummary,
+  LeadsFunnelStageSummary,
+  LeadsCloserSummary,
+  LeadsUtmSummary,
 } from "./types";
 import { CHANNEL_TO_FIRESTORE } from "./types";
 
@@ -49,6 +52,8 @@ const ADDITIVE_METRICS = [
   'cancelledOrders', 'fulfilledOrders', 'newCustomers', 'returningCustomers',
   'abandonedCheckouts', 'abandonedCheckoutValue', 'refunds', 'totalRefundAmount',
   'sent', 'delivered', 'opens', 'emailClicks', 'bounces', 'unsubscribes', 'emailRevenue',
+  'totalLeads', 'qualifiedLeads', 'unqualifiedLeads', 'spamLeads',
+  'attendedCalls', 'noShows', 'newClients', 'followUps', 'leadRevenue',
   'inlineLinkClicks', 'uniqueClicks', 'outboundClicks',
   'addToCart', 'initiateCheckout', 'viewContent',
   'videoPlays', 'videoP25', 'videoP50', 'videoP75', 'videoP100', 'video30sViews',
@@ -161,6 +166,9 @@ async function buildSingleChannelData(
     case 'email':
       details = loadEmailDetails(currentSnaps);
       break;
+    case 'leads':
+      details = loadLeadsDetails(currentSnaps);
+      break;
     case 'creative_briefs':
       details = await loadCreativeBriefDetails(clientId);
       break;
@@ -176,7 +184,7 @@ async function buildCrossChannelData(
   dateRange: AnalystDateRange,
   previousPeriod: { start: string; end: string },
 ): Promise<{ channelData: AnalystChannelData; insights: CrossChannelInsights }> {
-  const channels: ChannelType[] = ['META', 'GOOGLE', 'ECOMMERCE', 'EMAIL'];
+  const channels: ChannelType[] = ['META', 'GOOGLE', 'ECOMMERCE', 'EMAIL', 'LEADS'];
 
   // Fetch all channels in parallel (current + previous)
   const results = await Promise.all(
@@ -713,6 +721,92 @@ async function loadCreativeBriefDetails(clientId: string): Promise<ChannelDetail
   };
 }
 
+// ── Leads Details ──────────────────────────────────────
+
+const MAX_CLOSERS = 10;
+const MAX_UTM_CAMPAIGNS = 10;
+
+function loadLeadsDetails(snapshots: ChannelDailySnapshot[]): ChannelDetails {
+  // Aggregate funnel stages
+  let totalLeads = 0, qualified = 0, attended = 0, noShows = 0, newClients = 0;
+  const closerMap = new Map<string, LeadsCloserSummary>();
+  const utmMap = new Map<string, LeadsUtmSummary>();
+
+  for (const snap of snapshots) {
+    totalLeads += snap.metrics.totalLeads || 0;
+    qualified += snap.metrics.qualifiedLeads || 0;
+    attended += snap.metrics.attendedCalls || 0;
+    noShows += snap.metrics.noShows || 0;
+    newClients += snap.metrics.newClients || 0;
+
+    // Closer breakdown from rawData
+    const closers = (snap.rawData?.byCloser as any[]) || [];
+    for (const c of closers) {
+      const key = c.closer || 'Sin asignar';
+      const ex = closerMap.get(key);
+      if (ex) {
+        ex.totalLeads += c.totalLeads || 0;
+        ex.qualified += c.qualified || 0;
+        ex.attended += c.attended || 0;
+        ex.newClients += c.newClients || 0;
+        ex.revenue += c.revenue || 0;
+      } else {
+        closerMap.set(key, {
+          closer: key,
+          totalLeads: c.totalLeads || 0,
+          qualified: c.qualified || 0,
+          attended: c.attended || 0,
+          newClients: c.newClients || 0,
+          revenue: c.revenue || 0,
+          closeRate: 0,
+        });
+      }
+    }
+
+    // UTM breakdown from rawData
+    const utms = (snap.rawData?.byUtmCampaign as any[]) || [];
+    for (const u of utms) {
+      const key = u.campaign || 'Sin UTM';
+      const ex = utmMap.get(key);
+      if (ex) {
+        ex.totalLeads += u.totalLeads || 0;
+        ex.qualified += u.qualified || 0;
+        ex.revenue += u.revenue || 0;
+      } else {
+        utmMap.set(key, {
+          campaign: key,
+          totalLeads: u.totalLeads || 0,
+          qualified: u.qualified || 0,
+          qualificationRate: 0,
+          revenue: u.revenue || 0,
+        });
+      }
+    }
+  }
+
+  // Build funnel stages
+  const funnelStages: LeadsFunnelStageSummary[] = [
+    { stage: 'Leads', count: totalLeads, pct: 100 },
+    { stage: 'Calificados', count: qualified, pct: totalLeads > 0 ? (qualified / totalLeads) * 100 : 0 },
+    { stage: 'Asistieron', count: attended, pct: totalLeads > 0 ? (attended / totalLeads) * 100 : 0 },
+    { stage: 'Nuevos Clientes', count: newClients, pct: totalLeads > 0 ? (newClients / totalLeads) * 100 : 0 },
+  ];
+
+  // Recompute rates for closers
+  const closerPerformance = Array.from(closerMap.values())
+    .map(c => ({ ...c, closeRate: c.attended > 0 ? (c.newClients / c.attended) * 100 : 0 }))
+    .sort((a, b) => b.newClients - a.newClients)
+    .slice(0, MAX_CLOSERS);
+
+  // Recompute rates for UTM
+  const utmAttribution = Array.from(utmMap.values())
+    .map(u => ({ ...u, qualificationRate: u.totalLeads > 0 ? (u.qualified / u.totalLeads) * 100 : 0 }))
+    .sort((a, b) => b.totalLeads - a.totalLeads)
+    .slice(0, MAX_UTM_CAMPAIGNS);
+
+  return { funnelStages, closerPerformance, utmAttribution };
+}
+
 // ── Aggregation Utilities ───────────────────────────────
 
 function fetchSnapshots(
@@ -773,6 +867,17 @@ function addDerivedMetrics(summary: Record<string, number | undefined>): void {
   if (sent > 0 && opens > 0) summary.openRate = (opens / sent) * 100;
   if (sent > 0 && emailClicks > 0) summary.clickRate = (emailClicks / sent) * 100;
   if (sent > 0 && summary.emailRevenue) summary.revenuePerRecipient = summary.emailRevenue / sent;
+
+  // Leads derived
+  const totalLeads = summary.totalLeads || 0;
+  const qualifiedLeads = summary.qualifiedLeads || 0;
+  const attendedCalls = summary.attendedCalls || 0;
+  const noShows = summary.noShows || 0;
+  const newClients = summary.newClients || 0;
+  if (totalLeads > 0 && qualifiedLeads > 0) summary.qualificationRate = (qualifiedLeads / totalLeads) * 100;
+  const scheduled = attendedCalls + noShows;
+  if (scheduled > 0) summary.attendanceRate = (attendedCalls / scheduled) * 100;
+  if (attendedCalls > 0 && newClients > 0) summary.closeRate = (newClients / attendedCalls) * 100;
 }
 
 /** Compute % delta between current and previous period metrics */

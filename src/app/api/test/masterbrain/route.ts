@@ -51,7 +51,8 @@ export async function GET(request: NextRequest) {
         google: true,
         ga4: true,
         ecommerce: 'tiendanube' as const,
-        email: 'perfit' as const
+        email: 'perfit' as const,
+        leads: null
       }
     };
 

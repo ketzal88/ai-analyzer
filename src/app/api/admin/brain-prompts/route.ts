@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebase-admin";
 import type { ChannelId } from "@/lib/ai-analyst/types";
 
-const CHANNEL_IDS: ChannelId[] = ["meta_ads", "google_ads", "ga4", "ecommerce", "email", "cross_channel", "creative_briefs"];
+const CHANNEL_IDS: ChannelId[] = ["meta_ads", "google_ads", "ga4", "ecommerce", "email", "leads", "cross_channel", "creative_briefs"];
 
 const CHANNEL_LABELS: Record<ChannelId, string> = {
   meta_ads: "Meta Ads",
@@ -18,6 +18,7 @@ const CHANNEL_LABELS: Record<ChannelId, string> = {
   ga4: "Google Analytics 4",
   ecommerce: "Ecommerce",
   email: "Email Marketing",
+  leads: "Leads / CRM",
   cross_channel: "Cross-Channel",
   creative_briefs: "Bajadas Creativas",
 };

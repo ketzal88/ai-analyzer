@@ -5,6 +5,7 @@ export * from "./gem-report";
 export * from "./meta-creative";
 export * from "./creative-kpi";
 export * from "./channel-snapshots";
+export * from "./leads";
 
 export type BusinessType = 'ecommerce' | 'leads' | 'whatsapp' | 'apps';
 
@@ -338,7 +339,13 @@ export interface Client {
         ga4: boolean;                                // Google Analytics 4 — Phase 3
         ecommerce: 'tiendanube' | 'shopify' | 'woocommerce' | null;  // Ecommerce platform — Phase 2
         email: 'klaviyo' | 'perfit' | null;          // Email marketing — Phase 6
+        leads?: 'ghl' | null;                        // Leads CRM (GoHighLevel) — Leads Channel
     };
+
+    // Leads / CRM integration (GoHighLevel)
+    ghlLocationId?: string;              // GHL location/sub-account ID (for webhook matching)
+    ghlWebhookSecret?: string;           // Per-client webhook verification secret
+    leadsConfig?: import('./leads').LeadsConfig;  // Closers, calendar types, mode
 
     ga4PropertyId?: string;  // GA4 property ID (numeric, e.g. "123456789")
 

@@ -145,6 +145,24 @@ export interface UnifiedChannelMetrics {
     ecommercePurchases?: number;   // purchase events
     purchaseRevenue?: number;      // GA4-reported revenue
     ecommerceConversionRate?: number; // purchases/sessions %
+
+    // ── Leads / CRM (GHL) ───────────────────────────
+    totalLeads?: number;               // Total leads entered
+    qualifiedLeads?: number;           // Calificados
+    unqualifiedLeads?: number;         // No calificados
+    spamLeads?: number;                // Spam
+    attendedCalls?: number;            // Asistieron a la llamada
+    noShows?: number;                  // No asistieron
+    newClients?: number;               // Nuevos clientes (cerrados)
+    followUps?: number;                // En seguimiento
+    qualificationRate?: number;        // qualified / total %
+    attendanceRate?: number;           // attended / (attended + noShows) %
+    closeRate?: number;                // newClients / attended %
+    leadRevenue?: number;              // Sum of revenue from closed leads
+    cpl?: number;                      // Cost per lead (from META spend cross-ref)
+    cpql?: number;                     // Cost per qualified lead
+    customerAcquisitionCost?: number;  // CAC (META spend / newClients)
+    avgQualityScore?: number;          // Average quality score (1-3)
 }
 
 /**

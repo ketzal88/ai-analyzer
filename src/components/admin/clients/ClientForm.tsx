@@ -39,6 +39,14 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
             ga4: false,
             ecommerce: null,
             email: null,
+            leads: null,
+        },
+        ghlLocationId: initialData?.ghlLocationId || "",
+        ghlWebhookSecret: initialData?.ghlWebhookSecret || "",
+        leadsConfig: initialData?.leadsConfig || {
+            closers: [],
+            calendarTypes: [],
+            mode: 'full_funnel' as const,
         },
         slackPublicChannel: initialData?.slackPublicChannel || "",
         slackInternalChannel: initialData?.slackInternalChannel || "",
@@ -1025,6 +1033,90 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
                                 </div>
                             </div>
                         )}
+                    {/* Leads / CRM */}
+                    <div className="p-4 border border-argent rounded-lg space-y-3">
+                        <div className="flex items-center gap-3">
+                            <span className="text-body font-bold text-text-primary">Leads / CRM</span>
+                            <select
+                                value={formData.integraciones?.leads || ""}
+                                onChange={(e) => setFormData({
+                                    ...formData,
+                                    integraciones: { ...formData.integraciones!, leads: (e.target.value || null) as any }
+                                })}
+                                className="bg-stellar border border-argent rounded px-2 py-1 text-small text-text-primary focus:border-classic outline-none"
+                            >
+                                <option value="">Disabled</option>
+                                <option value="ghl">GoHighLevel</option>
+                            </select>
+                        </div>
+                        {formData.integraciones?.leads === 'ghl' && (
+                            <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-tiny text-text-muted mb-1 font-bold">GHL LOCATION ID</label>
+                                        <input
+                                            type="text"
+                                            value={(formData as any).ghlLocationId || ""}
+                                            onChange={(e) => setFormData({ ...formData, ghlLocationId: e.target.value })}
+                                            placeholder="loc_xxxxxxxxxxxx"
+                                            className="w-full text-small font-mono"
+                                        />
+                                        <p className="text-[10px] text-text-muted mt-1">Location ID de GoHighLevel. Se usa para matchear webhooks.</p>
+                                    </div>
+                                    <div>
+                                        <label className="block text-tiny text-text-muted mb-1 font-bold">WEBHOOK SECRET</label>
+                                        <input
+                                            type="password"
+                                            value={(formData as any).ghlWebhookSecret || ""}
+                                            onChange={(e) => setFormData({ ...formData, ghlWebhookSecret: e.target.value })}
+                                            placeholder="secret_xxxxx"
+                                            className="w-full text-small font-mono"
+                                        />
+                                        <p className="text-[10px] text-text-muted mt-1">Secret para verificar webhooks. Opcional si se usa GHL_WEBHOOK_SECRET global.</p>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-tiny text-text-muted mb-1 font-bold">MODO</label>
+                                    <select
+                                        value={(formData as any).leadsConfig?.mode || "full_funnel"}
+                                        onChange={(e) => setFormData({
+                                            ...formData,
+                                            leadsConfig: { ...(formData as any).leadsConfig, mode: e.target.value }
+                                        })}
+                                        className="bg-stellar border border-argent rounded px-2 py-1 text-small text-text-primary focus:border-classic outline-none"
+                                    >
+                                        <option value="full_funnel">Full Funnel (Formulario + Agenda + Llamada)</option>
+                                        <option value="whatsapp_simple">WhatsApp Simple (Volumen + Calidad)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-tiny text-text-muted mb-1 font-bold">CLOSERS (separados por coma)</label>
+                                    <input
+                                        type="text"
+                                        value={(formData as any).leadsConfig?.closers?.join(", ") || ""}
+                                        onChange={(e) => setFormData({
+                                            ...formData,
+                                            leadsConfig: {
+                                                ...(formData as any).leadsConfig,
+                                                closers: e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean)
+                                            }
+                                        })}
+                                        placeholder="María, Sebastian, Gabriel"
+                                        className="w-full text-small"
+                                    />
+                                    <p className="text-[10px] text-text-muted mt-1">Nombres de los closers que califican leads.</p>
+                                </div>
+                                {isEditing && (
+                                    <div className="mt-2 p-2 bg-special rounded text-[10px] text-text-muted">
+                                        <span className="font-bold">Webhook URL:</span>{" "}
+                                        <code className="font-mono text-classic">
+                                            {typeof window !== 'undefined' ? window.location.origin : ''}/api/webhooks/ghl?locationId={(formData as any).ghlLocationId || 'LOC_ID'}&secret={(formData as any).ghlWebhookSecret ? '***' : 'SECRET'}
+                                        </code>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
                     </div>
                 </div>
             </div>
