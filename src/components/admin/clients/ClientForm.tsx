@@ -1033,6 +1033,8 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
                                 </div>
                             </div>
                         )}
+                    </div>
+
                     {/* Leads / CRM */}
                     <div className="p-4 border border-argent rounded-lg space-y-3">
                         <div className="flex items-center gap-3">
@@ -1116,7 +1118,6 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
                                 )}
                             </div>
                         )}
-                    </div>
                     </div>
                 </div>
             </div>
