@@ -8,6 +8,8 @@ import { UnifiedDateRange, resolvePreset, formatRangeLabel, getComparisonRange }
 import DateRangePicker from "@/components/ui/DateRangePicker";
 import KPICard, { calcDelta } from "@/components/ui/KPICard";
 import { useAnalyst } from "@/contexts/AnalystContext";
+import ExportMarkdownButton from "@/components/ui/ExportMarkdownButton";
+import SlackExportButton from "@/components/slack-export/SlackExportButton";
 
 function formatCurrency(value: number | undefined, prefix = "$"): string {
     if (value === undefined || value === null) return "—";
@@ -293,6 +295,8 @@ export default function EcommerceChannel() {
                     </div>
                     <div className="flex items-center gap-3">
                         <DateRangePicker value={dateRange} onChange={setDateRange} />
+                        {clientId && <SlackExportButton clientId={clientId} channelId="ecommerce" startDate={dateRange.start} endDate={dateRange.end} />}
+                        {clientId && <ExportMarkdownButton clientId={clientId} channelId="ecommerce" startDate={dateRange.start} endDate={dateRange.end} />}
                         <button onClick={() => openAnalyst('ecommerce')} className="px-3 py-2 bg-classic text-stellar font-black text-[10px] uppercase tracking-widest hover:bg-classic/90 transition-all whitespace-nowrap">Analizar con IA</button>
                     </div>
                 </header>

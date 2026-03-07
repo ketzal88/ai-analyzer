@@ -301,7 +301,7 @@ async function loadMetaDetails(
     } else {
       campaignMap.set(id, {
         id,
-        name: d.meta?.name || id,
+        name: d.name || d.meta?.name || id,
         status: d.meta?.status,
         objective: d.meta?.objective,
         spend: perf.spend || 0,

@@ -57,6 +57,13 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             || echo "⚠️ Email sync failed (will retry via fill-gaps)"
 
+      - name: Sync GA4
+        run: |
+          echo "📈 Triggering GA4 sync..."
+          curl -sS -f "${{ env.APP_URL }}/api/cron/sync-ga4" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            || echo "⚠️ GA4 sync failed (will retry via fill-gaps)"
+
   fill-gaps:
     if: github.event.schedule == '30 9 * * *' || github.event_name == 'workflow_dispatch' && (github.event.inputs.job == 'all' || github.event.inputs.job == 'fill-gaps')
     runs-on: ubuntu-latest

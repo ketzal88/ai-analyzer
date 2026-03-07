@@ -6,6 +6,9 @@ import { useClient } from "@/contexts/ClientContext";
 import { ChannelDailySnapshot } from "@/types/channel-snapshots";
 import { UnifiedDateRange, resolvePreset, getComparisonRange, formatRangeLabel } from "@/lib/date-utils";
 import DateRangePicker from "@/components/ui/DateRangePicker";
+import ExportMarkdownButton from "@/components/ui/ExportMarkdownButton";
+import SlackExportButton from "@/components/slack-export/SlackExportButton";
+import { useAnalyst } from "@/contexts/AnalystContext";
 import SemaforoWidget from "@/components/semaforo/SemaforoWidget";
 import Link from "next/link";
 
@@ -180,6 +183,7 @@ function fetchChannels(clientId: string, startDate: string, endDate: string): Pr
 // ── Component ────────────────────────────────────────
 export default function OverviewDashboard() {
     const { selectedClientId: clientId } = useClient();
+    const { openAnalyst } = useAnalyst();
     const [channelData, setChannelData] = useState<Record<string, ChannelDailySnapshot[]>>({});
     const [prevChannelData, setPrevChannelData] = useState<Record<string, ChannelDailySnapshot[]>>({});
     const [isLoading, setIsLoading] = useState(true);
@@ -240,13 +244,20 @@ export default function OverviewDashboard() {
                             Vista unificada &bull; {formatRangeLabel(dateRange)}
                         </p>
                     </div>
-                    <DateRangePicker
-                        value={dateRange}
-                        onChange={setDateRange}
-                        enableCompare
-                        compareValue={compareRange}
-                        onCompareChange={setCompareRange}
-                    />
+                    <div className="flex items-center gap-3">
+                        {clientId && <SlackExportButton clientId={clientId} channelId="cross_channel" startDate={dateRange.start} endDate={dateRange.end} />}
+                        {clientId && <ExportMarkdownButton clientId={clientId} channelId="cross_channel" startDate={dateRange.start} endDate={dateRange.end} />}
+                        <button onClick={() => openAnalyst('cross_channel')} className="px-3 py-2 bg-classic text-stellar font-black text-[10px] uppercase tracking-widest hover:bg-classic/90 transition-all whitespace-nowrap">
+                            Analizar con IA
+                        </button>
+                        <DateRangePicker
+                            value={dateRange}
+                            onChange={setDateRange}
+                            enableCompare
+                            compareValue={compareRange}
+                            onCompareChange={setCompareRange}
+                        />
+                    </div>
                 </header>
 
                 {isLoading && (

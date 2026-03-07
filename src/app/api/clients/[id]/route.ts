@@ -3,6 +3,25 @@ import { NextRequest, NextResponse } from "next/server";
 import { withErrorReporting } from "@/lib/error-reporter";
 
 /**
+ * GET /api/clients/[id] - Get single client
+ */
+export const GET = withErrorReporting("API Clients GET by ID", async (
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) => {
+    const { id } = await params;
+    const sessionCookie = request.cookies.get("session")?.value;
+    if (!sessionCookie) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    await auth.verifySessionCookie(sessionCookie);
+
+    const doc = await db.collection("clients").doc(id).get();
+    if (!doc.exists) return NextResponse.json({ error: "Client not found" }, { status: 404 });
+
+    return NextResponse.json({ client: { id: doc.id, ...doc.data() } });
+});
+
+/**
  * PATCH /api/clients/[id] - Update client (e.g., toggle active, soft delete)
  */
 export const PATCH = withErrorReporting("API Clients PATCH", async (
@@ -44,6 +63,10 @@ export const PATCH = withErrorReporting("API Clients PATCH", async (
         // Google: was off, now on with customer ID
         if (newInt.google && !prevInt.google && (updates.googleAdsId || prev.googleAdsId)) {
             channelsToBackfill.push("GOOGLE");
+        }
+        // GA4: was off, now on with property ID
+        if (newInt.ga4 && !prevInt.ga4 && (updates.ga4PropertyId || prev.ga4PropertyId)) {
+            channelsToBackfill.push("GA4");
         }
         // Ecommerce: was null/different, now set
         if (newInt.ecommerce && newInt.ecommerce !== prevInt.ecommerce) {

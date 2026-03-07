@@ -4,6 +4,9 @@ import AppLayout from "@/components/layouts/AppLayout";
 import { AdvancedKPISummary, DashboardReport, Alert } from "@/types";
 import { UnifiedDateRange, formatRangeLabel } from "@/lib/date-utils";
 import DateRangePicker from "@/components/ui/DateRangePicker";
+import ExportMarkdownButton from "@/components/ui/ExportMarkdownButton";
+import SlackExportButton from "@/components/slack-export/SlackExportButton";
+import { useAnalyst } from "@/contexts/AnalystContext";
 import Link from "next/link";
 
 interface DashboardProps {
@@ -13,6 +16,7 @@ interface DashboardProps {
     onRefresh?: () => void;
     range: UnifiedDateRange;
     onRangeChange: (range: UnifiedDateRange) => void;
+    clientId?: string;
 }
 
 export default function Dashboard({
@@ -21,8 +25,10 @@ export default function Dashboard({
     error = null,
     onRefresh,
     range,
-    onRangeChange
+    onRangeChange,
+    clientId
 }: DashboardProps) {
+    const { openAnalyst } = useAnalyst();
 
     if (isLoading) {
         return (
@@ -76,6 +82,9 @@ export default function Dashboard({
                     </div>
 
                     <div className="flex items-center gap-4">
+                        {clientId && <SlackExportButton clientId={clientId} channelId="cross_channel" startDate={range.start} endDate={range.end} />}
+                        {clientId && <ExportMarkdownButton clientId={clientId} channelId="cross_channel" startDate={range.start} endDate={range.end} />}
+                        <button onClick={() => openAnalyst('cross_channel')} className="px-3 py-2 bg-classic text-stellar font-black text-[10px] uppercase tracking-widest hover:bg-classic/90 transition-all whitespace-nowrap">Analizar con IA</button>
                         <DateRangePicker value={range} onChange={onRangeChange} />
 
                         <button

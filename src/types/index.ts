@@ -375,6 +375,20 @@ export interface Client {
 export type ClientConfigV2 = Client;
 
 /**
+ * Public Token — Shareable client panel access
+ */
+export interface PublicToken {
+    token: string;
+    clientId: string;
+    label?: string;
+    createdAt: string;
+    createdByUid: string;
+    expiresAt?: string;
+    active: boolean;
+    accessCount: number;
+}
+
+/**
  * Prompt Management (Mission 15)
  */
 export interface PromptTemplate {

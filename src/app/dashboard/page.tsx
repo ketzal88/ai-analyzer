@@ -72,5 +72,6 @@ export default function DashboardPage() {
         onRefresh={() => fetchDashboardData(true)}
         range={range}
         onRangeChange={setRange}
+        clientId={clientId || undefined}
     />;
 }

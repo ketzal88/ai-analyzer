@@ -9,6 +9,8 @@ import DateRangePicker from "@/components/ui/DateRangePicker";
 import KPICard, { calcDelta } from "@/components/ui/KPICard";
 import { useAnalyst } from "@/contexts/AnalystContext";
 import Link from "next/link";
+import ExportMarkdownButton from "@/components/ui/ExportMarkdownButton";
+import SlackExportButton from "@/components/slack-export/SlackExportButton";
 import { EntityRollingMetrics, EntityLevel } from "@/types/performance-snapshots";
 import { EntityClassification, FinalDecision, IntentStage, LearningState, FatigueState } from "@/types/classifications";
 import { RecommendationDoc } from "@/types/ai-recommendations";
@@ -175,9 +177,9 @@ export default function MetaAdsChannel() {
 
     // Last snapshot quality rankings
     const lastSnapshot = sortedSnapshots.length > 0 ? sortedSnapshots[sortedSnapshots.length - 1] : null;
-    const qualityRanking = lastSnapshot?.metrics.qualityRanking;
-    const engagementRateRanking = lastSnapshot?.metrics.engagementRateRanking;
-    const conversionRateRanking = lastSnapshot?.metrics.conversionRateRanking;
+    const qualityRanking = lastSnapshot?.metrics.qualityRanking !== "UNKNOWN" ? lastSnapshot?.metrics.qualityRanking : undefined;
+    const engagementRateRanking = lastSnapshot?.metrics.engagementRateRanking !== "UNKNOWN" ? lastSnapshot?.metrics.engagementRateRanking : undefined;
+    const conversionRateRanking = lastSnapshot?.metrics.conversionRateRanking !== "UNKNOWN" ? lastSnapshot?.metrics.conversionRateRanking : undefined;
     const hasQualityData = qualityRanking || engagementRateRanking || conversionRateRanking;
 
     // Funnel data
@@ -314,6 +316,8 @@ export default function MetaAdsChannel() {
                     </div>
                     <div className="flex items-center gap-3">
                         <DateRangePicker value={dateRange} onChange={setDateRange} />
+                        {clientId && <SlackExportButton clientId={clientId} channelId="meta_ads" startDate={dateRange.start} endDate={dateRange.end} />}
+                        {clientId && <ExportMarkdownButton clientId={clientId} channelId="meta_ads" startDate={dateRange.start} endDate={dateRange.end} />}
                         <button onClick={() => openAnalyst('meta_ads')} className="px-3 py-2 bg-classic text-stellar font-black text-[10px] uppercase tracking-widest hover:bg-classic/90 transition-all whitespace-nowrap">Analizar con IA</button>
                     </div>
                 </header>

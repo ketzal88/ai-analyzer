@@ -1029,6 +1029,11 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
                 </div>
             </div>
 
+            {/* Public Link Management */}
+            {isEditing && initialData?.id && (
+                <PublicLinkSection clientId={initialData.id} />
+            )}
+
             {/* AI Engine Tuning - Phase 1 Enhancements */}
             {configData && (
                 <div className="col-span-1 md:col-span-2 space-y-6 pt-6 border-t border-argent">
@@ -1175,5 +1180,145 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
                 </div>
             </div>
         </form>
+    );
+}
+
+// ── Public Link Section ──────────────────────────────────
+
+function PublicLinkSection({ clientId }: { clientId: string }) {
+    const [tokens, setTokens] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [creating, setCreating] = useState(false);
+    const [copied, setCopied] = useState("");
+
+    useEffect(() => {
+        fetch(`/api/admin/public-tokens?clientId=${clientId}`)
+            .then(r => r.json())
+            .then(data => setTokens(data.tokens || []))
+            .catch(() => {})
+            .finally(() => setLoading(false));
+    }, [clientId]);
+
+    async function handleCreate() {
+        setCreating(true);
+        try {
+            const res = await fetch("/api/admin/public-tokens", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ clientId }),
+            });
+            const data = await res.json();
+            if (data.token) {
+                setTokens([...tokens, data.token]);
+            }
+        } catch (err) {
+            console.error("Error creating token:", err);
+        }
+        setCreating(false);
+    }
+
+    async function handleToggle(token: string, active: boolean) {
+        try {
+            await fetch(`/api/admin/public-tokens/${token}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ active: !active }),
+            });
+            setTokens(tokens.map(t => t.token === token ? { ...t, active: !active } : t));
+        } catch (err) {
+            console.error("Error toggling token:", err);
+        }
+    }
+
+    async function handleDelete(token: string) {
+        try {
+            await fetch(`/api/admin/public-tokens/${token}`, { method: "DELETE" });
+            setTokens(tokens.filter(t => t.token !== token));
+        } catch (err) {
+            console.error("Error deleting token:", err);
+        }
+    }
+
+    function handleCopy(token: string) {
+        const url = `${window.location.origin}/public/${token}`;
+        navigator.clipboard.writeText(url);
+        setCopied(token);
+        setTimeout(() => setCopied(""), 2000);
+    }
+
+    const activeTokens = tokens.filter(t => t.active);
+    const inactiveTokens = tokens.filter(t => !t.active);
+
+    return (
+        <div className="col-span-1 md:col-span-2 p-6 bg-stellar border border-argent rounded-lg space-y-4">
+            <div className="flex items-center justify-between">
+                <div>
+                    <h2 className="text-subheader text-text-primary">Link Publico</h2>
+                    <p className="text-small text-text-muted">Dashboard compartible con el cliente (sin login)</p>
+                </div>
+                <button
+                    type="button"
+                    onClick={handleCreate}
+                    disabled={creating}
+                    className="px-4 py-2 bg-classic text-stellar font-bold text-[10px] uppercase tracking-widest hover:bg-classic/90 transition-all disabled:opacity-50"
+                >
+                    {creating ? "Generando..." : "Generar Link"}
+                </button>
+            </div>
+
+            {loading ? (
+                <p className="text-text-muted text-small">Cargando...</p>
+            ) : tokens.length === 0 ? (
+                <p className="text-text-muted text-small">No hay links publicos generados.</p>
+            ) : (
+                <div className="space-y-2">
+                    {[...activeTokens, ...inactiveTokens].map(t => (
+                        <div
+                            key={t.token}
+                            className={`flex items-center justify-between p-3 rounded border ${
+                                t.active ? "border-synced/30 bg-synced/5" : "border-argent bg-special/30"
+                            }`}
+                        >
+                            <div className="flex-1 min-w-0 mr-3">
+                                <code className="text-xs text-white/60 block truncate">
+                                    {typeof window !== "undefined" ? `${window.location.origin}/public/${t.token}` : `/public/${t.token}`}
+                                </code>
+                                <p className="text-[10px] text-text-muted mt-1">
+                                    {t.active ? "Activo" : "Revocado"} · {t.accessCount || 0} visitas
+                                    {t.createdAt && ` · Creado ${new Date(t.createdAt).toLocaleDateString("es-AR")}`}
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => handleCopy(t.token)}
+                                    className="px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-white transition-all"
+                                >
+                                    {copied === t.token ? "Copiado!" : "Copiar"}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleToggle(t.token, t.active)}
+                                    className={`px-2 py-1 text-[10px] font-bold uppercase tracking-widest transition-all ${
+                                        t.active ? "text-red-400/60 hover:text-red-400" : "text-synced/60 hover:text-synced"
+                                    }`}
+                                >
+                                    {t.active ? "Revocar" : "Reactivar"}
+                                </button>
+                                {!t.active && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleDelete(t.token)}
+                                        className="px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-red-400/40 hover:text-red-400 transition-all"
+                                    >
+                                        Eliminar
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
     );
 }
