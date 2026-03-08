@@ -50,7 +50,8 @@
       "Bash(./node_modules/.bin/tsc:*)",
       "Bash(git worktree remove:*)",
       "Bash(git branch:*)",
-      "WebFetch(domain:www.redtrack.io)"
+      "WebFetch(domain:www.redtrack.io)",
+      "WebFetch(domain:help.redtrack.io)"
     ],
     "additionalDirectories": [
       "c:\\Users\\gabri\\Documents\\Worker\\Webs\\ai-analyzer\\src\\app\\api\\export"
