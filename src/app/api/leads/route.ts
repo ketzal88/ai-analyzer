@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
     }
 
     try {
+        // Base query: clientId + ordered by createdAt desc
         let query: FirebaseFirestore.Query = db.collection("leads")
             .where("clientId", "==", clientId)
             .orderBy("createdAt", "desc");
@@ -36,12 +37,35 @@ export async function GET(request: NextRequest) {
             query = query.where("createdAt", "<=", `${endDate}T23:59:59.999Z`);
         }
 
-        const snap = await query.get();
+        let snap;
+        try {
+            snap = await query.get();
+        } catch (queryError: any) {
+            // If composite index is missing, fallback to simple query without date range
+            const msg = queryError?.message || queryError?.details || String(queryError);
+            if (msg.includes("index") || msg.includes("requires an index")) {
+                console.warn("[Leads API] Missing Firestore index, falling back to unfiltered query. Create index: leads(clientId ASC, createdAt DESC)");
+                const fallback = await db.collection("leads")
+                    .where("clientId", "==", clientId)
+                    .get();
+                snap = fallback;
+            } else {
+                throw queryError;
+            }
+        }
 
         let leads: Lead[] = snap.docs.map((doc) => ({
             id: doc.id,
             ...doc.data(),
         })) as Lead[];
+
+        // Client-side date filter (fallback if index was missing)
+        if (startDate) {
+            leads = leads.filter((l) => l.createdAt >= `${startDate}T00:00:00.000Z`);
+        }
+        if (endDate) {
+            leads = leads.filter((l) => l.createdAt <= `${endDate}T23:59:59.999Z`);
+        }
 
         // Client-side filters (Firestore doesn't support multiple inequality fields)
         if (closer) {
@@ -54,12 +78,15 @@ export async function GET(request: NextRequest) {
             leads = leads.filter((l) => l.postCallStatus === postCallStatus);
         }
 
+        // Sort by createdAt desc (in case fallback didn't order)
+        leads.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+
         const total = leads.length;
         const paginated = leads.slice(offset, offset + limit);
 
         return NextResponse.json({ leads: paginated, total });
-    } catch (error: unknown) {
-        console.error("[Leads API] Error listing leads:", error);
+    } catch (error: any) {
+        console.error("[Leads API] Error listing leads:", error?.message || String(error));
         return NextResponse.json({ error: "Failed to list leads" }, { status: 500 });
     }
 }
