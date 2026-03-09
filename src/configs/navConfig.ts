@@ -178,5 +178,14 @@ export const navConfig: NavItem[] = [
         icon: "M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z",
         adminOnly: true,
         section: 'admin',
+    },
+    {
+        title: "Panorama General",
+        subtitle: "KPIs multi-canal por equipo",
+        href: "/admin/panorama",
+        number: "20",
+        icon: "M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z",
+        adminOnly: true,
+        section: 'admin',
     }
 ];

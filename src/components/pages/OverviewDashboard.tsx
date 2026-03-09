@@ -10,6 +10,7 @@ import ExportMarkdownButton from "@/components/ui/ExportMarkdownButton";
 import SlackExportButton from "@/components/slack-export/SlackExportButton";
 import { useAnalyst } from "@/contexts/AnalystContext";
 import SemaforoWidget from "@/components/semaforo/SemaforoWidget";
+import MonthlyHistoryTable from "@/components/overview/MonthlyHistoryTable";
 import Link from "next/link";
 
 // ── Formatters ───────────────────────────────────────
@@ -427,6 +428,9 @@ export default function OverviewDashboard() {
                                 </p>
                             </div>
                         )}
+
+                        {/* Monthly History Table */}
+                        {clientId && <MonthlyHistoryTable clientId={clientId} />}
                     </>
                 )}
             </div>
