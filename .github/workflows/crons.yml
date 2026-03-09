@@ -8,6 +8,12 @@ on:
     - cron: '30 9 * * *'
     # Account Health - Every 6 hours
     - cron: '0 */6 * * *'
+    # Semáforo - Daily at 10:10 UTC (after data-sync)
+    - cron: '10 10 * * *'
+    # Daily Briefing - Daily at 10:15 UTC (after data-sync + semáforo)
+    - cron: '15 10 * * *'
+    # Weekly Alerts - Monday at 10:30 UTC
+    - cron: '30 10 * * 1'
   workflow_dispatch:
     inputs:
       job:
@@ -20,6 +26,9 @@ on:
           - sync-channels
           - fill-gaps
           - account-health
+          - semaforo
+          - daily-briefing
+          - weekly-alerts
 
 env:
   APP_URL: https://ai-analyzer-dusky-phi.vercel.app
@@ -83,3 +92,36 @@ jobs:
           echo "🏥 Triggering Account Health..."
           curl -sS -f "${{ env.APP_URL }}/api/cron/account-health" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+
+  semaforo:
+    if: github.event.schedule == '10 10 * * *' || github.event_name == 'workflow_dispatch' && (github.event.inputs.job == 'all' || github.event.inputs.job == 'semaforo')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Semáforo Computation
+        run: |
+          echo "🚦 Triggering Semáforo..."
+          curl -sS -f "${{ env.APP_URL }}/api/cron/semaforo" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            || echo "⚠️ Semáforo failed"
+
+  daily-briefing:
+    if: github.event.schedule == '15 10 * * *' || github.event_name == 'workflow_dispatch' && (github.event.inputs.job == 'all' || github.event.inputs.job == 'daily-briefing')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Daily Multi-Channel Briefing
+        run: |
+          echo "📊 Triggering Daily Briefing..."
+          curl -sS -f "${{ env.APP_URL }}/api/cron/daily-briefing" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            || echo "⚠️ Daily Briefing failed"
+
+  weekly-alerts:
+    if: github.event.schedule == '30 10 * * 1' || github.event_name == 'workflow_dispatch' && (github.event.inputs.job == 'all' || github.event.inputs.job == 'weekly-alerts')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Weekly Alert Digest
+        run: |
+          echo "📋 Triggering Weekly Alerts..."
+          curl -sS -f "${{ env.APP_URL }}/api/cron/weekly-alerts" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            || echo "⚠️ Weekly Alerts failed"

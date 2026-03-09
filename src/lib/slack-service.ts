@@ -62,14 +62,16 @@ export class SlackService {
 
     // ─── Helper: send a Slack message ────────────────────────
 
-    private static async postMessage(botToken: string | null, webhook: string | null, channel: string | null, blocks: any[], fallbackText: string) {
+    private static async postMessage(botToken: string | null, webhook: string | null, channel: string | null, blocks: any[], fallbackText: string, opts?: { bypassMasterSwitch?: boolean }) {
         try {
-            // Master Switch Check
-            const sysSettings = await SystemSettingsService.getSettings();
-            const errorChannel = process.env.SLACK_ERROR_CHANNEL_ID || process.env.SLACK_ERROR_CHANNEL;
-            if (!sysSettings.alertsEnabled && channel !== errorChannel) {
-                console.log(`[SlackService] Alerts are GLOBALLY DISABLED. Skipping delivery to channel: ${channel}`);
-                return;
+            // Master Switch Check (bypass for critical health alerts and daily briefing)
+            if (!opts?.bypassMasterSwitch) {
+                const sysSettings = await SystemSettingsService.getSettings();
+                const errorChannel = process.env.SLACK_ERROR_CHANNEL_ID || process.env.SLACK_ERROR_CHANNEL;
+                if (!sysSettings.alertsEnabled && channel !== errorChannel) {
+                    console.log(`[SlackService] Alerts are GLOBALLY DISABLED. Skipping delivery to channel: ${channel}`);
+                    return;
+                }
             }
 
             if (botToken && channel) {
@@ -324,6 +326,144 @@ export class SlackService {
         ];
 
         await this.postMessage(botToken, webhook, channel, blocks, `Reporte diario de ${clientName}`);
+    }
+
+    // ═════════════════════════════════════════════════════════
+    //  1B. MULTI-CHANNEL DAILY BRIEFING — All channels in one message
+    // ═════════════════════════════════════════════════════════
+
+    /**
+     * Sends a unified daily briefing with data from ALL active channels.
+     * Revenue dedup: Ecommerce is source of truth. Ad platform revenue is NOT summed into total.
+     * Blended ROAS = ecommerce_revenue / (meta_spend + google_spend).
+     */
+    static async sendMultiChannelDigest(
+        clientId: string,
+        clientName: string,
+        dateRange: SnapshotDateRange,
+        channelData: {
+            meta?: { spend: number; impressions: number; clicks: number; ctr: number; conversions: number; revenue: number; roas: number; cpa: number };
+            google?: { spend: number; impressions: number; clicks: number; ctr: number; conversions: number; revenue: number; roas: number; cpa: number };
+            ecommerce?: { revenue: number; orders: number; avgOrderValue: number; refunds?: number; totalRefundAmount?: number; newCustomers?: number; returningCustomers?: number; source?: string };
+            email?: { sent: number; opens: number; openRate: number; emailClicks: number; clickRate: number; clickToOpenRate: number; emailRevenue: number; source?: string };
+        },
+        currency?: string
+    ) {
+        const { client, channel, botToken, webhook } = await this.resolveChannel(clientId);
+        if (!botToken && !webhook) return;
+
+        const cur = currency || client?.currency || "USD";
+
+        const fmtDate = (d: string) => {
+            const [y, m, day] = d.split("-");
+            return `${parseInt(day)} ${["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"][parseInt(m) - 1]}`;
+        };
+
+        let text = `📊 *WORKER BRAIN — Resumen Diario*\n`;
+        text += `*${clientName}* · ${fmtDate(dateRange.start)} - ${fmtDate(dateRange.end)} 2026\n\n`;
+
+        // ── PAID MEDIA ──
+        const hasMeta = !!channelData.meta && channelData.meta.spend > 0;
+        const hasGoogle = !!channelData.google && channelData.google.spend > 0;
+
+        if (hasMeta || hasGoogle) {
+            text += `━━━ *PAID MEDIA* ━━━\n\n`;
+
+            if (hasMeta) {
+                const m = channelData.meta!;
+                text += `🟦 *Meta:*\n`;
+                text += `💰 ${this.fmtCurrency(m.spend, cur)} invertido\n`;
+                text += `👁️ ${this.fmtNum(m.impressions)} impresiones · ${this.fmtNum(m.clicks)} clicks · CTR ${this.fmtPct(m.ctr)}\n`;
+                text += `🛒 ${this.fmtNum(m.conversions)} compras\n`;
+                text += `📈 ROAS ${m.roas.toFixed(2)}x · CPA ${this.fmtCurrency(m.cpa, cur)}\n\n`;
+            }
+            if (hasGoogle) {
+                const g = channelData.google!;
+                text += `🟩 *Google:*\n`;
+                text += `💰 ${this.fmtCurrency(g.spend, cur)} invertido\n`;
+                text += `👁️ ${this.fmtNum(g.impressions)} impresiones · ${this.fmtNum(g.clicks)} clicks · CTR ${this.fmtPct(g.ctr)}\n`;
+                text += `🎯 ${this.fmtNum(g.conversions)} conversiones\n`;
+                text += `📈 ROAS ${g.roas.toFixed(2)}x · CPA ${this.fmtCurrency(g.cpa, cur)}\n\n`;
+            }
+
+            const totalSpend = (channelData.meta?.spend || 0) + (channelData.google?.spend || 0);
+            text += `💸 *Total Ads:* ${this.fmtCurrency(totalSpend, cur)} invertido\n\n`;
+        }
+
+        // ── EMAIL ──
+        const hasEmail = !!channelData.email && channelData.email.sent > 0;
+
+        if (hasEmail) {
+            const em = channelData.email!;
+            text += `━━━ *EMAIL* ━━━\n\n`;
+            text += `📤 Enviados: ${this.fmtNum(em.sent)}\n`;
+            text += `👀 Opens: ${this.fmtPct(em.openRate)}\n`;
+            text += `🖱️ Clicks: ${this.fmtPct(em.clickRate)} · CTOR: ${this.fmtPct(em.clickToOpenRate)}\n`;
+            if (em.emailRevenue > 0) {
+                text += `💰 Revenue: ${this.fmtCurrency(em.emailRevenue, cur)}\n`;
+            }
+            text += `\n`;
+        }
+
+        // ── ECOMMERCE ──
+        const hasEcom = !!channelData.ecommerce && channelData.ecommerce.orders > 0;
+
+        if (hasEcom) {
+            const e = channelData.ecommerce!;
+            text += `━━━ *ECOMMERCE* ━━━\n\n`;
+            const totalCustomers = (e.newCustomers || 0) + (e.returningCustomers || 0);
+            text += `💰 Ventas: ${this.fmtCurrency(e.revenue, cur)}\n`;
+            text += `📦 ${this.fmtNum(e.orders)} ordenes · 🧾 Ticket: ${this.fmtCurrency(e.avgOrderValue, cur)}\n`;
+            if (totalCustomers > 0) {
+                text += `👥 ${this.fmtNum(totalCustomers)} clientes`;
+                if ((e.newCustomers || 0) > 0 || (e.returningCustomers || 0) > 0) {
+                    text += ` (${this.fmtNum(e.newCustomers || 0)} nuevos · ${this.fmtNum(e.returningCustomers || 0)} recurrentes)`;
+                }
+                text += `\n`;
+            }
+            if (e.refunds && e.refunds > 0 && (e.totalRefundAmount || 0) > 0) {
+                text += `↩️ Reembolsos: ${this.fmtNum(e.refunds)} (${this.fmtCurrency(e.totalRefundAmount || 0, cur)})\n`;
+            }
+            text += `\n`;
+        }
+
+        // ── RESUMEN ──
+        const totalAdsSpend = (channelData.meta?.spend || 0) + (channelData.google?.spend || 0);
+
+        if (hasEcom && (hasMeta || hasGoogle)) {
+            const ecomRevenue = channelData.ecommerce!.revenue;
+            const blendedRoas = totalAdsSpend > 0 ? ecomRevenue / totalAdsSpend : 0;
+
+            text += `━━━ *RESUMEN* ━━━\n\n`;
+            text += `💵 Revenue real (ecommerce): ${this.fmtCurrency(ecomRevenue, cur)}\n`;
+            text += `💸 Inversión total (ads): ${this.fmtCurrency(totalAdsSpend, cur)}\n`;
+            text += `📊 Blended ROAS: ${blendedRoas.toFixed(2)}x\n`;
+        } else if ((hasMeta || hasGoogle) && !hasEcom) {
+            const platformRevenue = (channelData.meta?.revenue || 0) + (channelData.google?.revenue || 0);
+            if (platformRevenue > 0) {
+                text += `━━━ *RESUMEN* ━━━\n\n`;
+                text += `💵 Revenue (reportado por plataforma): ${this.fmtCurrency(platformRevenue, cur)}\n`;
+                text += `💸 Inversión total: ${this.fmtCurrency(totalAdsSpend, cur)}\n`;
+                text += `_⚠️ Sin ecommerce conectado. Revenue es atribución de plataforma._\n`;
+            }
+        }
+
+        text += `\n_🤖 Generado por Worker Brain_`;
+
+        const blocks: any[] = [
+            { type: "section", text: { type: "mrkdwn", text } },
+            { type: "divider" },
+            {
+                type: "context",
+                elements: [{
+                    type: "mrkdwn",
+                    text: `<https://ai-analyzer-dusky-phi.vercel.app/dashboard?clientId=${clientId}|📊 Dashboard> · <https://ai-analyzer-dusky-phi.vercel.app/ecommerce?clientId=${clientId}|🛒 Ecommerce> · <https://ai-analyzer-dusky-phi.vercel.app/google-ads?clientId=${clientId}|📈 Google Ads>`
+                }]
+            }
+        ];
+
+        // Bypass master switch — daily briefing should always be sent
+        await this.postMessage(botToken, webhook, channel, blocks, `Resumen diario de ${clientName}`, { bypassMasterSwitch: true });
     }
 
     // ═════════════════════════════════════════════════════════
@@ -672,15 +812,15 @@ export class SlackService {
 
         const fallbackText = `Account Health: ${clientName} — ${alertType}`;
 
-        // Send to internal channel
+        // Send to internal channel — ALWAYS bypass master switch for health alerts
         if (channel) {
-            await this.postMessage(botToken, webhook, channel, blocks, fallbackText);
+            await this.postMessage(botToken, webhook, channel, blocks, fallbackText, { bypassMasterSwitch: true });
         }
 
         // Also send to public client channel (if configured and different from internal)
         const publicChannel = client?.slackPublicChannel || null;
         if (publicChannel && publicChannel !== channel) {
-            await this.postMessage(botToken, webhook, publicChannel, blocks, fallbackText);
+            await this.postMessage(botToken, webhook, publicChannel, blocks, fallbackText, { bypassMasterSwitch: true });
         }
     }
 
