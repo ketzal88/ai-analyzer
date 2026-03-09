@@ -83,6 +83,13 @@ jobs:
           curl -sS -f "${{ env.APP_URL }}/api/cron/fill-gaps" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
 
+      - name: Process Backfill Queue
+        run: |
+          echo "📦 Processing backfill queue..."
+          curl -sS -f "${{ env.APP_URL }}/api/cron/process-backfill-queue" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            || echo "⚠️ Backfill queue processing failed"
+
   account-health:
     if: github.event.schedule == '0 */6 * * *' || github.event_name == 'workflow_dispatch' && (github.event.inputs.job == 'all' || github.event.inputs.job == 'account-health')
     runs-on: ubuntu-latest

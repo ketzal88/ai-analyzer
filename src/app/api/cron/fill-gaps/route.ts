@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
             console.log(`  [${i + 1}/${tasksToRun.length}] ${task.clientName} / ${task.channel} / ${task.date} (${task.age}d old)...`);
 
             try {
-                const result = await ChannelBackfillService.backfillChannel(task.clientId, task.channel);
+                const result = await ChannelBackfillService.backfillChannel(task.clientId, task.channel, task.date, task.date);
 
                 if (result.status === "success") {
                     results.push({ clientId: task.clientId, clientName: task.clientName, channel: task.channel, date: task.date, status: "success" });
