@@ -27,8 +27,9 @@ export function middleware(request: NextRequest) {
         return NextResponse.redirect(url);
     }
 
-    // Admin Route Protection
-    if (pathname.startsWith("/admin")) {
+    // Admin Route Protection — only restrict sensitive admin pages
+    const adminOnlyRoutes = ["/admin/alerts", "/admin/cron", "/admin/system"];
+    if (adminOnlyRoutes.some((route) => pathname.startsWith(route))) {
         const uid = request.cookies.get("uid")?.value;
         const adminUids = (process.env.ADMIN_UIDS || "").split(",");
 
