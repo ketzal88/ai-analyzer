@@ -89,6 +89,7 @@ export interface AnalystMeta {
     end: string;
   };
   targets: Record<string, number | undefined>;
+  brandProfile?: Record<string, string | undefined>;
 }
 
 export interface AnalystChannelData {

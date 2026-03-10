@@ -99,6 +99,8 @@ export async function GET(request: NextRequest) {
                             spend,
                             revenue,
                             conversions,
+                            purchases,
+                            leads,
                             impressions,
                             clicks,
                             ctr: Number(row.ctr || 0),

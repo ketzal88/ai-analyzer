@@ -300,6 +300,7 @@ export class ChannelBackfillService {
                         clientId, channel: "META", date: row.date_start,
                         metrics: {
                             spend, revenue, conversions,
+                            purchases, leads,
                             impressions: Number(row.impressions || 0),
                             clicks: Number(row.clicks || 0),
                             ctr: Number(row.ctr || 0), cpc: Number(row.cpc || 0),

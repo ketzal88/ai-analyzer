@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Client, Team } from "@/types";
 import { EngineConfig, getDefaultEngineConfig } from "@/types/engine-config";
@@ -67,7 +67,10 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
             acceptableVolatilityPct: initialData?.constraints?.acceptableVolatilityPct || 0,
             scalingSpeed: initialData?.constraints?.scalingSpeed || "normal",
             fatigueTolerance: initialData?.constraints?.fatigueTolerance || "normal",
-        }
+        },
+
+        // Brand Profile
+        brandProfile: initialData?.brandProfile || {},
     });
 
     const [slugModifiedManually, setSlugModifiedManually] = useState(false);
@@ -99,10 +102,8 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
         }
     }, [isEditing, initialData?.id]);
 
-    // Fetch GA4 properties when GA4 is toggled on
-    useEffect(() => {
-        if (!formData.integraciones?.ga4) return;
-        if (ga4Properties.length > 0) return; // already loaded
+    // Fetch GA4 properties
+    const fetchGa4Properties = useCallback(() => {
         setGa4PropsLoading(true);
         setGa4PropsError(null);
         fetch("/api/integrations/ga4/list-properties")
@@ -117,7 +118,14 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
             })
             .catch(() => setGa4PropsError("No se pudo conectar"))
             .finally(() => setGa4PropsLoading(false));
-    }, [formData.integraciones?.ga4]);
+    }, []);
+
+    // Auto-fetch when GA4 is toggled on
+    useEffect(() => {
+        if (!formData.integraciones?.ga4) return;
+        if (ga4Properties.length > 0) return; // already loaded on first toggle
+        fetchGa4Properties();
+    }, [formData.integraciones?.ga4, ga4Properties.length, fetchGa4Properties]);
 
     // Auto-generate slug from name
     useEffect(() => {
@@ -575,6 +583,162 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
                     </div>
                 </div>
 
+                {/* Brand Profile */}
+                <div className="p-4 bg-special/20 rounded-lg border border-argent space-y-4">
+                    <h3 className="text-body font-bold text-text-primary">Perfil de Marca</h3>
+                    <p className="text-tiny text-text-muted">Contexto de marca para que la IA genere análisis y recomendaciones más relevantes.</p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-small font-bold text-text-muted uppercase mb-2">Tipo de Marca</label>
+                            <select
+                                value={formData.brandProfile?.brandType || ""}
+                                onChange={(e) => setFormData({ ...formData, brandProfile: { ...formData.brandProfile, brandType: (e.target.value || undefined) as any } })}
+                                className="w-full bg-stellar border border-argent rounded px-3 py-2 text-small text-text-primary focus:border-classic outline-none"
+                            >
+                                <option value="">— Sin definir —</option>
+                                <option value="aesthetic">Estética (moda, cosméticos, arte, bebidas)</option>
+                                <option value="solution">Solución (suplementos, skincare, servicios, software)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-small font-bold text-text-muted uppercase mb-2">Productos Estrella</label>
+                            <input
+                                type="text"
+                                value={formData.brandProfile?.starProducts || ""}
+                                onChange={(e) => setFormData({ ...formData, brandProfile: { ...formData.brandProfile, starProducts: e.target.value } })}
+                                placeholder="Ej: Conjunto Paris, Body Venecia, Trento"
+                                className="w-full"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-small font-bold text-text-muted uppercase mb-2">Audiencia Objetivo</label>
+                        <textarea
+                            value={formData.brandProfile?.targetAudience || ""}
+                            onChange={(e) => setFormData({ ...formData, brandProfile: { ...formData.brandProfile, targetAudience: e.target.value } })}
+                            placeholder="Ej: Mujeres +20 hasta 55, Hombres +25 hasta 60. Buscan sentirse sexy, mejorar autoestima..."
+                            rows={2}
+                            className="w-full bg-stellar border border-argent rounded px-3 py-2 text-small text-text-primary placeholder:text-text-muted/50 focus:border-classic outline-none resize-y"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-small font-bold text-text-muted uppercase mb-2">Problema / Solución</label>
+                        <textarea
+                            value={formData.brandProfile?.problemSolution || ""}
+                            onChange={(e) => setFormData({ ...formData, brandProfile: { ...formData.brandProfile, problemSolution: e.target.value } })}
+                            placeholder="Ej: Lencería aburrida → ofrecemos diseño original. Baja autoestima → conjuntos que favorecen..."
+                            rows={3}
+                            className="w-full bg-stellar border border-argent rounded px-3 py-2 text-small text-text-primary placeholder:text-text-muted/50 focus:border-classic outline-none resize-y"
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-small font-bold text-text-muted uppercase mb-2">Diferenciadores</label>
+                            <textarea
+                                value={formData.brandProfile?.differentiators || ""}
+                                onChange={(e) => setFormData({ ...formData, brandProfile: { ...formData.brandProfile, differentiators: e.target.value } })}
+                                placeholder="Ej: Diseño original, envío gratis, 12 cuotas sin interés, tabla de talles a medida..."
+                                rows={3}
+                                className="w-full bg-stellar border border-argent rounded px-3 py-2 text-small text-text-primary placeholder:text-text-muted/50 focus:border-classic outline-none resize-y"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-small font-bold text-text-muted uppercase mb-2">Beneficios del Producto</label>
+                            <textarea
+                                value={formData.brandProfile?.productBenefits || ""}
+                                onChange={(e) => setFormData({ ...formData, brandProfile: { ...formData.brandProfile, productBenefits: e.target.value } })}
+                                placeholder="Ej: Buen calce, variedad de talles, sexy y femenino sin vulgaridad..."
+                                rows={3}
+                                className="w-full bg-stellar border border-argent rounded px-3 py-2 text-small text-text-primary placeholder:text-text-muted/50 focus:border-classic outline-none resize-y"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-small font-bold text-text-muted uppercase mb-2">Garantía y Autoridad</label>
+                            <textarea
+                                value={formData.brandProfile?.guaranteeAuthority || ""}
+                                onChange={(e) => setFormData({ ...formData, brandProfile: { ...formData.brandProfile, guaranteeAuthority: e.target.value } })}
+                                placeholder="Ej: Cambio dentro de 10 días, tabla de talles exacta, reseñas positivas, influencers..."
+                                rows={2}
+                                className="w-full bg-stellar border border-argent rounded px-3 py-2 text-small text-text-primary placeholder:text-text-muted/50 focus:border-classic outline-none resize-y"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-small font-bold text-text-muted uppercase mb-2">Problemas de Marketing</label>
+                            <textarea
+                                value={formData.brandProfile?.marketingProblems || ""}
+                                onChange={(e) => setFormData({ ...formData, brandProfile: { ...formData.brandProfile, marketingProblems: e.target.value } })}
+                                placeholder="Ej: Costos altos, carritos abandonados, picos de ventas, poco contenido en redes..."
+                                rows={2}
+                                className="w-full bg-stellar border border-argent rounded px-3 py-2 text-small text-text-primary placeholder:text-text-muted/50 focus:border-classic outline-none resize-y"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-small font-bold text-text-muted uppercase mb-2">Objeciones Típicas</label>
+                            <textarea
+                                value={formData.brandProfile?.commonObjections || ""}
+                                onChange={(e) => setFormData({ ...formData, brandProfile: { ...formData.brandProfile, commonObjections: e.target.value } })}
+                                placeholder="Ej: No sé si me va a quedar bien, es caro, me da vergüenza, no sé si es para mi edad..."
+                                rows={2}
+                                className="w-full bg-stellar border border-argent rounded px-3 py-2 text-small text-text-primary placeholder:text-text-muted/50 focus:border-classic outline-none resize-y"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-small font-bold text-text-muted uppercase mb-2">Transformación Deseada</label>
+                            <textarea
+                                value={formData.brandProfile?.desiredTransformation || ""}
+                                onChange={(e) => setFormData({ ...formData, brandProfile: { ...formData.brandProfile, desiredTransformation: e.target.value } })}
+                                placeholder="Ej: Sentirse sexy, lookearme de punta a punta, sorprender a mi pareja..."
+                                rows={2}
+                                className="w-full bg-stellar border border-argent rounded px-3 py-2 text-small text-text-primary placeholder:text-text-muted/50 focus:border-classic outline-none resize-y"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-small font-bold text-text-muted uppercase mb-2">Voz del Cliente (frases exactas)</label>
+                        <textarea
+                            value={formData.brandProfile?.customerVoice || ""}
+                            onChange={(e) => setFormData({ ...formData, brandProfile: { ...formData.brandProfile, customerVoice: e.target.value } })}
+                            placeholder="Ej: &quot;No estoy flaca para usar lencería&quot;, &quot;Me da vergüenza&quot;, &quot;Total nadie me lo ve&quot;..."
+                            rows={2}
+                            className="w-full bg-stellar border border-argent rounded px-3 py-2 text-small text-text-primary placeholder:text-text-muted/50 focus:border-classic outline-none resize-y"
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-small font-bold text-text-muted uppercase mb-2">Creencias Limitantes</label>
+                            <textarea
+                                value={formData.brandProfile?.limitingBeliefs || ""}
+                                onChange={(e) => setFormData({ ...formData, brandProfile: { ...formData.brandProfile, limitingBeliefs: e.target.value } })}
+                                placeholder="Ej: Total nadie me lo ve, es demasiado para mí, voy a quedar ridícula..."
+                                rows={2}
+                                className="w-full bg-stellar border border-argent rounded px-3 py-2 text-small text-text-primary placeholder:text-text-muted/50 focus:border-classic outline-none resize-y"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-small font-bold text-text-muted uppercase mb-2">Competencia</label>
+                            <input
+                                type="text"
+                                value={formData.brandProfile?.competitors || ""}
+                                onChange={(e) => setFormData({ ...formData, brandProfile: { ...formData.brandProfile, competitors: e.target.value } })}
+                                placeholder="Ej: Mayka by Anita, Sheer, Tienda Canela, Pura Intimates"
+                                className="w-full"
+                            />
+                        </div>
+                    </div>
+                </div>
+
                 {/* Conversion Schema Override */}
                 <div className="p-4 bg-special/20 rounded-lg border border-argent space-y-4">
                     <div className="flex items-center justify-between">
@@ -815,7 +979,21 @@ export default function ClientForm({ initialData, isEditing = false }: ClientFor
                                     </div>
                                 ) : ga4Properties.length > 0 ? (
                                     <div>
-                                        <label className="block text-tiny text-text-muted mb-1 font-bold">SELECCIONAR PROPIEDAD</label>
+                                        <div className="flex items-center justify-between mb-1">
+                                            <label className="text-tiny text-text-muted font-bold">SELECCIONAR PROPIEDAD</label>
+                                            <button
+                                                type="button"
+                                                onClick={fetchGa4Properties}
+                                                disabled={ga4PropsLoading}
+                                                className="flex items-center gap-1 text-tiny text-classic hover:text-classic/80 transition-colors disabled:opacity-50"
+                                                title="Actualizar lista de propiedades"
+                                            >
+                                                <svg className={`w-3.5 h-3.5 ${ga4PropsLoading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                </svg>
+                                                Actualizar
+                                            </button>
+                                        </div>
                                         <select
                                             value={formData.ga4PropertyId || ""}
                                             onChange={(e) => setFormData({ ...formData, ga4PropertyId: e.target.value })}

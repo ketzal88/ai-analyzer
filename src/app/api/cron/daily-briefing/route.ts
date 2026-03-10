@@ -161,8 +161,8 @@ export async function GET(request: NextRequest) {
  * Aggregate channel_snapshots into per-channel summaries.
  */
 function aggregateChannelData(snapshots: ChannelDailySnapshot[]) {
-    const meta = { spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0 };
-    const google = { spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0 };
+    const meta = { spend: 0, impressions: 0, clicks: 0, conversions: 0, purchases: 0, leads: 0, revenue: 0 };
+    const google = { spend: 0, impressions: 0, clicks: 0, conversions: 0, purchases: 0, revenue: 0 };
     const ecommerce = { revenue: 0, orders: 0, refunds: 0, totalRefundAmount: 0, newCustomers: 0, returningCustomers: 0, source: "" };
     const email = { sent: 0, opens: 0, emailClicks: 0, emailRevenue: 0, source: "" };
 
@@ -178,6 +178,8 @@ function aggregateChannelData(snapshots: ChannelDailySnapshot[]) {
                 meta.impressions += m.impressions || 0;
                 meta.clicks += m.clicks || 0;
                 meta.conversions += m.conversions || 0;
+                meta.purchases += m.purchases || 0;
+                meta.leads += m.leads || 0;
                 meta.revenue += m.revenue || 0;
                 break;
 
@@ -187,6 +189,7 @@ function aggregateChannelData(snapshots: ChannelDailySnapshot[]) {
                 google.impressions += m.impressions || 0;
                 google.clicks += m.clicks || 0;
                 google.conversions += m.conversions || 0;
+                google.purchases += m.purchases || 0;
                 google.revenue += m.revenue || 0;
                 break;
 
@@ -217,7 +220,8 @@ function aggregateChannelData(snapshots: ChannelDailySnapshot[]) {
     if (hasMeta) {
         const ctr = meta.impressions > 0 ? (meta.clicks / meta.impressions) * 100 : 0;
         const roas = meta.spend > 0 ? meta.revenue / meta.spend : 0;
-        const cpa = meta.conversions > 0 ? meta.spend / meta.conversions : 0;
+        const primaryConversions = meta.purchases || meta.conversions;
+        const cpa = primaryConversions > 0 ? meta.spend / primaryConversions : 0;
         result.meta = { ...meta, ctr, roas, cpa };
     }
 

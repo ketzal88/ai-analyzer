@@ -342,8 +342,8 @@ export class SlackService {
         clientName: string,
         dateRange: SnapshotDateRange,
         channelData: {
-            meta?: { spend: number; impressions: number; clicks: number; ctr: number; conversions: number; revenue: number; roas: number; cpa: number };
-            google?: { spend: number; impressions: number; clicks: number; ctr: number; conversions: number; revenue: number; roas: number; cpa: number };
+            meta?: { spend: number; impressions: number; clicks: number; ctr: number; conversions: number; purchases: number; leads: number; revenue: number; roas: number; cpa: number };
+            google?: { spend: number; impressions: number; clicks: number; ctr: number; conversions: number; purchases: number; revenue: number; roas: number; cpa: number };
             ecommerce?: { revenue: number; orders: number; avgOrderValue: number; refunds?: number; totalRefundAmount?: number; newCustomers?: number; returningCustomers?: number; source?: string };
             email?: { sent: number; opens: number; openRate: number; emailClicks: number; clickRate: number; clickToOpenRate: number; emailRevenue: number; source?: string };
         },
@@ -374,7 +374,8 @@ export class SlackService {
                 text += `🟦 *Meta:*\n`;
                 text += `💰 ${this.fmtCurrency(m.spend, cur)} invertido\n`;
                 text += `👁️ ${this.fmtNum(m.impressions)} impresiones · ${this.fmtNum(m.clicks)} clicks · CTR ${this.fmtPct(m.ctr)}\n`;
-                text += `🛒 ${this.fmtNum(m.conversions)} compras\n`;
+                const metaPurchases = m.purchases || m.conversions;
+                text += `🛒 ${this.fmtNum(metaPurchases)} compras\n`;
                 text += `📈 ROAS ${m.roas.toFixed(2)}x · CPA ${this.fmtCurrency(m.cpa, cur)}\n\n`;
             }
             if (hasGoogle) {

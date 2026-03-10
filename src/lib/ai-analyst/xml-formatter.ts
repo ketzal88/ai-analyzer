@@ -65,10 +65,28 @@ function formatClient(ctx: AnalystContext): string {
     funnel_priority: m.funnelPriority,
   });
 
-  const targetAttrs = buildAttrs(m.targets);
-  const targetLine = targetAttrs ? `\n    <targets ${targetAttrs} />` : '';
+  const lines: string[] = [];
+  lines.push(`  <client ${attrs}>`);
 
-  return `  <client ${attrs}>${targetLine}\n  </client>`;
+  const targetAttrs = buildAttrs(m.targets);
+  if (targetAttrs) lines.push(`    <targets ${targetAttrs} />`);
+
+  // Brand profile — rich context for AI prompts
+  if (m.brandProfile) {
+    const bp = m.brandProfile;
+    const filledFields = Object.entries(bp).filter(([, v]) => v != null && v !== '');
+    if (filledFields.length > 0) {
+      lines.push('    <brand_profile>');
+      for (const [key, value] of filledFields) {
+        const tag = key.replace(/([A-Z])/g, '_$1').toLowerCase(); // camelCase → snake_case
+        lines.push(`      <${tag}>${escapeXml(String(value))}</${tag}>`);
+      }
+      lines.push('    </brand_profile>');
+    }
+  }
+
+  lines.push('  </client>');
+  return lines.join('\n');
 }
 
 function formatPeriod(ctx: AnalystContext): string {

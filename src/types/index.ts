@@ -363,6 +363,23 @@ export interface Client {
     // Worker Brain V2: Timezone for date construction
     timezone?: string;  // IANA timezone (e.g., "America/Argentina/Buenos_Aires", "America/Mexico_City")
 
+    // Brand Profile: Rich context for AI prompts
+    brandProfile?: {
+        brandType?: 'aesthetic' | 'solution';       // Estética vs Solución
+        targetAudience?: string;                     // Demographics + psychographics
+        problemSolution?: string;                    // Problem/solution pairs
+        differentiators?: string;                    // How the brand differentiates
+        productBenefits?: string;                    // Key product benefits
+        guaranteeAuthority?: string;                 // Guarantees, social proof, authority
+        marketingProblems?: string;                  // Current marketing challenges
+        commonObjections?: string;                   // Typical customer objections
+        desiredTransformation?: string;              // What the customer wants to become/feel
+        customerVoice?: string;                      // Exact phrases customers use
+        starProducts?: string;                       // Hero products or categories
+        limitingBeliefs?: string;                    // Internal barriers customers have
+        competitors?: string;                        // Main competitors
+    };
+
     kpiConfig?: KPIConfig; // Optional custom overrides (legacy/simplified)
     createdAt: string;
     updatedAt: string;
