@@ -758,49 +758,195 @@ export class SlackService {
     //  6. ACCOUNT HEALTH ALERT — Estado de cuenta Meta
     // ═════════════════════════════════════════════════════════
 
+    // ─── Helpers: Account Health Alert Routing ──────────────
+
+    /**
+     * Determines if an alert should be sent to the client's public channel.
+     * Only CRITICAL alerts that directly impact campaigns are sent to clients.
+     */
+    private static shouldSendToClient(alertType: string, severity: "info" | "warning" | "critical"): boolean {
+        if (severity !== "critical") return false;
+
+        const clientRelevantAlerts = [
+            "ACCOUNT_DISABLED",
+            "ACCOUNT_NO_BALANCE",
+            "SPEND_CAP_IMMINENT",
+            "SPEND_CAP_CRITICAL",
+            "GOOGLE_ACCOUNT_SUSPENDED",
+            "GOOGLE_BILLING_FAILED",
+            "GOOGLE_BUDGET_DEPLETED",
+        ];
+
+        return clientRelevantAlerts.includes(alertType);
+    }
+
+    /**
+     * Builds technical message for internal team channel.
+     */
+    private static buildInternalHealthMessage(
+        clientName: string,
+        alertType: string,
+        severity: "info" | "warning" | "critical",
+        message: string,
+        health: AccountHealth,
+        platform: "meta" | "google"
+    ): string {
+        const emoji = this.getAlertEmoji(alertType);
+        const color = severity === "critical" ? "🔴" : severity === "warning" ? "🟡" : "🟢";
+
+        let text = `${emoji} *Account Health — ${clientName}*\n\n`;
+        text += `${color} ${message}\n\n`;
+
+        if (platform === "meta" && health.meta) {
+            text += `📋 *Estado actual:* ${health.meta.accountStatusName}\n`;
+            text += `🆔 *Cuenta Meta:* \`${health.meta.accountId}\`\n`;
+
+            if (health.meta.spendCap && health.meta.amountSpent !== undefined) {
+                text += `\n💰 *Spend Cap:*\n`;
+                text += `• Gastado: $${this.fmtNum(health.meta.amountSpent)} / $${this.fmtNum(health.meta.spendCap)} (${health.meta.spendCapPct?.toFixed(1)}%)\n`;
+                if (health.meta.projectedCutoffDays !== undefined) {
+                    text += `• Días restantes (estimado): ~${health.meta.projectedCutoffDays}\n`;
+                }
+                if (health.meta.avgDailySpend7d) {
+                    text += `• Gasto diario promedio (7d): ${this.fmtCurrency(health.meta.avgDailySpend7d)}\n`;
+                }
+            }
+
+            if (health.meta.balance !== undefined) {
+                text += `\n💳 *Balance:* ${this.fmtCurrency(health.meta.balance)}\n`;
+            }
+        } else if (platform === "google" && health.google) {
+            text += `📋 *Estado actual:* ${health.google.accountStatus}\n`;
+            text += `🆔 *Cuenta Google Ads:* \`${health.google.customerId}\`\n`;
+
+            if (health.google.billingStatus) {
+                text += `💳 *Billing Status:* ${health.google.billingStatus}\n`;
+            }
+
+            if (health.google.budgetUtilizationPct !== undefined) {
+                text += `\n💰 *Budget Utilization:* ${health.google.budgetUtilizationPct.toFixed(1)}%\n`;
+            }
+
+            if (health.google.avgDailySpend7d) {
+                text += `• Gasto diario promedio (7d): ${this.fmtCurrency(health.google.avgDailySpend7d, health.google.currencyCode)}\n`;
+            }
+
+            if (health.google.policyViolations && health.google.policyViolations.length > 0) {
+                text += `\n⚠️ *Policy Violations:*\n`;
+                health.google.policyViolations.forEach(v => {
+                    text += `• ${v.type}: ${v.description}\n`;
+                });
+            }
+        }
+
+        return text;
+    }
+
+    /**
+     * Builds client-friendly message for public channel.
+     */
+    private static buildClientHealthMessage(
+        clientName: string,
+        alertType: string,
+        severity: "info" | "warning" | "critical",
+        health: AccountHealth,
+        platform: "meta" | "google"
+    ): string {
+        const emoji = this.getAlertEmoji(alertType);
+
+        let text = `${emoji} *Alerta de Publicidad — ${clientName}*\n\n`;
+
+        // Platform-specific friendly messages
+        if (platform === "meta") {
+            switch (alertType) {
+                case "ACCOUNT_DISABLED":
+                    text += `⚠️ Tu cuenta de Meta Ads ha sido pausada.\n\n`;
+                    text += `Esto significa que tus campañas de Facebook e Instagram están detenidas temporalmente.\n\n`;
+                    text += `📞 Nuestro equipo está trabajando para reactivarla lo antes posible.`;
+                    break;
+
+                case "ACCOUNT_NO_BALANCE":
+                    const balance = health.meta?.balance || 0;
+                    const debtMsg = balance < 0 ? `Deuda pendiente: ${this.fmtCurrency(Math.abs(balance))}` : "Sin saldo disponible";
+                    text += `💳 Tu cuenta de publicidad necesita una recarga de saldo.\n\n`;
+                    text += `${debtMsg}\n\n`;
+                    text += `📞 Estamos en contacto para resolver esto. Tus campañas podrían pausarse hasta regularizar el pago.`;
+                    break;
+
+                case "SPEND_CAP_IMMINENT":
+                case "SPEND_CAP_CRITICAL":
+                    const pct = health.meta?.spendCapPct || 0;
+                    const spent = health.meta?.amountSpent || 0;
+                    const cap = health.meta?.spendCap || 0;
+                    const days = health.meta?.projectedCutoffDays;
+                    text += `💸 Tu límite de gasto mensual está cerca de alcanzarse.\n\n`;
+                    text += `Gastado: ${this.fmtCurrency(spent)} de ${this.fmtCurrency(cap)} (${pct.toFixed(0)}%)\n`;
+                    if (days !== undefined) {
+                        text += `Días restantes estimados: ~${days}\n`;
+                    }
+                    text += `\n📞 Te contactamos para ajustar el presupuesto si es necesario.`;
+                    break;
+
+                default:
+                    text += `Hemos detectado un cambio en tu cuenta de Meta Ads.\n\n`;
+                    text += `Nuestro equipo está monitoreando la situación.`;
+            }
+        } else if (platform === "google") {
+            switch (alertType) {
+                case "GOOGLE_ACCOUNT_SUSPENDED":
+                    text += `⚠️ Tu cuenta de Google Ads ha sido suspendida.\n\n`;
+                    text += `Esto significa que tus campañas de Google están detenidas temporalmente.\n\n`;
+                    text += `📞 Nuestro equipo está trabajando para reactivarla lo antes posible.`;
+                    break;
+
+                case "GOOGLE_BILLING_FAILED":
+                    text += `💳 Hay un problema con el método de pago de Google Ads.\n\n`;
+                    text += `Tus campañas podrían pausarse si no se regulariza el pago.\n\n`;
+                    text += `📞 Estamos en contacto para resolver esto.`;
+                    break;
+
+                case "GOOGLE_BUDGET_DEPLETED":
+                    text += `💸 El presupuesto de Google Ads está agotándose.\n\n`;
+                    text += `📞 Te contactamos para ajustar el presupuesto si es necesario.`;
+                    break;
+
+                default:
+                    text += `Hemos detectado un cambio en tu cuenta de Google Ads.\n\n`;
+                    text += `Nuestro equipo está monitoreando la situación.`;
+            }
+        }
+
+        return text;
+    }
+
+    private static getAlertEmoji(alertType: string): string {
+        if (alertType.includes("DISABLED") || alertType.includes("SUSPENDED")) return "🚫";
+        if (alertType.includes("BALANCE") || alertType.includes("BILLING")) return "🚨";
+        if (alertType.includes("REACTIVATED") || alertType.includes("ENABLED")) return "✅";
+        if (alertType.includes("SPEND_CAP") || alertType.includes("BUDGET")) return "💸";
+        if (alertType.includes("POLICY")) return "⚠️";
+        return "ℹ️";
+    }
+
+    // ─── Main Account Health Alert Sender ────────────────────
+
     static async sendAccountHealthAlert(
         clientId: string,
         clientName: string,
         alertType: string,
         severity: "info" | "warning" | "critical",
         message: string,
-        health: AccountHealth
+        health: AccountHealth,
+        platform: "meta" | "google" = "meta"
     ) {
         const { client, channel, botToken, webhook } = await this.resolveChannel(clientId);
 
         if (!botToken && !webhook) return;
 
-        const isDisabled = alertType === "ACCOUNT_DISABLED";
-        const isReactivated = alertType === "ACCOUNT_REACTIVATED";
-        const isSpendCap = alertType.startsWith("SPEND_CAP_");
-        const isNoBalance = alertType === "ACCOUNT_NO_BALANCE";
-
-        const emoji = isNoBalance ? "🚨" : isDisabled ? "🚫" : isReactivated ? "✅" : isSpendCap ? "💸" : "⚠️";
-        const color = severity === "critical" ? "🔴" : severity === "warning" ? "🟡" : "🟢";
-
-        let text = `${emoji} *Account Health — ${clientName}*\n\n`;
-        text += `${color} ${message}\n\n`;
-
-        text += `📋 *Estado actual:* ${health.accountStatusName}\n`;
-        text += `🆔 *Cuenta:* \`${health.metaAccountId}\`\n`;
-
-        if (health.spendCap && health.amountSpent !== undefined) {
-            text += `\n💰 *Spend Cap:*\n`;
-            text += `• Gastado: $${this.fmtNum(health.amountSpent)} / $${this.fmtNum(health.spendCap)} (${health.spendCapPct?.toFixed(1)}%)\n`;
-            if (health.projectedCutoffDays !== undefined) {
-                text += `• Días restantes (estimado): ~${health.projectedCutoffDays}\n`;
-            }
-            if (health.avgDailySpend7d) {
-                text += `• Gasto diario promedio (7d): ${this.fmtCurrency(health.avgDailySpend7d)}\n`;
-            }
-        }
-
-        if (health.balance !== undefined) {
-            text += `\n💳 *Balance:* ${this.fmtCurrency(health.balance)}\n`;
-        }
-
-        const blocks: any[] = [
-            { type: "section", text: { type: "mrkdwn", text } },
+        // ── 1. Send to internal channel (always) ──
+        const internalText = this.buildInternalHealthMessage(clientName, alertType, severity, message, health, platform);
+        const internalBlocks: any[] = [
+            { type: "section", text: { type: "mrkdwn", text: internalText } },
             { type: "divider" },
             {
                 type: "context",
@@ -810,18 +956,31 @@ export class SlackService {
                 }]
             }
         ];
-
         const fallbackText = `Account Health: ${clientName} — ${alertType}`;
 
-        // Send to internal channel — ALWAYS bypass master switch for health alerts
         if (channel) {
-            await this.postMessage(botToken, webhook, channel, blocks, fallbackText, { bypassMasterSwitch: true });
+            await this.postMessage(botToken, webhook, channel, internalBlocks, fallbackText, { bypassMasterSwitch: true });
         }
 
-        // Also send to public client channel (if configured and different from internal)
+        // ── 2. Send to client's public channel (conditional) ──
         const publicChannel = client?.slackPublicChannel || null;
-        if (publicChannel && publicChannel !== channel) {
-            await this.postMessage(botToken, webhook, publicChannel, blocks, fallbackText, { bypassMasterSwitch: true });
+        const shouldNotifyClient = this.shouldSendToClient(alertType, severity);
+
+        if (publicChannel && publicChannel !== channel && shouldNotifyClient) {
+            const clientText = this.buildClientHealthMessage(clientName, alertType, severity, health, platform);
+            const clientBlocks: any[] = [
+                { type: "section", text: { type: "mrkdwn", text: clientText } },
+                { type: "divider" },
+                {
+                    type: "context",
+                    elements: [{
+                        type: "mrkdwn",
+                        text: `_Monitoreo automático de Worker Brain_`
+                    }]
+                }
+            ];
+
+            await this.postMessage(botToken, webhook, publicChannel, clientBlocks, fallbackText, { bypassMasterSwitch: true });
         }
     }
 

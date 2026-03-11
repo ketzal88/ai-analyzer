@@ -6,9 +6,14 @@ import { reportError } from "@/lib/error-reporter";
 /**
  * Account Health Check Cron
  *
- * Checks Meta ad account status and spend cap for all active clients.
- * Detects state transitions (ACTIVE↔DISABLED) and spend cap escalation.
- * Sends alerts to Slack on changes only (no duplicates).
+ * Checks Meta + Google Ads account health for all active clients.
+ *
+ * Meta: account status, spend cap, balance
+ * Google: account status, billing, policy violations
+ *
+ * Detects state transitions and sends alerts to Slack:
+ * - Internal channel: All alerts (technical)
+ * - Client channel: Only CRITICAL alerts (user-friendly)
  *
  * Schedule: Every 2 hours (vercel.json)
  * Auth: Bearer token via CRON_SECRET
