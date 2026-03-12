@@ -17,14 +17,10 @@ import type {
   AnalystChannelData,
   CampaignSummary,
   CreativeSummary,
-  ProductSummary,
   AttributionSource,
   AutomationSummary,
   EmailCampaignSummary,
   CrossChannelInsights,
-  WinningAngleGroup,
-  WinningAdReference,
-  DiversityScoreSummary,
 } from './types';
 
 /**
@@ -244,6 +240,65 @@ function formatChannel(ch: AnalystChannelData): string {
     lines.push('    </devices>');
   }
 
+  // GA4: ecommerce funnel
+  if (d.ecommerceFunnel) {
+    const f = d.ecommerceFunnel;
+    lines.push(`    <ecommerce_funnel ${buildAttrs({
+      view_item: f.viewItem,
+      add_to_cart: f.addToCart,
+      begin_checkout: f.beginCheckout,
+      purchase: f.purchase,
+      view_to_cart_rate: formatPct(f.viewToCartRate),
+      cart_to_checkout_rate: formatPct(f.cartToCheckoutRate),
+      checkout_to_purchase_rate: formatPct(f.checkoutToPurchaseRate),
+      overall_conversion_rate: formatPct(f.overallConversionRate),
+    })} />`);
+  }
+
+  // Google Ads: search terms
+  if (d.searchTerms && d.searchTerms.length > 0) {
+    lines.push('    <search_terms>');
+    for (const t of d.searchTerms) {
+      lines.push(`      <term ${buildAttrs({
+        query: t.term,
+        impressions: t.impressions,
+        clicks: t.clicks,
+        conversions: t.conversions,
+        spend: round(t.spend),
+        ctr: formatPct(t.ctr),
+        cpa: t.cpa != null ? round(t.cpa) : undefined,
+      })} />`);
+    }
+    lines.push('    </search_terms>');
+  }
+
+  // Ecommerce: customer intelligence
+  if (d.customerIntelligence) {
+    const ci = d.customerIntelligence;
+    const ciAttrs = buildAttrs({
+      avg_ltv: ci.avgLtv != null ? round(ci.avgLtv) : undefined,
+      revenue_per_customer: ci.revenuePerCustomer != null ? round(ci.revenuePerCustomer) : undefined,
+      retention_rate: ci.retentionRate != null ? formatPct(ci.retentionRate) : undefined,
+      avg_days_between_orders: ci.avgDaysBetweenOrders != null ? round(ci.avgDaysBetweenOrders) : undefined,
+      ltv_cac_ratio: ci.ltvCacRatio != null ? round(ci.ltvCacRatio) : undefined,
+      platform: d.ecommercePlatform,
+    });
+    if (ci.cohorts) {
+      lines.push(`    <customer_intelligence ${ciAttrs}>`);
+      for (const [name, data] of Object.entries(ci.cohorts)) {
+        lines.push(`      <cohort ${buildAttrs({ name, ltv: data.ltv != null ? round(data.ltv) : undefined, orders: data.orders, customers: data.customers })} />`);
+      }
+      lines.push('    </customer_intelligence>');
+    } else {
+      lines.push(`    <customer_intelligence ${ciAttrs} />`);
+    }
+  }
+
+  // Email: platform info
+  if (d.emailPlatform) {
+    lines.push(`    <platform name="${escapeXml(d.emailPlatform)}" />`);
+  }
+
   // Cross-channel: per-channel summaries
   if (d.channelSummaries) {
     for (const [chName, summary] of Object.entries(d.channelSummaries)) {
@@ -343,6 +398,7 @@ function formatEmailCampaign(c: EmailCampaignSummary): string {
     sent: c.sent,
     open_rate: c.openRate != null ? formatPct(c.openRate) : undefined,
     click_rate: c.clickRate != null ? formatPct(c.clickRate) : undefined,
+    ctor: c.ctor != null ? formatPct(c.ctor) : undefined,
     revenue: c.revenue != null ? round(c.revenue) : undefined,
   });
 }
@@ -353,6 +409,7 @@ function formatAutomation(a: AutomationSummary): string {
     sent: a.sent,
     open_rate: a.openRate != null ? formatPct(a.openRate) : undefined,
     click_rate: a.clickRate != null ? formatPct(a.clickRate) : undefined,
+    ctor: a.ctor != null ? formatPct(a.ctor) : undefined,
     revenue: a.revenue != null ? round(a.revenue) : undefined,
   });
 }
@@ -384,6 +441,7 @@ function channelTag(id: string): string {
   const tags: Record<string, string> = {
     meta_ads: 'meta_channel',
     google_ads: 'google_channel',
+    ga4: 'ga4_channel',
     ecommerce: 'ecommerce_channel',
     email: 'email_channel',
     cross_channel: 'cross_channel',

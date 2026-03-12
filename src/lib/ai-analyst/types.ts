@@ -115,6 +115,14 @@ export interface ChannelDetails {
   trafficSources?: GA4TrafficSourceSummary[];
   topLandingPages?: GA4LandingPageSummary[];
   deviceBreakdown?: GA4DeviceSummary[];
+  ecommerceFunnel?: GA4EcommerceFunnel;
+  // Google Ads
+  searchTerms?: GoogleSearchTermSummary[];
+  // Ecommerce
+  customerIntelligence?: CustomerIntelligenceSummary;
+  ecommercePlatform?: string;
+  // Email
+  emailPlatform?: string;
 }
 
 export interface GA4TrafficSourceSummary {
@@ -137,6 +145,36 @@ export interface GA4DeviceSummary {
   sessions: number;
   bounceRate: number;
   conversions: number;
+}
+
+export interface GA4EcommerceFunnel {
+  viewItem: number;
+  addToCart: number;
+  beginCheckout: number;
+  purchase: number;
+  viewToCartRate: number;
+  cartToCheckoutRate: number;
+  checkoutToPurchaseRate: number;
+  overallConversionRate: number;
+}
+
+export interface GoogleSearchTermSummary {
+  term: string;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  spend: number;
+  ctr: number;
+  cpa?: number;
+}
+
+export interface CustomerIntelligenceSummary {
+  avgLtv?: number;
+  revenuePerCustomer?: number;
+  retentionRate?: number;
+  avgDaysBetweenOrders?: number;
+  ltvCacRatio?: number;
+  cohorts?: Record<string, { ltv?: number; orders?: number; customers?: number }>;
 }
 
 // ── Creative Briefs Channel ────────────────────────────
@@ -211,6 +249,7 @@ export interface AutomationSummary {
   sent: number;
   openRate?: number;
   clickRate?: number;
+  ctor?: number;
   revenue?: number;
 }
 
@@ -219,6 +258,7 @@ export interface EmailCampaignSummary {
   sent: number;
   openRate?: number;
   clickRate?: number;
+  ctor?: number;
   revenue?: number;
 }
 
