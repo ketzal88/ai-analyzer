@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import AppLayout from "@/components/layouts/AppLayout";
 import { useClient } from "@/contexts/ClientContext";
 import { ChannelDailySnapshot } from "@/types/channel-snapshots";
@@ -600,9 +601,14 @@ export default function EcommerceChannel() {
                         {/* ── Customer Intelligence (from ecommerce_customers collection) ── */}
                         {hasIntelligence && (
                             <div className="card p-6">
-                                <h2 className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4">
-                                    Inteligencia de Clientes
-                                </h2>
+                                <div className="flex items-center justify-between mb-4">
+                                    <h2 className="text-[10px] font-black text-text-muted uppercase tracking-widest">
+                                        Inteligencia de Clientes
+                                    </h2>
+                                    <Link href="/intelligence/customers" className="text-[10px] font-bold text-classic hover:text-classic/80 transition-colors">
+                                        Ver más →
+                                    </Link>
+                                </div>
 
                                 {/* KPI Row */}
                                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">

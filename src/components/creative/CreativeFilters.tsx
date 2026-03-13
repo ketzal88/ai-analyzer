@@ -6,8 +6,8 @@ import { SelectionReason } from "@/types/creative-kpi";
 interface CreativeFiltersProps {
     range: string;
     onRangeChange: (range: string) => void;
-    viewMode: "cards" | "table";
-    onViewModeChange: (mode: "cards" | "table") => void;
+    viewMode: "cards" | "table" | "dna";
+    onViewModeChange: (mode: "cards" | "table" | "dna") => void;
     search: string;
     onSearchChange: (search: string) => void;
     format: string;
@@ -99,6 +99,16 @@ export default function CreativeFilters({
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+                            </svg>
+                        </button>
+                        <button
+                            onClick={() => onViewModeChange("dna")}
+                            className={`px-3 py-1.5 rounded-md transition-all duration-200 ${viewMode === "dna" ? "bg-classic text-special shadow-sm" : "text-text-muted hover:text-text-secondary"
+                                }`}
+                            title="DNA View"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.675.337a4 4 0 00-1.547 5.47l.337.675a6 6 0 005.47 1.547l.675-.337a4 4 0 001.547-5.47l-.337-.675zM4.572 8.572a2 2 0 001.022.547l2.387.477a6 6 0 003.86-.517l.675-.337a4 4 0 001.547-5.47l-.337-.675a6 6 0 00-5.47-1.547l-.675.337a4 4 0 00-1.547 5.47l.337.675z" />
                             </svg>
                         </button>
                     </div>
