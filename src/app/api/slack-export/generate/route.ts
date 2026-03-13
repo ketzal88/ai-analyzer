@@ -12,7 +12,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { auth } from "@/lib/firebase-admin";
 import { buildAnalystContext } from "@/lib/ai-analyst/context-builder";
 import { formatContextAsMarkdown } from "@/lib/markdown-formatter";
-import { SLACK_SUMMARY_SYSTEM_PROMPT, SLACK_CROSS_CHANNEL_SYSTEM_PROMPT, SLACK_SUMMARY_USER_TEMPLATE } from "@/lib/slack-summary-prompt";
+import { getSlackSummaryPrompt, getSlackCrossChannelPrompt, getSlackUserTemplate } from "@/lib/slack-summary-prompt";
 import type { ChannelId } from "@/lib/ai-analyst/types";
 
 export const maxDuration = 30;
@@ -58,13 +58,13 @@ export async function POST(request: NextRequest) {
     // 4. Format as markdown (Claude reads markdown well)
     const markdown = formatContextAsMarkdown(context);
 
-    // 5. Call Claude
+    // 5. Call Claude — load prompts from Firestore (with defaults fallback)
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    const userMessage = SLACK_SUMMARY_USER_TEMPLATE.replace('{context}', markdown);
-
-    const systemPrompt = channel === 'cross_channel'
-      ? SLACK_CROSS_CHANNEL_SYSTEM_PROMPT
-      : SLACK_SUMMARY_SYSTEM_PROMPT;
+    const [systemPrompt, userTemplate] = await Promise.all([
+      channel === 'cross_channel' ? getSlackCrossChannelPrompt() : getSlackSummaryPrompt(),
+      getSlackUserTemplate(),
+    ]);
+    const userMessage = userTemplate.replace('{context}', markdown);
 
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-5-20250929",

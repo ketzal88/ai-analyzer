@@ -294,7 +294,8 @@ export interface SSEEvent {
 
 // ── Suggested Questions ─────────────────────────────────
 
-export const SUGGESTED_QUESTIONS: Record<ChannelId, string[]> = {
+/** Default suggested questions per channel. Editable via brain_prompts/{channelId}.suggestedQuestions in Firestore. */
+export const DEFAULT_SUGGESTED_QUESTIONS: Record<ChannelId, string[]> = {
   meta_ads: [
     "¿Por qué está tan alto el CPA?",
     "Diagnosticá el creativo con peor Hook Rate",

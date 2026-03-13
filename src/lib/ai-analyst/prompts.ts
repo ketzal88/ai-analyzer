@@ -13,6 +13,7 @@
 
 import { db } from "@/lib/firebase-admin";
 import type { ChannelId } from "./types";
+import { DEFAULT_SUGGESTED_QUESTIONS } from "./types";
 
 // ── Cache ───────────────────────────────────────────────
 
@@ -29,15 +30,42 @@ const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 /**
  * Load the system prompt for a channel.
  * Checks Firestore first (with cache), falls back to hardcoded defaults.
+ * Appends COMMON_RULES (from Firestore or default) to the channel prompt.
  */
 export async function getChannelPrompt(channelId: ChannelId): Promise<string> {
+  const cacheKey = `full_${channelId}`;
+
   // Check cache
+  const cached = cache.get(cacheKey);
+  if (cached && Date.now() - cached.loadedAt < CACHE_TTL_MS) {
+    return cached.prompt;
+  }
+
+  // Load channel prompt + common rules in parallel
+  const [channelPromptRaw, commonRules] = await Promise.all([
+    loadRawChannelPrompt(channelId),
+    getCommonRules(),
+  ]);
+
+  // For creative_briefs, the prompt has its own format rules — don't append COMMON_RULES
+  const fullPrompt = channelId === 'creative_briefs'
+    ? channelPromptRaw
+    : channelPromptRaw.replace(COMMON_RULES, '').trimEnd() + '\n\n' + commonRules;
+
+  cache.set(cacheKey, { prompt: fullPrompt, loadedAt: Date.now() });
+  return fullPrompt;
+}
+
+/**
+ * Load the raw channel prompt (without COMMON_RULES appended).
+ * Used by getChannelPrompt() internally and by admin UI to show the editable part only.
+ */
+async function loadRawChannelPrompt(channelId: ChannelId): Promise<string> {
   const cached = cache.get(channelId);
   if (cached && Date.now() - cached.loadedAt < CACHE_TTL_MS) {
     return cached.prompt;
   }
 
-  // Try Firestore
   try {
     const doc = await db.collection('brain_prompts').doc(channelId).get();
     if (doc.exists) {
@@ -51,15 +79,61 @@ export async function getChannelPrompt(channelId: ChannelId): Promise<string> {
     console.warn(`[AI Analyst] Failed to load prompt for ${channelId} from Firestore:`, err);
   }
 
-  // Fallback to default
   const defaultPrompt = DEFAULT_PROMPTS[channelId];
   cache.set(channelId, { prompt: defaultPrompt, loadedAt: Date.now() });
   return defaultPrompt;
 }
 
-// ── Default Prompts ─────────────────────────────────────
+/**
+ * Load COMMON_RULES from Firestore (brain_prompts/general) or fall back to default.
+ */
+export async function getCommonRules(): Promise<string> {
+  const cacheKey = '__common_rules__';
+  const cached = cache.get(cacheKey);
+  if (cached && Date.now() - cached.loadedAt < CACHE_TTL_MS) {
+    return cached.prompt;
+  }
 
-const COMMON_RULES = `
+  try {
+    const doc = await db.collection('brain_prompts').doc('general').get();
+    if (doc.exists) {
+      const rules = doc.data()!.commonRules as string;
+      if (rules && rules.trim().length > 0) {
+        cache.set(cacheKey, { prompt: rules.trim(), loadedAt: Date.now() });
+        return rules.trim();
+      }
+    }
+  } catch (err) {
+    console.warn('[AI Analyst] Failed to load COMMON_RULES from Firestore:', err);
+  }
+
+  cache.set(cacheKey, { prompt: DEFAULT_COMMON_RULES, loadedAt: Date.now() });
+  return DEFAULT_COMMON_RULES;
+}
+
+/**
+ * Load suggested questions for a channel from Firestore or fall back to defaults.
+ */
+export async function getSuggestedQuestions(channelId: ChannelId): Promise<string[]> {
+  try {
+    const doc = await db.collection('brain_prompts').doc(channelId).get();
+    if (doc.exists) {
+      const questions = doc.data()!.suggestedQuestions as string[];
+      if (Array.isArray(questions) && questions.length > 0) {
+        return questions;
+      }
+    }
+  } catch (err) {
+    console.warn(`[AI Analyst] Failed to load suggested questions for ${channelId}:`, err);
+  }
+
+  return DEFAULT_SUGGESTED_QUESTIONS[channelId] || [];
+}
+
+// ── Common Rules ────────────────────────────────────────
+
+/** Default COMMON_RULES — appended to every channel prompt. Editable via brain_prompts/general in Firestore. */
+export const DEFAULT_COMMON_RULES = `
 REGLAS DE FORMATO:
 - Respondé siempre en español.
 - Máximo 250 palabras salvo que el usuario pida más profundidad.
@@ -69,6 +143,11 @@ REGLAS DE FORMATO:
 - Si un dato clave falta en el contexto, decilo explícitamente en vez de asumir.
 - Formateá con markdown: **negrita** para métricas clave, listas con - para recomendaciones.
 `.trim();
+
+// Alias for backward compat in default prompts
+const COMMON_RULES = DEFAULT_COMMON_RULES;
+
+// ── Default Prompts ─────────────────────────────────────
 
 /** Exported for use in admin UI — shows defaults when no Firestore override exists */
 export const DEFAULT_PROMPTS: Record<ChannelId, string> = {
