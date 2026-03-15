@@ -10,7 +10,7 @@
 
 // ── Lead Status Enums ─────────────────────────────────
 
-export type LeadQualification = 'pending' | 'calificado' | 'no_calificado' | 'spam' | 'verificando';
+export type LeadQualification = 'pending' | 'calificado' | 'no_calificado' | 'spam' | 'verificando' | 'no_responde';
 
 export type LeadPostCallStatus =
   | 'pendiente'        // Not yet called
@@ -18,7 +18,8 @@ export type LeadPostCallStatus =
   | 'seguimiento'      // Follow-up needed
   | 'reprogramado'     // Rescheduled
   | 'no_asistio'       // No-show
-  | 'cancelo';         // Cancelled
+  | 'cancelo'          // Cancelled
+  | 'no_compro';       // Attended but didn't buy
 
 export type LeadQualityScore = 1 | 2 | 3 | null;
 

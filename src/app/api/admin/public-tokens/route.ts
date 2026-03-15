@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { clientId, label, expiresAt } = body as { clientId: string; label?: string; expiresAt?: string };
+  const { clientId, label, expiresAt, type } = body as { clientId: string; label?: string; expiresAt?: string; type?: 'report' | 'crm' };
 
   if (!clientId) {
     return NextResponse.json({ error: "clientId is required" }, { status: 400 });
@@ -67,6 +67,7 @@ export async function POST(request: NextRequest) {
     const data: PublicToken = {
       token,
       clientId,
+      type: type || "report",
       label: label || undefined,
       createdAt: new Date().toISOString(),
       createdByUid: uid,

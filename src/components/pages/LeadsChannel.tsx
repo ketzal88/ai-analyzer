@@ -94,9 +94,74 @@ export default function LeadsChannel() {
 
     // Cost metrics (aggregate from rawData.metaSpend)
     const totalMetaSpend = snapshots.reduce((sum, s) => sum + ((s.rawData?.metaSpend as number) || 0), 0);
+    const totalMetaImpressions = snapshots.reduce((sum, s) => sum + ((s.rawData?.metaImpressions as number) || 0), 0);
+    const totalMetaClicks = snapshots.reduce((sum, s) => sum + ((s.rawData?.metaClicks as number) || 0), 0);
     const cpl = totals.totalLeads > 0 ? totalMetaSpend / totals.totalLeads : 0;
     const cpql = totals.qualifiedLeads > 0 ? totalMetaSpend / totals.qualifiedLeads : 0;
     const cac = totals.newClients > 0 ? totalMetaSpend / totals.newClients : 0;
+
+    // Ads KPIs
+    const metaCpm = totalMetaImpressions > 0 ? (totalMetaSpend / totalMetaImpressions) * 1000 : 0;
+    const metaCpc = totalMetaClicks > 0 ? totalMetaSpend / totalMetaClicks : 0;
+    const metaCtr = totalMetaImpressions > 0 ? (totalMetaClicks / totalMetaImpressions) * 100 : 0;
+    const impPerMeeting = totals.totalLeads > 0 && totalMetaImpressions > 0 ? totalMetaImpressions / totals.totalLeads : 0;
+    const costPerAttendance = totals.attendedCalls > 0 && totalMetaSpend > 0 ? totalMetaSpend / totals.attendedCalls : 0;
+    const costPerClose = totals.newClients > 0 && totalMetaSpend > 0 ? totalMetaSpend / totals.newClients : 0;
+
+    // Monthly report data — group snapshots by YYYY-MM
+    const monthlyData = React.useMemo(() => {
+        const byMonth = new Map<string, {
+            impressions: number; clicks: number; spend: number;
+            totalLeads: number; qualifiedLeads: number; attendedCalls: number; noShows: number;
+            newClients: number; revenue: number;
+        }>();
+
+        for (const s of snapshots) {
+            const month = s.date.slice(0, 7); // YYYY-MM
+            const existing = byMonth.get(month) || {
+                impressions: 0, clicks: 0, spend: 0,
+                totalLeads: 0, qualifiedLeads: 0, attendedCalls: 0, noShows: 0,
+                newClients: 0, revenue: 0,
+            };
+            existing.impressions += (s.rawData?.metaImpressions as number) || 0;
+            existing.clicks += (s.rawData?.metaClicks as number) || 0;
+            existing.spend += (s.rawData?.metaSpend as number) || 0;
+            existing.totalLeads += s.metrics.totalLeads || 0;
+            existing.qualifiedLeads += s.metrics.qualifiedLeads || 0;
+            existing.attendedCalls += s.metrics.attendedCalls || 0;
+            existing.noShows += s.metrics.noShows || 0;
+            existing.newClients += s.metrics.newClients || 0;
+            existing.revenue += s.metrics.leadRevenue || s.metrics.revenue || 0;
+            byMonth.set(month, existing);
+        }
+
+        return Array.from(byMonth.entries())
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([month, d]) => {
+                const scheduled = d.attendedCalls + d.noShows;
+                return {
+                    month,
+                    label: new Date(month + "-15").toLocaleDateString("es-AR", { month: "long", year: "numeric" }),
+                    alcance: d.impressions,
+                    cpm: d.impressions > 0 ? (d.spend / d.impressions) * 1000 : 0,
+                    cpc: d.clicks > 0 ? d.spend / d.clicks : 0,
+                    ctr: d.impressions > 0 ? (d.clicks / d.impressions) * 100 : 0,
+                    agendas: d.totalLeads,
+                    calificadas: d.qualifiedLeads,
+                    asistencia: d.attendedCalls,
+                    pctAsistencia: scheduled > 0 ? (d.attendedCalls / scheduled) * 100 : 0,
+                    cierres: d.newClients,
+                    pctCierre: d.attendedCalls > 0 ? (d.newClients / d.attendedCalls) * 100 : 0,
+                    inversion: d.spend,
+                    cplMonth: d.totalLeads > 0 ? d.spend / d.totalLeads : 0,
+                    cpqlMonth: d.qualifiedLeads > 0 ? d.spend / d.qualifiedLeads : 0,
+                    costoAsistencia: d.attendedCalls > 0 ? d.spend / d.attendedCalls : 0,
+                    costoCierre: d.newClients > 0 ? d.spend / d.newClients : 0,
+                    cashGenerado: d.revenue,
+                    impReunion: d.totalLeads > 0 ? d.impressions / d.totalLeads : 0,
+                };
+            });
+    }, [snapshots]);
 
     // Aggregate rawData breakdowns across snapshots
     const allClosers = new Map<string, LeadsCloserBreakdown>();
@@ -209,10 +274,23 @@ export default function LeadsChannel() {
                         {/* KPI Row 2 — Cost */}
                         {totalMetaSpend > 0 && (
                             <div className="grid grid-cols-4 gap-4">
-                                <KPICard label="CPL" value={formatCurrency(cpl)} />
-                                <KPICard label="CPQL" value={formatCurrency(cpql)} />
-                                <KPICard label="CAC" value={formatCurrency(cac)} />
+                                <KPICard label="CPL" value={formatCurrency(cpl)} subtitle="Costo por Lead" />
+                                <KPICard label="CPQL" value={formatCurrency(cpql)} subtitle="Costo por Calificado" />
+                                <KPICard label="CAC" value={formatCurrency(cac)} subtitle="Costo de Adquisición" />
                                 <KPICard label="Revenue" value={formatCurrency(totals.revenue)} delta={calcDelta(totals.revenue, prevTotals.revenue)} />
+                            </div>
+                        )}
+
+                        {/* KPI Row 3 — Ads Metrics */}
+                        {totalMetaImpressions > 0 && (
+                            <div className="grid grid-cols-7 gap-3">
+                                <KPICard label="Alcance" value={formatNumber(totalMetaImpressions)} />
+                                <KPICard label="CPM" value={formatCurrency(metaCpm)} />
+                                <KPICard label="CPC" value={formatCurrency(metaCpc)} />
+                                <KPICard label="CTR" value={formatPct(metaCtr)} />
+                                <KPICard label="Imp/Reunión" value={formatNumber(impPerMeeting, 0)} />
+                                <KPICard label="Costo/Asist." value={formatCurrency(costPerAttendance)} />
+                                <KPICard label="Costo/Cierre" value={formatCurrency(costPerClose)} />
                             </div>
                         )}
 
@@ -329,10 +407,75 @@ export default function LeadsChannel() {
                                 </div>
                             </div>
                         )}
+
+                        {/* Monthly Report Table */}
+                        {monthlyData.length > 1 && (
+                            <div className="p-6 bg-special border border-argent rounded-lg">
+                                <h2 className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4">
+                                    Reporte Mensual
+                                </h2>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead>
+                                            <tr className="border-b border-argent">
+                                                <th className="text-left px-3 py-2 text-[9px] text-text-muted uppercase tracking-widest font-bold sticky left-0 bg-special z-10">Métrica</th>
+                                                {monthlyData.map((m) => (
+                                                    <th key={m.month} className="text-right px-3 py-2 text-[9px] text-text-muted uppercase tracking-widest font-bold whitespace-nowrap">
+                                                        {m.label}
+                                                    </th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <MonthlyRow label="Alcance" values={monthlyData.map((m) => formatNumber(m.alcance))} />
+                                            <MonthlyRow label="CPM" values={monthlyData.map((m) => m.alcance > 0 ? formatCurrency(m.cpm) : "—")} />
+                                            <MonthlyRow label="CPC" values={monthlyData.map((m) => m.alcance > 0 ? formatCurrency(m.cpc) : "—")} />
+                                            <MonthlyRow label="CTR" values={monthlyData.map((m) => m.alcance > 0 ? formatPct(m.ctr) : "—")} />
+                                            <MonthlyRow label="Agendas" values={monthlyData.map((m) => formatNumber(m.agendas))} highlight />
+                                            <MonthlyRow label="Calificadas" values={monthlyData.map((m) => formatNumber(m.calificadas))} />
+                                            {isFullFunnel && (
+                                                <>
+                                                    <MonthlyRow label="Asistencia" values={monthlyData.map((m) => formatNumber(m.asistencia))} />
+                                                    <MonthlyRow label="% Asistencia" values={monthlyData.map((m) => formatPct(m.pctAsistencia))} />
+                                                </>
+                                            )}
+                                            <MonthlyRow label="Cierres" values={monthlyData.map((m) => formatNumber(m.cierres))} highlight />
+                                            <MonthlyRow label="% Cierre" values={monthlyData.map((m) => formatPct(m.pctCierre))} />
+                                            <MonthlyRow label="Inversión" values={monthlyData.map((m) => formatCurrency(m.inversion))} />
+                                            <MonthlyRow label="CPL" values={monthlyData.map((m) => m.agendas > 0 ? formatCurrency(m.cplMonth) : "—")} />
+                                            <MonthlyRow label="CPQL" values={monthlyData.map((m) => m.calificadas > 0 ? formatCurrency(m.cpqlMonth) : "—")} />
+                                            {isFullFunnel && (
+                                                <MonthlyRow label="Costo/Asist." values={monthlyData.map((m) => m.asistencia > 0 ? formatCurrency(m.costoAsistencia) : "—")} />
+                                            )}
+                                            <MonthlyRow label="Costo/Cierre" values={monthlyData.map((m) => m.cierres > 0 ? formatCurrency(m.costoCierre) : "—")} />
+                                            <MonthlyRow label="Cash Generado" values={monthlyData.map((m) => formatCurrency(m.cashGenerado))} highlight />
+                                            <MonthlyRow label="Imp/Reunión" values={monthlyData.map((m) => m.agendas > 0 && m.alcance > 0 ? formatNumber(m.impReunion, 0) : "—")} />
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
                     </>
                 )}
             </div>
         </AppLayout>
+    );
+}
+
+// ── Monthly Report Row Component ──────────────────────────────
+
+function MonthlyRow({ label, values, highlight }: { label: string; values: string[]; highlight?: boolean }) {
+    return (
+        <tr className={`border-b border-argent/30 ${highlight ? "bg-classic/5" : ""}`}>
+            <td className="px-3 py-1.5 text-small text-text-primary font-medium sticky left-0 bg-special z-10 whitespace-nowrap">
+                {label}
+            </td>
+            {values.map((v, i) => (
+                <td key={i} className={`px-3 py-1.5 text-small font-mono text-right ${highlight ? "text-text-primary font-bold" : "text-text-muted"}`}>
+                    {v}
+                </td>
+            ))}
+        </tr>
     );
 }
 

@@ -1,19 +1,16 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import AppLayout from "@/components/layouts/AppLayout";
-import { useClient } from "@/contexts/ClientContext";
-import { useAuth } from "@/contexts/AuthContext";
-import { Lead, LeadQualification as LeadQualificationType, LeadPostCallStatus, LeadQualityScore } from "@/types/leads";
-import { Client } from "@/types";
+import { useParams } from "next/navigation";
+import Image from "next/image";
+import { Lead, LeadQualification, LeadPostCallStatus, LeadQualityScore } from "@/types/leads";
 
-const QUALIFICATION_OPTIONS: { value: LeadQualificationType; label: string; color: string }[] = [
+const QUALIFICATION_OPTIONS: { value: LeadQualification; label: string; color: string }[] = [
     { value: "pending", label: "Pendiente", color: "text-text-muted" },
     { value: "calificado", label: "Calificado", color: "text-synced" },
     { value: "no_calificado", label: "No Calificado", color: "text-[#ef4444]" },
     { value: "spam", label: "Spam", color: "text-text-muted" },
     { value: "verificando", label: "Verificando", color: "text-[#f59e0b]" },
-    { value: "no_responde", label: "No Responde", color: "text-[#9ca3af]" },
 ];
 
 const POST_CALL_OPTIONS: { value: LeadPostCallStatus; label: string; color: string }[] = [
@@ -23,7 +20,6 @@ const POST_CALL_OPTIONS: { value: LeadPostCallStatus; label: string; color: stri
     { value: "reprogramado", label: "Reprogramado", color: "bg-classic/20" },
     { value: "no_asistio", label: "No Asistió", color: "bg-[#ef4444]/20" },
     { value: "cancelo", label: "Canceló", color: "bg-[#ef4444]/10" },
-    { value: "no_compro", label: "No Compró", color: "bg-[#f97316]/20" },
 ];
 
 const QUALITY_OPTIONS: { value: LeadQualityScore; label: string }[] = [
@@ -41,9 +37,16 @@ function formatDate(iso: string): string {
     return `${day} ${months[d.getMonth()]}`;
 }
 
-export default function LeadQualificationPage() {
-    const { selectedClientId: clientId, activeClients } = useClient();
-    const { user, isAdmin } = useAuth();
+type PageState = "loading" | "ready" | "error";
+
+export default function PublicCrmPage() {
+    const { token } = useParams<{ token: string }>();
+
+    const [state, setState] = useState<PageState>("loading");
+    const [error, setError] = useState("");
+    const [clientName, setClientName] = useState("");
+    const [closers, setClosers] = useState<string[]>([]);
+    const [isFullFunnel, setIsFullFunnel] = useState(true);
 
     const [leads, setLeads] = useState<Lead[]>([]);
     const [total, setTotal] = useState(0);
@@ -51,10 +54,10 @@ export default function LeadQualificationPage() {
     const [saving, setSaving] = useState<string | null>(null);
 
     // Filters
-    const [filterCloser, setFilterCloser] = useState<string>("");
-    const [filterQualification, setFilterQualification] = useState<string>("");
-    const [filterPostCall, setFilterPostCall] = useState<string>("");
-    const [dateRange, setDateRange] = useState<{ start: string; end: string }>(() => {
+    const [filterCloser, setFilterCloser] = useState("");
+    const [filterQualification, setFilterQualification] = useState("");
+    const [filterPostCall, setFilterPostCall] = useState("");
+    const [dateRange, setDateRange] = useState(() => {
         const now = new Date();
         const start = new Date(now.getFullYear(), now.getMonth(), 1);
         return {
@@ -67,26 +70,11 @@ export default function LeadQualificationPage() {
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [commentDraft, setCommentDraft] = useState("");
 
-    // Show new lead form
-    const [showNewLead, setShowNewLead] = useState(false);
-    const [newLead, setNewLead] = useState({ name: "", phone: "", email: "", closerAssigned: "" });
-
-    // Share CRM
-    const [showShareModal, setShowShareModal] = useState(false);
-    const [shareLink, setShareLink] = useState<string | null>(null);
-    const [shareLoading, setShareLoading] = useState(false);
-    const [shareCopied, setShareCopied] = useState(false);
-
-    const client = activeClients.find((c: Client) => c.id === clientId);
-    const closers = client?.leadsConfig?.closers || [];
-    const isFullFunnel = client?.leadsConfig?.mode !== "whatsapp_simple";
-
     const fetchLeads = useCallback(async () => {
-        if (!clientId) return;
+        if (!token) return;
         setLoading(true);
         try {
             const params = new URLSearchParams({
-                clientId,
                 startDate: dateRange.start,
                 endDate: dateRange.end,
             });
@@ -94,16 +82,33 @@ export default function LeadQualificationPage() {
             if (filterQualification) params.set("qualification", filterQualification);
             if (filterPostCall) params.set("postCallStatus", filterPostCall);
 
-            const res = await fetch(`/api/leads?${params}`);
+            const res = await fetch(`/api/public/${token}/leads?${params}`);
+            if (!res.ok) {
+                if (res.status === 403 || res.status === 404) {
+                    const data = await res.json();
+                    setError(data.error || "Link inválido");
+                    setState("error");
+                    return;
+                }
+                throw new Error("Failed to fetch");
+            }
             const data = await res.json();
             setLeads(data.leads || []);
             setTotal(data.total || 0);
+            setClosers(data.config?.closers || []);
+            setIsFullFunnel(data.config?.mode !== "whatsapp_simple");
+            setClientName(data.config?.clientName || "");
+            if (state === "loading") setState("ready");
         } catch (err) {
             console.error("Error fetching leads:", err);
+            if (state === "loading") {
+                setError("Error al cargar los datos");
+                setState("error");
+            }
         } finally {
             setLoading(false);
         }
-    }, [clientId, dateRange, filterCloser, filterQualification, filterPostCall]);
+    }, [token, dateRange, filterCloser, filterQualification, filterPostCall, state]);
 
     useEffect(() => {
         fetchLeads();
@@ -112,12 +117,11 @@ export default function LeadQualificationPage() {
     const updateLead = async (leadId: string, updates: Record<string, unknown>) => {
         setSaving(leadId);
         try {
-            await fetch(`/api/leads/${leadId}`, {
+            await fetch(`/api/public/${token}/leads`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(updates),
+                body: JSON.stringify({ leadId, updates }),
             });
-            // Update local state
             setLeads((prev) =>
                 prev.map((l) => (l.id === leadId ? { ...l, ...updates, updatedAt: new Date().toISOString() } as Lead : l))
             );
@@ -126,55 +130,6 @@ export default function LeadQualificationPage() {
         } finally {
             setSaving(null);
         }
-    };
-
-    const createLead = async () => {
-        if (!clientId || !newLead.name) return;
-        try {
-            const res = await fetch("/api/leads", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    clientId,
-                    ...newLead,
-                    source: "manual",
-                }),
-            });
-            if (res.ok) {
-                setShowNewLead(false);
-                setNewLead({ name: "", phone: "", email: "", closerAssigned: "" });
-                fetchLeads();
-            }
-        } catch (err) {
-            console.error("Error creating lead:", err);
-        }
-    };
-
-    const generateShareLink = async () => {
-        if (!clientId) return;
-        setShareLoading(true);
-        try {
-            const res = await fetch("/api/admin/public-tokens", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ clientId, type: "crm", label: `CRM ${client?.name || ""}` }),
-            });
-            const data = await res.json();
-            if (data.token?.token) {
-                setShareLink(`${window.location.origin}/public/crm/${data.token.token}`);
-            }
-        } catch (err) {
-            console.error("Error generating share link:", err);
-        } finally {
-            setShareLoading(false);
-        }
-    };
-
-    const copyShareLink = () => {
-        if (!shareLink) return;
-        navigator.clipboard.writeText(shareLink);
-        setShareCopied(true);
-        setTimeout(() => setShareCopied(false), 2000);
     };
 
     // Stats
@@ -186,152 +141,52 @@ export default function LeadQualificationPage() {
         revenue: leads.reduce((sum, l) => sum + (l.revenue || 0), 0),
     };
 
-    if (!clientId) {
+    if (state === "loading") {
         return (
-            <AppLayout>
-                <div className="flex items-center justify-center h-[60vh]">
-                    <p className="text-text-muted">Seleccioná un cliente para ver los leads.</p>
+            <div className="min-h-screen bg-stellar flex items-center justify-center">
+                <div className="text-center">
+                    <div className="w-8 h-8 border-2 border-classic border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                    <p className="text-text-muted text-small">Cargando CRM...</p>
                 </div>
-            </AppLayout>
+            </div>
+        );
+    }
+
+    if (state === "error") {
+        return (
+            <div className="min-h-screen bg-stellar flex items-center justify-center">
+                <div className="text-center space-y-3">
+                    <div className="text-3xl">🔒</div>
+                    <h1 className="text-lg font-bold text-text-primary">{error}</h1>
+                    <p className="text-small text-text-muted">
+                        Contactá al equipo de Worker para obtener un nuevo link.
+                    </p>
+                </div>
+            </div>
         );
     }
 
     return (
-        <AppLayout>
-            <div className="max-w-[1400px] mx-auto px-6 py-8 space-y-6">
-                {/* Header */}
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-header text-text-primary">Leads CRM</h1>
-                        <p className="text-small text-text-muted mt-1">
-                            Calificación y seguimiento de leads &middot; {total} leads en período
-                        </p>
+        <div className="min-h-screen bg-stellar text-white">
+            {/* Header */}
+            <header className="border-b border-argent bg-special">
+                <div className="max-w-[1400px] mx-auto px-6 py-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <Image src="/img/logos/worker-brain-logo-white.png" alt="Worker Brain" width={28} height={28} />
+                        <div>
+                            <h1 className="text-body font-bold text-text-primary">Leads CRM</h1>
+                            <p className="text-tiny text-text-muted">{clientName}</p>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => {
-                                setShowShareModal(true);
-                                if (!shareLink) generateShareLink();
-                            }}
-                            className="px-4 py-2 bg-special border border-argent text-text-primary text-small font-bold rounded hover:bg-argent/30 transition-colors"
-                        >
-                            Compartir CRM
-                        </button>
-                        <button
-                            onClick={() => setShowNewLead(!showNewLead)}
-                            className="px-4 py-2 bg-classic text-white text-small font-bold rounded hover:bg-classic/80 transition-colors"
-                        >
-                            + Nuevo Lead
-                        </button>
-                    </div>
+                    <span className="text-tiny text-text-muted bg-stellar px-2 py-1 rounded">
+                        Powered by Worker Brain
+                    </span>
                 </div>
+            </header>
 
-                {/* Share Modal */}
-                {showShareModal && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setShowShareModal(false)}>
-                        <div className="bg-special border border-argent rounded-lg p-6 w-[480px] space-y-4" onClick={(e) => e.stopPropagation()}>
-                            <h3 className="text-body font-bold text-text-primary">Compartir CRM con cliente</h3>
-                            <p className="text-small text-text-muted">
-                                El cliente podrá ver y editar la calificación de leads desde este link sin necesidad de iniciar sesión.
-                            </p>
-                            {shareLoading ? (
-                                <div className="flex items-center gap-2 text-text-muted text-small">
-                                    <div className="w-4 h-4 border-2 border-classic border-t-transparent rounded-full animate-spin" />
-                                    Generando link...
-                                </div>
-                            ) : shareLink ? (
-                                <div className="space-y-3">
-                                    <div className="flex items-center gap-2">
-                                        <input
-                                            type="text"
-                                            readOnly
-                                            value={shareLink}
-                                            className="flex-1 bg-stellar border border-argent rounded px-3 py-2 text-small text-text-primary font-mono"
-                                        />
-                                        <button
-                                            onClick={copyShareLink}
-                                            className={`px-3 py-2 text-small font-bold rounded transition-colors ${shareCopied
-                                                ? "bg-synced/20 text-synced"
-                                                : "bg-classic text-white hover:bg-classic/80"
-                                                }`}
-                                        >
-                                            {shareCopied ? "Copiado!" : "Copiar"}
-                                        </button>
-                                    </div>
-                                    <p className="text-tiny text-text-muted">
-                                        Podés revocar este link en cualquier momento desde la administración de tokens.
-                                    </p>
-                                </div>
-                            ) : null}
-                            <div className="flex justify-end">
-                                <button
-                                    onClick={() => setShowShareModal(false)}
-                                    className="px-4 py-2 text-small text-text-muted hover:text-text-primary transition-colors"
-                                >
-                                    Cerrar
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* New Lead Form */}
-                {showNewLead && (
-                    <div className="p-4 bg-special border border-argent rounded-lg space-y-3 animate-in fade-in slide-in-from-top-2">
-                        <h3 className="text-small font-bold text-text-primary">Crear Lead Manual</h3>
-                        <div className="grid grid-cols-4 gap-3">
-                            <input
-                                type="text"
-                                placeholder="Nombre *"
-                                value={newLead.name}
-                                onChange={(e) => setNewLead({ ...newLead, name: e.target.value })}
-                                className="text-small bg-stellar border border-argent rounded px-3 py-2 focus:border-classic outline-none"
-                            />
-                            <input
-                                type="text"
-                                placeholder="Teléfono"
-                                value={newLead.phone}
-                                onChange={(e) => setNewLead({ ...newLead, phone: e.target.value })}
-                                className="text-small bg-stellar border border-argent rounded px-3 py-2 focus:border-classic outline-none"
-                            />
-                            <input
-                                type="email"
-                                placeholder="Email"
-                                value={newLead.email}
-                                onChange={(e) => setNewLead({ ...newLead, email: e.target.value })}
-                                className="text-small bg-stellar border border-argent rounded px-3 py-2 focus:border-classic outline-none"
-                            />
-                            <select
-                                value={newLead.closerAssigned}
-                                onChange={(e) => setNewLead({ ...newLead, closerAssigned: e.target.value })}
-                                className="text-small bg-stellar border border-argent rounded px-3 py-2 focus:border-classic outline-none"
-                            >
-                                <option value="">Closer...</option>
-                                {closers.map((c) => (
-                                    <option key={c} value={c}>{c}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="flex gap-2">
-                            <button
-                                onClick={createLead}
-                                disabled={!newLead.name}
-                                className="px-4 py-1.5 bg-classic text-white text-small font-bold rounded disabled:opacity-50"
-                            >
-                                Crear
-                            </button>
-                            <button
-                                onClick={() => setShowNewLead(false)}
-                                className="px-4 py-1.5 text-text-muted text-small hover:text-text-primary"
-                            >
-                                Cancelar
-                            </button>
-                        </div>
-                    </div>
-                )}
-
-                {/* Stats Bar */}
-                <div className="grid grid-cols-5 gap-4">
+            <div className="max-w-[1400px] mx-auto px-6 py-8 space-y-6">
+                {/* Stats */}
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                     <div className="p-3 bg-special border border-argent rounded-lg text-center">
                         <p className="text-lg font-black font-mono text-text-primary">{stats.total}</p>
                         <p className="text-[9px] text-text-muted uppercase tracking-widest">Total Leads</p>
@@ -507,8 +362,7 @@ export default function LeadQualificationPage() {
                                                                 updateLead(lead.id, { qualification: e.target.value });
                                                             }}
                                                             onClick={(e) => e.stopPropagation()}
-                                                            className={`bg-transparent border-none text-small font-bold focus:outline-none cursor-pointer p-0 ${QUALIFICATION_OPTIONS.find((q) => q.value === lead.qualification)?.color || ""
-                                                                }`}
+                                                            className={`bg-transparent border-none text-small font-bold focus:outline-none cursor-pointer p-0 ${QUALIFICATION_OPTIONS.find((q) => q.value === lead.qualification)?.color || ""}`}
                                                         >
                                                             {QUALIFICATION_OPTIONS.map((q) => (
                                                                 <option key={q.value} value={q.value} className="bg-special text-text-primary">{q.label}</option>
@@ -540,10 +394,10 @@ export default function LeadQualificationPage() {
                                                                     updateLead(lead.id, { attendance: next });
                                                                 }}
                                                                 className={`w-6 h-6 rounded text-[10px] font-bold ${lead.attendance === true
-                                                                        ? "bg-synced/20 text-synced"
-                                                                        : lead.attendance === false
-                                                                            ? "bg-[#ef4444]/20 text-[#ef4444]"
-                                                                            : "bg-argent/30 text-text-muted"
+                                                                    ? "bg-synced/20 text-synced"
+                                                                    : lead.attendance === false
+                                                                        ? "bg-[#ef4444]/20 text-[#ef4444]"
+                                                                        : "bg-argent/30 text-text-muted"
                                                                     }`}
                                                             >
                                                                 {lead.attendance === true ? "S" : lead.attendance === false ? "N" : "?"}
@@ -558,8 +412,7 @@ export default function LeadQualificationPage() {
                                                                 updateLead(lead.id, { postCallStatus: e.target.value });
                                                             }}
                                                             onClick={(e) => e.stopPropagation()}
-                                                            className={`border-none text-[10px] font-bold rounded px-1.5 py-0.5 focus:outline-none cursor-pointer ${POST_CALL_OPTIONS.find((p) => p.value === lead.postCallStatus)?.color || "bg-special"
-                                                                }`}
+                                                            className={`border-none text-[10px] font-bold rounded px-1.5 py-0.5 focus:outline-none cursor-pointer ${POST_CALL_OPTIONS.find((p) => p.value === lead.postCallStatus)?.color || "bg-special"}`}
                                                         >
                                                             {POST_CALL_OPTIONS.map((p) => (
                                                                 <option key={p.value} value={p.value} className="bg-special text-text-primary">{p.label}</option>
@@ -614,30 +467,6 @@ export default function LeadQualificationPage() {
                                                                     Guardar
                                                                 </button>
                                                             </div>
-                                                            {lead.utm && (lead.utm.source || lead.utm.campaign) && (
-                                                                <div className="mt-2 flex gap-2 flex-wrap">
-                                                                    {lead.utm.source && (
-                                                                        <span className="text-[9px] bg-classic/10 text-classic px-2 py-0.5 rounded font-mono">
-                                                                            source: {lead.utm.source}
-                                                                        </span>
-                                                                    )}
-                                                                    {lead.utm.campaign && (
-                                                                        <span className="text-[9px] bg-classic/10 text-classic px-2 py-0.5 rounded font-mono">
-                                                                            campaign: {lead.utm.campaign}
-                                                                        </span>
-                                                                    )}
-                                                                    {lead.utm.content && (
-                                                                        <span className="text-[9px] bg-classic/10 text-classic px-2 py-0.5 rounded font-mono">
-                                                                            content: {lead.utm.content}
-                                                                        </span>
-                                                                    )}
-                                                                    {lead.utm.medium && (
-                                                                        <span className="text-[9px] bg-classic/10 text-classic px-2 py-0.5 rounded font-mono">
-                                                                            medium: {lead.utm.medium}
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                            )}
                                                         </td>
                                                     </tr>
                                                 )}
@@ -649,7 +478,14 @@ export default function LeadQualificationPage() {
                         </table>
                     </div>
                 </div>
+
+                {/* Footer */}
+                <div className="text-center py-4">
+                    <p className="text-tiny text-text-muted">
+                        Worker Brain &middot; {total} leads en período
+                    </p>
+                </div>
             </div>
-        </AppLayout>
+        </div>
     );
 }

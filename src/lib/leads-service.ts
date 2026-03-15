@@ -51,10 +51,13 @@ export class LeadsService {
         for (const [date, leads] of byDate) {
             const metrics = this.computeMetrics(leads);
 
-            // Cross-reference META spend for cost metrics
+            // Cross-reference META metrics for cost + ads KPIs
             const metaDocId = buildChannelSnapshotId(clientId, "META", date);
             const metaDoc = await db.collection("channel_snapshots").doc(metaDocId).get();
-            const metaSpend = metaDoc.exists ? (metaDoc.data()?.metrics?.spend || 0) : 0;
+            const metaData = metaDoc.exists ? metaDoc.data()?.metrics : null;
+            const metaSpend = metaData?.spend || 0;
+            const metaImpressions = metaData?.impressions || 0;
+            const metaClicks = metaData?.clicks || 0;
 
             if (metaSpend > 0) {
                 metrics.cpl = metrics.totalLeads! > 0 ? metaSpend / metrics.totalLeads! : undefined;
@@ -62,8 +65,8 @@ export class LeadsService {
                 metrics.customerAcquisitionCost = metrics.newClients! > 0 ? metaSpend / metrics.newClients! : undefined;
             }
 
-            // Build rawData with breakdowns
-            const rawData = this.buildRawData(leads, metaSpend);
+            // Build rawData with breakdowns + META ads metrics
+            const rawData = this.buildRawData(leads, metaSpend, metaImpressions, metaClicks);
 
             const snapshot: ChannelDailySnapshot = {
                 clientId,
@@ -133,7 +136,7 @@ export class LeadsService {
     /**
      * Build rawData with breakdowns for the channel page.
      */
-    static buildRawData(leads: Lead[], metaSpend: number): Record<string, unknown> {
+    static buildRawData(leads: Lead[], metaSpend: number, metaImpressions = 0, metaClicks = 0): Record<string, unknown> {
         // Funnel stages
         const total = leads.length;
         const qualified = leads.filter((l) => l.qualification === "calificado").length;
@@ -200,6 +203,14 @@ export class LeadsService {
         return {
             source: "ghl",
             metaSpend,
+            metaImpressions,
+            metaClicks,
+            metaCpm: metaImpressions > 0 ? (metaSpend / metaImpressions) * 1000 : 0,
+            metaCpc: metaClicks > 0 ? metaSpend / metaClicks : 0,
+            metaCtr: metaImpressions > 0 ? (metaClicks / metaImpressions) * 100 : 0,
+            impressionsPerMeeting: total > 0 && metaImpressions > 0 ? metaImpressions / total : 0,
+            costPerAttendance: attended > 0 && metaSpend > 0 ? metaSpend / attended : 0,
+            costPerClose: newClients > 0 && metaSpend > 0 ? metaSpend / newClients : 0,
             funnelStages,
             byCloser,
             byUtmCampaign,

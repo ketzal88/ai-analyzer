@@ -404,6 +404,7 @@ export type ClientConfigV2 = Client;
 export interface PublicToken {
     token: string;
     clientId: string;
+    type?: 'report' | 'crm';
     label?: string;
     createdAt: string;
     createdByUid: string;

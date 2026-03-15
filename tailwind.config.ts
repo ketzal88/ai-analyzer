@@ -21,8 +21,8 @@ const config: Config = {
                 "sync-required":   "#FACC15",   // warning = yellow accent
                 // Text colors
                 "text-primary":    "#FAFAFA",   // off-white
-                "text-secondary":  "#71717A",   // gray-500
-                "text-muted":      "#52525B",   // mid-gray
+                "text-secondary":  "#B4B4BD",   // zinc-350 (high readability)
+                "text-muted":      "#8C8C96",   // zinc-450 (was #52525B)
                 // New tokens
                 "text-on-accent":  "#0F0F10",   // dark text on yellow fills
             },

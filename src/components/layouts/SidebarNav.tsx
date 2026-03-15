@@ -34,6 +34,7 @@ export default function SidebarNav({ isAdmin }: SidebarNavProps) {
             if (integ.ga4) activeIntegrations.add('ga4');
             if (integ.ecommerce) activeIntegrations.add('ecommerce');
             if (integ.email) activeIntegrations.add('email');
+            if (integ.leads) activeIntegrations.add('leads');
         }
         if (selectedClient.metaAdAccountId) activeIntegrations.add('meta');
     }

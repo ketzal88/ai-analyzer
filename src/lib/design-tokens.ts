@@ -21,8 +21,8 @@ export const colors = {
 
     // Text colors
     textPrimary: "#FAFAFA",   // off-white
-    textSecondary: "#71717A", // gray-500
-    textMuted: "#52525B",     // mid-gray
+    textSecondary: "#B4B4BD", // zinc-350 (high readability)
+    textMuted: "#8C8C96",     // zinc-450 (was #52525B)
     textOnAccent: "#0F0F10",  // dark text on yellow fills
 
     // Dashboard theme (indigo-based)

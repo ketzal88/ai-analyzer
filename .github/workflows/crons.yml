@@ -73,6 +73,13 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             || echo "⚠️ GA4 sync failed (will retry via fill-gaps)"
 
+      - name: Sync Leads
+        run: |
+          echo "👥 Triggering Leads sync..."
+          curl -sS -f "${{ env.APP_URL }}/api/cron/sync-leads" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            || echo "⚠️ Leads sync failed (will retry via fill-gaps)"
+
   fill-gaps:
     if: github.event.schedule == '30 9 * * *' || github.event_name == 'workflow_dispatch' && (github.event.inputs.job == 'all' || github.event.inputs.job == 'fill-gaps')
     runs-on: ubuntu-latest
