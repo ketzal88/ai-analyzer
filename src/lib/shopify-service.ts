@@ -13,6 +13,7 @@
 
 import { db } from "@/lib/firebase-admin";
 import { ChannelDailySnapshot, UnifiedChannelMetrics, buildChannelSnapshotId } from "@/types/channel-snapshots";
+import { EcommerceCustomerService } from "@/lib/ecommerce-customer-service";
 
 // ── Config ───────────────────────────────────────────
 const API_VERSION = "2024-01";
@@ -580,6 +581,42 @@ export class ShopifyService {
 
         console.log(`[Shopify] Fetched ${allOrders.length} orders, ${abandonedCheckouts.length} abandoned checkouts for ${clientId}`);
 
+        // Upsert customer records for lifetime tracking
+        const paidOrders = allOrders.filter(o =>
+            ["paid", "partially_paid", "partially_refunded"].includes(o.financial_status)
+        );
+        const ordersWithCustomer = paidOrders.filter(o => o.customer?.id);
+        const orderInputs = ordersWithCustomer.map(o => ({
+            customerId: String(o.customer!.id),
+            email: o.customer!.email || undefined,
+            date: o.created_at.split("T")[0],
+            totalPrice: parseFloat(o.total_price || "0"),
+        }));
+        await EcommerceCustomerService.upsertFromOrders(clientId, 'shopify', orderInputs);
+
+        // Compute customer intelligence + LTV:CAC
+        const periodRevenue = paidOrders.reduce((s, o) => s + parseFloat(o.total_price || "0"), 0);
+        const uniqueCustomerIds = new Set(ordersWithCustomer.map(o => o.customer!.id));
+        const newCustomerCount = ordersWithCustomer.filter(o => (o.customer!.orders_count || 0) <= 1).length;
+
+        const [intelligence, ltvCac] = await Promise.all([
+            EcommerceCustomerService.computeCustomerIntelligence(clientId, periodRevenue, uniqueCustomerIds.size),
+            EcommerceCustomerService.computeLtvCac(clientId, startDate, endDate, 0, newCustomerCount),
+        ]);
+        // Use actual avg LTV for ratio
+        if (ltvCac && intelligence.avgLifetimeLtv > 0) {
+            ltvCac.ltvCacRatio = intelligence.avgLifetimeLtv / ltvCac.cac;
+        }
+
+        const retention = await EcommerceCustomerService.computeRetention(
+            clientId, startDate, endDate,
+            // Previous period: same length before startDate
+            this.shiftDateBack(startDate, startDate, endDate),
+            this.shiftDateBack(endDate, startDate, endDate)
+        );
+        intelligence.retentionRate = retention;
+        intelligence.ltvCac = ltvCac || undefined;
+
         const dailyAggregates = this.aggregateByDay(allOrders, abandonedCheckouts);
 
         if (dailyAggregates.length === 0) {
@@ -593,12 +630,14 @@ export class ShopifyService {
 
         for (const agg of dailyAggregates) {
             const docId = buildChannelSnapshotId(clientId, 'ECOMMERCE', agg.date);
+            const rawData = agg.rawData as Record<string, unknown>;
+            rawData.customerIntelligence = intelligence;
             const snapshot: ChannelDailySnapshot = {
                 clientId,
                 channel: 'ECOMMERCE',
                 date: agg.date,
                 metrics: agg.metrics,
-                rawData: agg.rawData as unknown as Record<string, unknown>,
+                rawData,
                 syncedAt: new Date().toISOString(),
             };
             batch.set(db.collection('channel_snapshots').doc(docId), snapshot, { merge: true });
@@ -610,5 +649,15 @@ export class ShopifyService {
         console.log(`[Shopify] Wrote ${dailyAggregates.length} days for ${clientId}: ${totalOrders} orders, $${totalRevenue.toFixed(2)} revenue`);
 
         return { daysWritten: dailyAggregates.length, totalOrders, totalRevenue };
+    }
+
+    /** Shift a date back by the length of a period */
+    private static shiftDateBack(date: string, periodStart: string, periodEnd: string): string {
+        const start = new Date(periodStart);
+        const end = new Date(periodEnd);
+        const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+        const d = new Date(date);
+        d.setDate(d.getDate() - days);
+        return d.toISOString().split("T")[0];
     }
 }

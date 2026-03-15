@@ -1,24 +1,25 @@
 /**
  * Channel Backfill Service
  *
- * Backfills channel_snapshots for the current quarter when:
- * - A new client is created
- * - A channel integration is enabled on an existing client
+ * Two modes:
+ * 1. Queue-based: enqueueBackfill() creates tasks in `channel_backfill_queue`,
+ *    processed later by processQueue() via cron. Used for new client creation
+ *    and channel enablement (avoids Vercel timeout).
  *
- * Each channel dispatches to its respective service's syncToChannelSnapshots().
+ * 2. Direct: backfillMetaRange() and other range methods for use by scripts.
+ *
+ * Backfill range: Jan 1 of previous year → yesterday.
  */
 
 import { db } from "@/lib/firebase-admin";
 import { Client } from "@/types";
 import { buildChannelSnapshotId, ChannelDailySnapshot } from "@/types/channel-snapshots";
 
-/** Get the start of the current cuatrimestre (Q1=Jan1, Q2=May1, Q3=Sep1) */
-function getQuarterStart(): string {
-    const now = new Date();
-    const month = now.getMonth(); // 0-indexed
-    const quarterStartMonth = Math.floor(month / 4) * 4;
-    const start = new Date(now.getFullYear(), quarterStartMonth, 1);
-    return start.toISOString().split("T")[0];
+// ── Date Helpers ────────────────────────────────────────────────
+
+/** Get Jan 1 of the previous year */
+function getPreviousYearStart(): string {
+    return `${new Date().getFullYear() - 1}-01-01`;
 }
 
 /** Get yesterday's date string */
@@ -27,6 +28,19 @@ function getYesterday(): string {
     d.setDate(d.getDate() - 1);
     return d.toISOString().split("T")[0];
 }
+
+function generateDateRange(start: string, end: string): string[] {
+    const dates: string[] = [];
+    const current = new Date(start + "T12:00:00Z");
+    const last = new Date(end + "T12:00:00Z");
+    while (current <= last) {
+        dates.push(current.toISOString().split("T")[0]);
+        current.setUTCDate(current.getUTCDate() + 1);
+    }
+    return dates;
+}
+
+// ── Types ───────────────────────────────────────────────────────
 
 export type BackfillChannel = "META" | "GOOGLE" | "GA4" | "ECOMMERCE" | "EMAIL" | "LEADS";
 
@@ -37,82 +51,181 @@ export interface ChannelBackfillResult {
     error?: string;
 }
 
+export interface BackfillQueueTask {
+    clientId: string;
+    clientName: string;
+    channel: BackfillChannel;
+    startDate: string;
+    endDate: string;
+    status: "pending" | "processing" | "completed" | "failed";
+    attempts: number;
+    createdAt: string;
+    lastAttemptAt?: string;
+    completedAt?: string;
+    error?: string;
+    daysWritten?: number;
+}
+
+// ── Service ─────────────────────────────────────────────────────
+
 export class ChannelBackfillService {
 
+    // ════════════════════════════════════════════════════════════
+    //  QUEUE MODE — for new client creation & channel enablement
+    // ════════════════════════════════════════════════════════════
+
     /**
-     * Backfill all configured channels for a client from quarter start to yesterday.
-     * Called on new client creation.
+     * Enqueue backfill tasks for a client. Creates one task per channel
+     * in `channel_backfill_queue`. Processed later by processQueue() via cron.
+     *
+     * @param clientId - The client to backfill
+     * @param channels - Optional specific channels. If omitted, detects from client config.
      */
-    static async backfillAllChannels(clientId: string): Promise<ChannelBackfillResult[]> {
+    static async enqueueBackfill(clientId: string, channels?: BackfillChannel[]): Promise<void> {
         const clientDoc = await db.collection("clients").doc(clientId).get();
-        if (!clientDoc.exists) return [{ channel: "META", status: "failed", error: "Client not found" }];
+        if (!clientDoc.exists) return;
 
         const client = { id: clientDoc.id, ...clientDoc.data() } as Client;
-        const results: ChannelBackfillResult[] = [];
+        const startDate = getPreviousYearStart();
+        const endDate = getYesterday();
 
-        // Meta
-        if (client.integraciones?.meta && client.metaAdAccountId) {
-            results.push(await this.backfillMeta(clientId, client.metaAdAccountId));
+        // Determine which channels to enqueue
+        const channelsToQueue: BackfillChannel[] = channels || [];
+        if (!channels) {
+            if (client.integraciones?.meta && client.metaAdAccountId) channelsToQueue.push("META");
+            if (client.integraciones?.google && client.googleAdsId) channelsToQueue.push("GOOGLE");
+            if (client.integraciones?.ga4 && client.ga4PropertyId) channelsToQueue.push("GA4");
+            if (client.integraciones?.ecommerce) channelsToQueue.push("ECOMMERCE");
+            if (client.integraciones?.email) channelsToQueue.push("EMAIL");
+            if (client.integraciones?.leads) channelsToQueue.push("LEADS");
         }
 
-        // Google
-        if (client.integraciones?.google && client.googleAdsId) {
-            results.push(await this.backfillGoogle(clientId, client.googleAdsId));
-        }
+        if (channelsToQueue.length === 0) return;
 
-        // GA4
-        if (client.integraciones?.ga4 && client.ga4PropertyId) {
-            results.push(await this.backfillGA4(clientId, client.ga4PropertyId));
+        const batch = db.batch();
+        for (const channel of channelsToQueue) {
+            const docRef = db.collection("channel_backfill_queue").doc(`${clientId}__${channel}`);
+            const task: BackfillQueueTask = {
+                clientId,
+                clientName: client.name,
+                channel,
+                startDate,
+                endDate,
+                status: "pending",
+                attempts: 0,
+                createdAt: new Date().toISOString(),
+            };
+            batch.set(docRef, task);
         }
-
-        // Ecommerce
-        if (client.integraciones?.ecommerce) {
-            results.push(await this.backfillEcommerce(clientId, client));
-        }
-
-        // Email
-        if (client.integraciones?.email) {
-            results.push(await this.backfillEmail(clientId, client));
-        }
-
-        // Leads
-        if (client.integraciones?.leads) {
-            results.push(await this.backfillLeads(clientId));
-        }
-
-        return results;
+        await batch.commit();
+        console.log(`[Backfill Queue] Enqueued ${channelsToQueue.length} tasks for ${client.name}: ${channelsToQueue.join(", ")}`);
     }
 
     /**
-     * Backfill a specific channel for a client from quarter start to yesterday.
-     * Called when a channel integration is enabled on an existing client.
+     * Process pending tasks from the queue. Called by /api/cron/process-backfill-queue.
+     * Processes up to maxTasks tasks per invocation.
      */
-    static async backfillChannel(clientId: string, channel: BackfillChannel): Promise<ChannelBackfillResult> {
+    static async processQueue(maxTasks = 3): Promise<{
+        processed: number;
+        succeeded: number;
+        failed: number;
+        results: Array<{ taskId: string; channel: string; clientName: string; status: string; error?: string }>;
+    }> {
+        // Get pending tasks (or failed with < 3 attempts), oldest first
+        const pendingSnap = await db.collection("channel_backfill_queue")
+            .where("status", "==", "pending")
+            .orderBy("createdAt", "asc")
+            .limit(maxTasks)
+            .get();
+
+        const retrySnap = await db.collection("channel_backfill_queue")
+            .where("status", "==", "failed")
+            .orderBy("createdAt", "asc")
+            .limit(Math.max(0, maxTasks - pendingSnap.size))
+            .get();
+
+        const allDocs = [...pendingSnap.docs, ...retrySnap.docs]
+            .filter(doc => {
+                const data = doc.data() as BackfillQueueTask;
+                return data.status === "pending" || (data.status === "failed" && data.attempts < 3);
+            })
+            .slice(0, maxTasks);
+
+        const results: Array<{ taskId: string; channel: string; clientName: string; status: string; error?: string }> = [];
+        let succeeded = 0;
+        let failed = 0;
+
+        for (const doc of allDocs) {
+            const task = doc.data() as BackfillQueueTask;
+            const taskRef = doc.ref;
+
+            console.log(`[Backfill Queue] Processing ${task.channel} for ${task.clientName} (attempt ${task.attempts + 1})...`);
+
+            // Mark as processing
+            await taskRef.update({ status: "processing", lastAttemptAt: new Date().toISOString(), attempts: task.attempts + 1 });
+
+            try {
+                const result = await this.backfillChannel(task.clientId, task.channel, task.startDate, task.endDate);
+
+                if (result.status === "success") {
+                    await taskRef.update({ status: "completed", completedAt: new Date().toISOString(), daysWritten: result.daysWritten });
+                    succeeded++;
+                    results.push({ taskId: doc.id, channel: task.channel, clientName: task.clientName, status: "completed" });
+                } else {
+                    await taskRef.update({ status: "failed", error: result.error });
+                    failed++;
+                    results.push({ taskId: doc.id, channel: task.channel, clientName: task.clientName, status: "failed", error: result.error });
+                }
+            } catch (err: any) {
+                await taskRef.update({ status: "failed", error: err.message });
+                failed++;
+                results.push({ taskId: doc.id, channel: task.channel, clientName: task.clientName, status: "failed", error: err.message });
+            }
+        }
+
+        return { processed: allDocs.length, succeeded, failed, results };
+    }
+
+    // ════════════════════════════════════════════════════════════
+    //  DIRECT MODE — backfill a channel with custom date range
+    // ════════════════════════════════════════════════════════════
+
+    /**
+     * Backfill a specific channel for a client with a custom date range.
+     */
+    static async backfillChannel(
+        clientId: string,
+        channel: BackfillChannel,
+        startDate?: string,
+        endDate?: string,
+    ): Promise<ChannelBackfillResult> {
         const clientDoc = await db.collection("clients").doc(clientId).get();
         if (!clientDoc.exists) return { channel, status: "failed", error: "Client not found" };
 
         const client = { id: clientDoc.id, ...clientDoc.data() } as Client;
+        const start = startDate || getPreviousYearStart();
+        const end = endDate || getYesterday();
 
         switch (channel) {
             case "META":
                 if (!client.metaAdAccountId) return { channel, status: "skipped", error: "No metaAdAccountId" };
-                return this.backfillMeta(clientId, client.metaAdAccountId);
+                return this.backfillMetaRange(clientId, client.metaAdAccountId, start, end);
 
             case "GOOGLE":
                 if (!client.googleAdsId) return { channel, status: "skipped", error: "No googleAdsId" };
-                return this.backfillGoogle(clientId, client.googleAdsId);
+                return this.backfillGoogle(clientId, client.googleAdsId, start, end);
 
             case "GA4":
                 if (!client.ga4PropertyId) return { channel, status: "skipped", error: "No ga4PropertyId" };
-                return this.backfillGA4(clientId, client.ga4PropertyId);
+                return this.backfillGA4(clientId, client.ga4PropertyId, start, end);
 
             case "ECOMMERCE":
                 if (!client.integraciones?.ecommerce) return { channel, status: "skipped", error: "No ecommerce platform" };
-                return this.backfillEcommerce(clientId, client);
+                return this.backfillEcommerce(clientId, client, start, end);
 
             case "EMAIL":
                 if (!client.integraciones?.email) return { channel, status: "skipped", error: "No email platform" };
-                return this.backfillEmail(clientId, client);
+                return this.backfillEmail(clientId, client, start, end);
 
             case "LEADS":
                 if (!client.integraciones?.leads) return { channel, status: "skipped", error: "No leads integration" };
@@ -123,12 +236,16 @@ export class ChannelBackfillService {
         }
     }
 
-    // --- Channel-specific backfill methods ---
+    // ════════════════════════════════════════════════════════════
+    //  CHANNEL-SPECIFIC BACKFILL METHODS
+    // ════════════════════════════════════════════════════════════
 
-    private static async backfillMeta(clientId: string, adAccountId: string): Promise<ChannelBackfillResult> {
+    /**
+     * Backfill Meta Ads data for a date range.
+     * Public so the massive-backfill script can call it directly.
+     */
+    static async backfillMetaRange(clientId: string, adAccountId: string, startDate: string, endDate: string): Promise<ChannelBackfillResult> {
         try {
-            const startDate = getQuarterStart();
-            const endDate = getYesterday();
             const metaToken = process.env.META_ACCESS_TOKEN;
             const metaVersion = process.env.META_API_VERSION || "v24.0";
 
@@ -170,8 +287,6 @@ export class ChannelBackfillService {
                 for (const row of chunk) {
                     datesWithData.add(row.date_start);
                     const spend = Number(row.spend || 0);
-                    const impressions = Number(row.impressions || 0);
-                    const clicks = Number(row.clicks || 0);
                     const getAct = (type: string) => Number(row.actions?.find((a: any) => a.action_type === type)?.value || 0);
                     const getActVal = (type: string) => Number(row.action_values?.find((a: any) => a.action_type === type)?.value || 0);
                     const getCostPerAct = (type: string) => Number(row.cost_per_action_type?.find((a: any) => a.action_type === type)?.value || 0);
@@ -189,7 +304,10 @@ export class ChannelBackfillService {
                     const snapshot: ChannelDailySnapshot = {
                         clientId, channel: "META", date: row.date_start,
                         metrics: {
-                            spend, revenue, conversions, impressions, clicks,
+                            spend, revenue, conversions,
+                            purchases, leads,
+                            impressions: Number(row.impressions || 0),
+                            clicks: Number(row.clicks || 0),
                             ctr: Number(row.ctr || 0), cpc: Number(row.cpc || 0),
                             cpm: Number(row.cpm || 0), cpp: Number(row.cpp || 0),
                             roas: spend > 0 ? revenue / spend : 0,
@@ -246,11 +364,9 @@ export class ChannelBackfillService {
         }
     }
 
-    private static async backfillGoogle(clientId: string, customerId: string): Promise<ChannelBackfillResult> {
+    private static async backfillGoogle(clientId: string, customerId: string, startDate: string, endDate: string): Promise<ChannelBackfillResult> {
         try {
             const { GoogleAdsService } = await import("@/lib/google-ads-service");
-            const startDate = getQuarterStart();
-            const endDate = getYesterday();
             const { daysWritten } = await GoogleAdsService.syncToChannelSnapshots(clientId, customerId, startDate, endDate);
             return { channel: "GOOGLE", status: "success", daysWritten };
         } catch (e: any) {
@@ -258,11 +374,9 @@ export class ChannelBackfillService {
         }
     }
 
-    private static async backfillGA4(clientId: string, propertyId: string): Promise<ChannelBackfillResult> {
+    private static async backfillGA4(clientId: string, propertyId: string, startDate: string, endDate: string): Promise<ChannelBackfillResult> {
         try {
             const { GA4Service } = await import("@/lib/ga4-service");
-            const startDate = getQuarterStart();
-            const endDate = getYesterday();
             const { daysWritten } = await GA4Service.syncToChannelSnapshots(clientId, propertyId, startDate, endDate);
             return { channel: "GA4", status: "success", daysWritten };
         } catch (e: any) {
@@ -270,11 +384,8 @@ export class ChannelBackfillService {
         }
     }
 
-    private static async backfillEcommerce(clientId: string, client: Client): Promise<ChannelBackfillResult> {
+    private static async backfillEcommerce(clientId: string, client: Client, startDate: string, endDate: string): Promise<ChannelBackfillResult> {
         try {
-            const startDate = getQuarterStart();
-            const endDate = getYesterday();
-
             if (client.integraciones?.ecommerce === "tiendanube") {
                 if (!client.tiendanubeStoreId || !client.tiendanubeAccessToken) {
                     return { channel: "ECOMMERCE", status: "skipped", error: "Missing TiendaNube credentials" };
@@ -308,11 +419,8 @@ export class ChannelBackfillService {
         }
     }
 
-    private static async backfillEmail(clientId: string, client: Client): Promise<ChannelBackfillResult> {
+    private static async backfillEmail(clientId: string, client: Client, startDate: string, endDate: string): Promise<ChannelBackfillResult> {
         try {
-            const startDate = getQuarterStart();
-            const endDate = getYesterday();
-
             if (client.integraciones?.email === "perfit") {
                 if (!client.perfitApiKey) return { channel: "EMAIL", status: "skipped", error: "No perfitApiKey" };
                 const { PerfitService } = await import("@/lib/perfit-service");
@@ -335,7 +443,7 @@ export class ChannelBackfillService {
     private static async backfillLeads(clientId: string): Promise<ChannelBackfillResult> {
         try {
             const { LeadsService } = await import("@/lib/leads-service");
-            const startDate = getQuarterStart();
+            const startDate = getPreviousYearStart();
             const endDate = getYesterday();
             const { daysWritten } = await LeadsService.syncToChannelSnapshots(clientId, startDate, endDate);
             return { channel: "LEADS", status: "success", daysWritten };
@@ -343,16 +451,4 @@ export class ChannelBackfillService {
             return { channel: "LEADS", status: "failed", error: e.message };
         }
     }
-}
-
-// Helper
-function generateDateRange(start: string, end: string): string[] {
-    const dates: string[] = [];
-    const current = new Date(start + "T12:00:00Z");
-    const last = new Date(end + "T12:00:00Z");
-    while (current <= last) {
-        dates.push(current.toISOString().split("T")[0]);
-        current.setUTCDate(current.getUTCDate() + 1);
-    }
-    return dates;
 }

@@ -47,7 +47,7 @@ export const PATCH = withErrorReporting("API Clients PATCH", async (
         updatedAt: new Date().toISOString()
     });
 
-    // Detect newly enabled channels and trigger quarter backfill (non-blocking)
+    // Detect newly enabled channels and enqueue previous-year backfill
     try {
         const { ChannelBackfillService } = await import("@/lib/channel-backfill-service");
         type BC = import("@/lib/channel-backfill-service").BackfillChannel;
@@ -56,39 +56,27 @@ export const PATCH = withErrorReporting("API Clients PATCH", async (
         const newInt = updates.integraciones || {};
         const prevInt = prev.integraciones || {};
 
-        // Meta: was off/missing, now on with account ID
         if (newInt.meta && !prevInt.meta && (updates.metaAdAccountId || prev.metaAdAccountId)) {
             channelsToBackfill.push("META");
         }
-        // Google: was off, now on with customer ID
         if (newInt.google && !prevInt.google && (updates.googleAdsId || prev.googleAdsId)) {
             channelsToBackfill.push("GOOGLE");
         }
-        // GA4: was off, now on with property ID
         if (newInt.ga4 && !prevInt.ga4 && (updates.ga4PropertyId || prev.ga4PropertyId)) {
             channelsToBackfill.push("GA4");
         }
-        // Ecommerce: was null/different, now set
         if (newInt.ecommerce && newInt.ecommerce !== prevInt.ecommerce) {
             channelsToBackfill.push("ECOMMERCE");
         }
-        // Email: was null/different, now set
         if (newInt.email && newInt.email !== prevInt.email) {
             channelsToBackfill.push("EMAIL");
         }
 
         if (channelsToBackfill.length > 0) {
-            // Fire and forget — don't block the API response
-            Promise.all(channelsToBackfill.map(ch => ChannelBackfillService.backfillChannel(id, ch)))
-                .then(results => {
-                    console.log(`[Channel Backfill] Client ${id} channels ${channelsToBackfill.join(",")}:`, results);
-                })
-                .catch(err => {
-                    console.error(`[Channel Backfill] Failed for client ${id}:`, err.message);
-                });
+            await ChannelBackfillService.enqueueBackfill(id, channelsToBackfill);
         }
     } catch (backfillErr) {
-        console.error(`[Channel Backfill] Import failed for ${id}:`, backfillErr);
+        console.error(`[Channel Backfill] Enqueue failed for ${id}:`, backfillErr);
     }
 
     return NextResponse.json({ success: true });

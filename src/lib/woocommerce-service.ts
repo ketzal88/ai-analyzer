@@ -11,6 +11,7 @@
 
 import { db } from "@/lib/firebase-admin";
 import { ChannelDailySnapshot, UnifiedChannelMetrics, buildChannelSnapshotId } from "@/types/channel-snapshots";
+import { EcommerceCustomerService } from "@/lib/ecommerce-customer-service";
 
 // ── Config ───────────────────────────────────────────
 const PER_PAGE = 100; // WooCommerce max
@@ -73,6 +74,10 @@ export interface WooCommerceDailyAggregate {
         refundDetail: { totalAmount: number; refundedItems: number };
         totalProducts: number;
         uniqueCustomers: number;
+        customerCohorts?: {
+            firstTime: { count: number; revenue: number };
+            returning: { count: number; revenue: number };
+        };
     };
 }
 
@@ -204,11 +209,31 @@ export class WooCommerceService {
             );
             const itemsPerOrder = orderCount > 0 ? totalItems / orderCount : 0;
 
-            // Customer tracking
+            // Customer tracking with revenue per customer
             const customerIds = new Set<number>();
+            const customerOrderCount = new Map<number, number>();
+            const customerRevenue = new Map<number, number>();
             for (const order of paidOrders) {
                 if (order.customer_id > 0) {
                     customerIds.add(order.customer_id);
+                    customerOrderCount.set(order.customer_id, (customerOrderCount.get(order.customer_id) || 0) + 1);
+                    customerRevenue.set(order.customer_id, (customerRevenue.get(order.customer_id) || 0) + parseFloat(order.total || "0"));
+                }
+            }
+
+            // Customer cohorts (based on orders within sync window)
+            const customerCohorts = {
+                firstTime: { count: 0, revenue: 0 },
+                returning: { count: 0, revenue: 0 },
+            };
+            for (const [customerId, count] of customerOrderCount) {
+                const revenue = customerRevenue.get(customerId) || 0;
+                if (count === 1) {
+                    customerCohorts.firstTime.count++;
+                    customerCohorts.firstTime.revenue += revenue;
+                } else {
+                    customerCohorts.returning.count++;
+                    customerCohorts.returning.revenue += revenue;
                 }
             }
 
@@ -339,6 +364,7 @@ export class WooCommerceService {
                     refundDetail,
                     totalProducts: totalItems,
                     uniqueCustomers: customerIds.size,
+                    customerCohorts,
                 },
             });
         }
@@ -400,6 +426,39 @@ export class WooCommerceService {
 
         console.log(`[WooCommerce] Fetched ${allOrders.length} orders for ${clientId}`);
 
+        // Upsert customer records for lifetime tracking (skip guest orders)
+        const paidForCustomers = allOrders.filter(o =>
+            ["processing", "completed", "on-hold"].includes(o.status) && o.customer_id > 0
+        );
+        const orderInputs = paidForCustomers.map(o => ({
+            customerId: String(o.customer_id),
+            email: o.billing?.email || undefined,
+            date: o.date_created.split("T")[0],
+            totalPrice: parseFloat(o.total || "0"),
+        }));
+        await EcommerceCustomerService.upsertFromOrders(clientId, 'woocommerce', orderInputs);
+
+        // Compute customer intelligence + LTV:CAC
+        const periodRevenue = paidForCustomers.reduce((s, o) => s + parseFloat(o.total || "0"), 0);
+        const uniqueIds = new Set(paidForCustomers.map(o => o.customer_id));
+
+        const intelligence = await EcommerceCustomerService.computeCustomerIntelligence(
+            clientId, periodRevenue, uniqueIds.size
+        );
+
+        const newCustomerCount = intelligence.cohorts.firstTime.count;
+        const ltvCac = await EcommerceCustomerService.computeLtvCac(
+            clientId, startDate, endDate, intelligence.avgLifetimeLtv, newCustomerCount
+        );
+        intelligence.ltvCac = ltvCac || undefined;
+
+        const retention = await EcommerceCustomerService.computeRetention(
+            clientId, startDate, endDate,
+            this.shiftDateBack(startDate, startDate, endDate),
+            this.shiftDateBack(endDate, startDate, endDate)
+        );
+        intelligence.retentionRate = retention;
+
         const dailyAggregates = this.aggregateByDay(allOrders);
 
         if (dailyAggregates.length === 0) {
@@ -413,12 +472,14 @@ export class WooCommerceService {
 
         for (const agg of dailyAggregates) {
             const docId = buildChannelSnapshotId(clientId, 'ECOMMERCE', agg.date);
+            const rawData = agg.rawData as Record<string, unknown>;
+            rawData.customerIntelligence = intelligence;
             const snapshot: ChannelDailySnapshot = {
                 clientId,
                 channel: 'ECOMMERCE',
                 date: agg.date,
                 metrics: agg.metrics,
-                rawData: agg.rawData as unknown as Record<string, unknown>,
+                rawData,
                 syncedAt: new Date().toISOString(),
             };
             batch.set(db.collection('channel_snapshots').doc(docId), snapshot, { merge: true });
@@ -430,5 +491,15 @@ export class WooCommerceService {
         console.log(`[WooCommerce] Wrote ${dailyAggregates.length} days for ${clientId}: ${totalOrders} orders, $${totalRevenue.toFixed(2)} revenue`);
 
         return { daysWritten: dailyAggregates.length, totalOrders, totalRevenue };
+    }
+
+    /** Shift a date back by the length of a period */
+    private static shiftDateBack(date: string, periodStart: string, periodEnd: string): string {
+        const start = new Date(periodStart);
+        const end = new Date(periodEnd);
+        const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+        const d = new Date(date);
+        d.setDate(d.getDate() - days);
+        return d.toISOString().split("T")[0];
     }
 }

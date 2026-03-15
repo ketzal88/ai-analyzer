@@ -16,6 +16,43 @@ import {
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 const VISION_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
 
+// ── Vision Prompt (editable via brain_prompts/creative_dna_vision) ──
+
+export const DEFAULT_VISION_PROMPT = `Analyze this ad creative image and respond ONLY with a JSON object (no markdown, no explanation):
+{
+  "visualStyle": one of "ugc", "polished", "meme", "testimonial", "product-shot", "lifestyle",
+  "hookType": one of "question", "shock", "problem", "social-proof", "offer", "curiosity",
+  "dominantColor": hex color string,
+  "hasText": boolean,
+  "hasFace": boolean,
+  "hasProduct": boolean,
+  "settingType": one of "studio", "outdoor", "home", "office", "abstract",
+  "emotionalTone": one of "urgency", "trust", "excitement", "fear", "calm"
+}`;
+
+let visionPromptCache: { value: string; loadedAt: number } | null = null;
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
+export async function getVisionPrompt(): Promise<string> {
+  if (visionPromptCache && Date.now() - visionPromptCache.loadedAt < CACHE_TTL_MS) {
+    return visionPromptCache.value;
+  }
+  try {
+    const doc = await db.collection('brain_prompts').doc('creative_dna_vision').get();
+    if (doc.exists) {
+      const prompt = doc.data()!.systemPrompt as string;
+      if (prompt && prompt.trim().length > 0) {
+        visionPromptCache = { value: prompt.trim(), loadedAt: Date.now() };
+        return prompt.trim();
+      }
+    }
+  } catch (err) {
+    console.warn('[CreativeDNA] Failed to load vision prompt from Firestore:', err);
+  }
+  visionPromptCache = { value: DEFAULT_VISION_PROMPT, loadedAt: Date.now() };
+  return DEFAULT_VISION_PROMPT;
+}
+
 export class CreativeDNAService {
 
     /**
@@ -123,18 +160,7 @@ export class CreativeDNAService {
      */
     private static async analyzeVisual(imageUrl: string, format: CreativeFormat): Promise<CreativeDNA['vision']> {
         const model = genAI.getGenerativeModel({ model: VISION_MODEL });
-
-        const prompt = `Analyze this ad creative image and respond ONLY with a JSON object (no markdown, no explanation):
-{
-  "visualStyle": one of "ugc", "polished", "meme", "testimonial", "product-shot", "lifestyle",
-  "hookType": one of "question", "shock", "problem", "social-proof", "offer", "curiosity",
-  "dominantColor": hex color string,
-  "hasText": boolean,
-  "hasFace": boolean,
-  "hasProduct": boolean,
-  "settingType": one of "studio", "outdoor", "home", "office", "abstract",
-  "emotionalTone": one of "urgency", "trust", "excitement", "fear", "calm"
-}`;
+        const prompt = await getVisionPrompt();
 
         const response = await model.generateContent([
             prompt,

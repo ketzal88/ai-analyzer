@@ -315,7 +315,7 @@ export default function AdminSystemPage() {
                                                 {accountHealth.map((ah) => (
                                                     <tr key={ah.clientId} className="border-b border-argent/30 hover:bg-stellar/30 transition-colors">
                                                         <td className="px-3 py-2.5 text-small text-text-primary font-bold">{ah.clientName}</td>
-                                                        <td className="px-3 py-2.5 text-tiny text-text-muted font-mono">{ah.metaAccountId.replace("act_", "")}</td>
+                                                        <td className="px-3 py-2.5 text-tiny text-text-muted font-mono">{ah.metaAccountId?.replace("act_", "") ?? "—"}</td>
                                                         <td className="px-3 py-2.5">{accountStatusBadge(ah.accountStatusName)}</td>
                                                         <td className="px-3 py-2.5 text-tiny text-text-muted">
                                                             {ah.spendCap && ah.amountSpent !== undefined ? (

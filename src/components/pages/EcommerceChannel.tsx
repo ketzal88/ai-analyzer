@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import AppLayout from "@/components/layouts/AppLayout";
 import { useClient } from "@/contexts/ClientContext";
 import { ChannelDailySnapshot } from "@/types/channel-snapshots";
@@ -244,6 +245,31 @@ export default function EcommerceChannel() {
     const cohortFirstPct = cohortTotal > 0 ? (cohortAcc.firstTime.count / cohortTotal) * 100 : 0;
     const cohortRetPct = cohortTotal > 0 ? (cohortAcc.returning.count / cohortTotal) * 100 : 0;
     const cohortVipPct = cohortTotal > 0 ? (cohortAcc.vip.count / cohortTotal) * 100 : 0;
+
+    // Customer Intelligence from ecommerce_customers collection
+    // Take from the most recent snapshot (intelligence is client-level, same across all days)
+    const customerIntelligence = snapshots.length > 0
+        ? (snapshots[0]?.rawData?.customerIntelligence as {
+            totalTrackedCustomers?: number;
+            avgLifetimeLtv?: number;
+            avgLifetimeOrders?: number;
+            revenuePerCustomer?: number;
+            retentionRate?: number;
+            avgDaysBetweenOrders?: number;
+            cohorts?: {
+                firstTime?: { count: number; revenue: number; avgLtv: number; avgOrders: number };
+                returning?: { count: number; revenue: number; avgLtv: number; avgOrders: number };
+                vip?: { count: number; revenue: number; avgLtv: number; avgOrders: number };
+            };
+            ltvCac?: {
+                cac: number;
+                ltvCacRatio: number;
+                adSpend: number;
+                newCustomers: number;
+            };
+        } | undefined)
+        : undefined;
+    const hasIntelligence = customerIntelligence && (customerIntelligence.totalTrackedCustomers || 0) > 0;
 
     // Top products aggregated
     const productMap = new Map<number, { title: string; unitsSold: number; revenue: number; orders: number }>();
@@ -569,6 +595,143 @@ export default function EcommerceChannel() {
                                     <span className="flex items-center gap-1"><span className="w-2 h-2 bg-synced/50 inline-block" /> Recurrentes</span>
                                     <span className="flex items-center gap-1"><span className="w-2 h-2 bg-yellow-400/50 inline-block" /> VIP</span>
                                 </div>
+                            </div>
+                        )}
+
+                        {/* ── Customer Intelligence (from ecommerce_customers collection) ── */}
+                        {hasIntelligence && (
+                            <div className="card p-6">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h2 className="text-[10px] font-black text-text-muted uppercase tracking-widest">
+                                        Inteligencia de Clientes
+                                    </h2>
+                                    <Link href="/intelligence/customers" className="text-[10px] font-bold text-classic hover:text-classic/80 transition-colors">
+                                        Ver más →
+                                    </Link>
+                                </div>
+
+                                {/* KPI Row */}
+                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                                    <div className="bg-stellar border border-argent p-4">
+                                        <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">LTV Promedio</p>
+                                        <p className="text-2xl font-black text-classic font-mono mt-2">
+                                            {formatCurrency(customerIntelligence!.avgLifetimeLtv)}
+                                        </p>
+                                        <p className="text-[10px] text-text-muted mt-1">
+                                            {formatNumber(customerIntelligence!.totalTrackedCustomers)} clientes trackeados
+                                        </p>
+                                    </div>
+                                    <div className="bg-stellar border border-argent p-4">
+                                        <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">Revenue / Cliente</p>
+                                        <p className="text-2xl font-black text-synced font-mono mt-2">
+                                            {formatCurrency(customerIntelligence!.revenuePerCustomer)}
+                                        </p>
+                                        <p className="text-[10px] text-text-muted mt-1">
+                                            {formatNumber(customerIntelligence!.avgLifetimeOrders, 1)} órdenes promedio
+                                        </p>
+                                    </div>
+                                    {customerIntelligence!.retentionRate !== undefined && (
+                                        <div className="bg-stellar border border-argent p-4">
+                                            <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">Tasa de Retención</p>
+                                            <p className={`text-2xl font-black font-mono mt-2 ${
+                                                customerIntelligence!.retentionRate > 30 ? "text-synced" :
+                                                customerIntelligence!.retentionRate > 15 ? "text-yellow-400" :
+                                                "text-red-400"
+                                            }`}>
+                                                {formatPct(customerIntelligence!.retentionRate)}
+                                            </p>
+                                            <p className="text-[10px] text-text-muted mt-1">vs período anterior</p>
+                                        </div>
+                                    )}
+                                    {customerIntelligence!.avgDaysBetweenOrders !== undefined && (
+                                        <div className="bg-stellar border border-argent p-4">
+                                            <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">Días entre Compras</p>
+                                            <p className="text-2xl font-black text-text-primary font-mono mt-2">
+                                                {customerIntelligence!.avgDaysBetweenOrders}
+                                            </p>
+                                            <p className="text-[10px] text-text-muted mt-1">promedio clientes recurrentes</p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* LTV:CAC Card */}
+                                {customerIntelligence!.ltvCac && (
+                                    <div className={`border p-4 mb-6 ${
+                                        customerIntelligence!.ltvCac.ltvCacRatio >= 3 ? "border-synced/50 bg-synced/5" :
+                                        customerIntelligence!.ltvCac.ltvCacRatio >= 1 ? "border-yellow-400/50 bg-yellow-400/5" :
+                                        "border-red-500/50 bg-red-500/5"
+                                    }`}>
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">LTV : CAC Ratio</p>
+                                                <p className={`text-3xl font-black font-mono mt-1 ${
+                                                    customerIntelligence!.ltvCac.ltvCacRatio >= 3 ? "text-synced" :
+                                                    customerIntelligence!.ltvCac.ltvCacRatio >= 1 ? "text-yellow-400" :
+                                                    "text-red-400"
+                                                }`}>
+                                                    {customerIntelligence!.ltvCac.ltvCacRatio.toFixed(1)}x
+                                                </p>
+                                                <p className="text-[10px] text-text-muted mt-1">
+                                                    {customerIntelligence!.ltvCac.ltvCacRatio >= 3 ? "Saludable" :
+                                                     customerIntelligence!.ltvCac.ltvCacRatio >= 1 ? "Ajustado" : "No rentable"}
+                                                    {" "}— benchmark: &gt;3x
+                                                </p>
+                                            </div>
+                                            <div className="text-right space-y-1">
+                                                <p className="text-[10px] text-text-muted">
+                                                    LTV <span className="text-text-secondary font-mono font-bold">{formatCurrency(customerIntelligence!.avgLifetimeLtv)}</span>
+                                                </p>
+                                                <p className="text-[10px] text-text-muted">
+                                                    CAC <span className="text-text-secondary font-mono font-bold">{formatCurrency(customerIntelligence!.ltvCac.cac)}</span>
+                                                </p>
+                                                <p className="text-[10px] text-text-muted">
+                                                    Ad Spend <span className="text-text-secondary font-mono font-bold">{formatCurrency(customerIntelligence!.ltvCac.adSpend)}</span>
+                                                </p>
+                                                <p className="text-[10px] text-text-muted">
+                                                    Nuevos Clientes <span className="text-text-secondary font-mono font-bold">{formatNumber(customerIntelligence!.ltvCac.newCustomers)}</span>
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Cohorts from customer intelligence (all platforms) */}
+                                {customerIntelligence!.cohorts && (
+                                    <div>
+                                        <p className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-3">
+                                            Cohortes Lifetime (tracking acumulado)
+                                        </p>
+                                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                                            {[
+                                                { key: 'firstTime' as const, label: 'Primera Compra', color: 'text-classic', borderColor: 'border-classic/30' },
+                                                { key: 'returning' as const, label: 'Recurrentes (2-5)', color: 'text-synced', borderColor: 'border-synced/30' },
+                                                { key: 'vip' as const, label: 'VIP (6+)', color: 'text-yellow-400', borderColor: 'border-yellow-400/30' },
+                                            ].map(({ key, label, color, borderColor }) => {
+                                                const cohort = customerIntelligence!.cohorts![key];
+                                                if (!cohort || cohort.count === 0) return null;
+                                                const totalIntel = (customerIntelligence!.cohorts!.firstTime?.count || 0) +
+                                                    (customerIntelligence!.cohorts!.returning?.count || 0) +
+                                                    (customerIntelligence!.cohorts!.vip?.count || 0);
+                                                const pct = totalIntel > 0 ? (cohort.count / totalIntel) * 100 : 0;
+                                                return (
+                                                    <div key={key} className={`bg-stellar border ${borderColor} p-3`}>
+                                                        <div className="flex items-center justify-between">
+                                                            <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">{label}</p>
+                                                            <span className="text-[9px] font-mono text-text-muted">{pct.toFixed(0)}%</span>
+                                                        </div>
+                                                        <p className={`text-xl font-black font-mono mt-1 ${color}`}>{formatNumber(cohort.count)}</p>
+                                                        <div className="grid grid-cols-2 gap-2 mt-2 text-[10px] text-text-muted">
+                                                            <div>LTV <span className={`font-bold ${color}`}>{formatCurrency(cohort.avgLtv)}</span></div>
+                                                            <div>Órdenes <span className="font-bold text-text-secondary">{formatNumber(cohort.avgOrders, 1)}</span></div>
+                                                            <div>Revenue <span className="font-bold text-text-secondary">{formatCurrency(cohort.revenue)}</span></div>
+                                                            <div>AOV <span className="font-bold text-text-secondary">{formatCurrency(cohort.count > 0 ? cohort.revenue / cohort.count : 0)}</span></div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
 

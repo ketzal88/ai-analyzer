@@ -1,9 +1,10 @@
 import { db } from "@/lib/firebase-admin";
 import { Client } from "@/types";
-import { AccountHealth, SpendCapAlertLevel } from "@/types/system-events";
+import { AccountHealth, SpendCapAlertLevel, MetaAccountHealth, GoogleAdsAccountHealth } from "@/types/system-events";
 import { EventService } from "@/lib/event-service";
 import { SlackService } from "@/lib/slack-service";
 import { reportError } from "@/lib/error-reporter";
+import { GoogleAdsService } from "@/lib/google-ads-service";
 
 const META_API_VERSION = process.env.META_API_VERSION || "v24.0";
 const META_ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
@@ -27,7 +28,7 @@ const STATUS_NAMES: Record<number, string> = {
 export class AccountHealthService {
 
     /**
-     * Check health of all active clients' Meta ad accounts.
+     * Check health of all active clients' ad accounts (Meta + Google Ads).
      * Returns per-client results for cron logging.
      */
     static async checkAll(): Promise<Array<{
@@ -36,10 +37,6 @@ export class AccountHealthService {
         status: string;
         error?: string;
     }>> {
-        if (!META_ACCESS_TOKEN) {
-            throw new Error("META_ACCESS_TOKEN not configured");
-        }
-
         const clientsSnap = await db.collection("clients")
             .where("active", "==", true)
             .get();
@@ -55,13 +52,50 @@ export class AccountHealthService {
             const client = doc.data() as Client;
             const clientId = doc.id;
 
-            if (!client.metaAdAccountId) {
-                results.push({ clientId, clientName: client.name, status: "skipped", error: "No metaAdAccountId" });
+            const hasMeta = !!client.metaAdAccountId && !!META_ACCESS_TOKEN;
+            const hasGoogle = !!client.googleAdsCustomerId;
+
+            if (!hasMeta && !hasGoogle) {
+                results.push({
+                    clientId,
+                    clientName: client.name,
+                    status: "skipped",
+                    error: "No ad accounts configured"
+                });
                 continue;
             }
 
             try {
-                await this.checkClient(clientId, client);
+                // Load previous health state
+                const prevDoc = await db.collection("account_health").doc(clientId).get();
+                const prev = prevDoc.exists ? (prevDoc.data() as AccountHealth) : null;
+
+                const now = new Date().toISOString();
+                const health: AccountHealth = {
+                    clientId,
+                    clientName: client.name,
+                    lastChecked: now,
+                    lastAlertSent: prev?.lastAlertSent,
+                };
+
+                // Check Meta
+                if (hasMeta) {
+                    const metaHealth = await this.checkMetaAccount(clientId, client, prev?.meta);
+                    health.meta = metaHealth;
+                }
+
+                // Check Google Ads
+                if (hasGoogle) {
+                    const googleHealth = await this.checkGoogleAdsAccount(clientId, client, prev?.google);
+                    health.google = googleHealth;
+                }
+
+                // Evaluate and send alerts
+                await this.evaluateAlerts(health, prev);
+
+                // Persist
+                await db.collection("account_health").doc(clientId).set(health);
+
                 results.push({ clientId, clientName: client.name, status: "success" });
             } catch (err: any) {
                 reportError("Account Health Check", err, { clientId, clientName: client.name });
@@ -72,10 +106,18 @@ export class AccountHealthService {
         return results;
     }
 
+    // ═════════════════════════════════════════════════════════
+    //  META ADS HEALTH CHECK
+    // ═════════════════════════════════════════════════════════
+
     /**
      * Check a single client's Meta ad account health.
      */
-    private static async checkClient(clientId: string, client: Client): Promise<void> {
+    private static async checkMetaAccount(
+        clientId: string,
+        client: Client,
+        prev?: MetaAccountHealth
+    ): Promise<MetaAccountHealth> {
         const accountId = client.metaAdAccountId!.startsWith("act_")
             ? client.metaAdAccountId!
             : `act_${client.metaAdAccountId}`;
@@ -111,7 +153,7 @@ export class AccountHealthService {
             else spendCapAlertLevel = "safe";
 
             // Get avg daily spend from rolling metrics for projection
-            avgDailySpend7d = await this.getAvgDailySpend(clientId);
+            avgDailySpend7d = await this.getAvgDailySpend(clientId, "meta");
 
             if (avgDailySpend7d && avgDailySpend7d > 0) {
                 const remaining = spendCap - amountSpent;
@@ -119,16 +161,8 @@ export class AccountHealthService {
             }
         }
 
-        // Load previous state
-        const prevDoc = await db.collection("account_health").doc(clientId).get();
-        const prev = prevDoc.exists ? (prevDoc.data() as AccountHealth) : null;
-
-        const now = new Date().toISOString();
-
-        const health: AccountHealth = {
-            clientId,
-            clientName: client.name,
-            metaAccountId: accountId,
+        return {
+            accountId,
             accountStatus,
             accountStatusName: STATUS_NAMES[accountStatus] || `UNKNOWN_${accountStatus}`,
             disableReason: data.disable_reason,
@@ -139,136 +173,135 @@ export class AccountHealthService {
             spendCapAlertLevel,
             projectedCutoffDays,
             avgDailySpend7d,
-            lastChecked: now,
-            lastAlertSent: prev?.lastAlertSent,
             previousStatus: prev?.accountStatus,
         };
+    }
 
-        // Detect state transitions and send alerts
-        await this.evaluateAlerts(health, prev);
+    // ═════════════════════════════════════════════════════════
+    //  GOOGLE ADS HEALTH CHECK
+    // ═════════════════════════════════════════════════════════
 
-        // Persist
-        await db.collection("account_health").doc(clientId).set(health);
+    /**
+     * Check a single client's Google Ads account health.
+     */
+    private static async checkGoogleAdsAccount(
+        clientId: string,
+        client: Client,
+        prev?: GoogleAdsAccountHealth
+    ): Promise<GoogleAdsAccountHealth> {
+        try {
+            // Fetch account info via Google Ads API
+            const customerId = client.googleAdsCustomerId!;
+            const accountInfo = await GoogleAdsService.getAccountInfo(customerId);
+
+            const avgDailySpend7d = await this.getAvgDailySpend(clientId, "google");
+
+            return {
+                customerId,
+                accountStatus: accountInfo.status,
+                canManageCampaigns: accountInfo.canManageCampaigns,
+                billingStatus: accountInfo.billingStatus,
+                currencyCode: accountInfo.currencyCode,
+                timeZone: accountInfo.timeZone,
+                budgetUtilizationPct: accountInfo.budgetUtilizationPct,
+                avgDailySpend7d,
+                approvalStatus: accountInfo.approvalStatus,
+                policyViolations: accountInfo.policyViolations,
+                previousStatus: prev?.accountStatus,
+            };
+        } catch (err: any) {
+            throw new Error(`Google Ads API: ${err.message}`);
+        }
     }
 
     /**
-     * Get average daily spend from the last 7 days of entity rolling metrics.
+     * Get average daily spend from the last 7 days.
      */
-    private static async getAvgDailySpend(clientId: string): Promise<number | undefined> {
+    private static async getAvgDailySpend(clientId: string, platform: "meta" | "google"): Promise<number | undefined> {
         try {
-            const snap = await db.collection("entity_rolling_metrics")
-                .where("clientId", "==", clientId)
-                .where("level", "==", "account")
-                .limit(1)
-                .get();
+            if (platform === "meta") {
+                // From Meta entity_rolling_metrics
+                const snap = await db.collection("entity_rolling_metrics")
+                    .where("clientId", "==", clientId)
+                    .where("level", "==", "account")
+                    .limit(1)
+                    .get();
 
-            if (snap.empty) return undefined;
+                if (snap.empty) return undefined;
 
-            const data = snap.docs[0].data();
-            const spend7d = data.rolling?.spend_7d;
-            if (spend7d && spend7d > 0) {
-                return spend7d / 7;
+                const data = snap.docs[0].data();
+                const spend7d = data.rolling?.spend_7d;
+                if (spend7d && spend7d > 0) {
+                    return spend7d / 7;
+                }
+            } else if (platform === "google") {
+                // From Google channel_snapshots (last 7 days)
+                const sevenDaysAgo = new Date();
+                sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+                const startDate = sevenDaysAgo.toISOString().split("T")[0];
+
+                const snap = await db.collection("channel_snapshots")
+                    .where("clientId", "==", clientId)
+                    .where("channel", "==", "GOOGLE")
+                    .where("date", ">=", startDate)
+                    .get();
+
+                if (snap.empty) return undefined;
+
+                const totalSpend = snap.docs.reduce((sum, doc) => {
+                    const metrics = doc.data().metrics;
+                    return sum + (metrics?.spend || 0);
+                }, 0);
+
+                return totalSpend / 7;
             }
+
             return undefined;
         } catch {
             return undefined;
         }
     }
 
+    // ═════════════════════════════════════════════════════════
+    //  ALERT EVALUATION & SENDING
+    // ═════════════════════════════════════════════════════════
+
     /**
-     * Evaluate alerts based on state transitions and spend cap levels.
+     * Evaluate alerts based on state transitions and thresholds.
      */
     private static async evaluateAlerts(health: AccountHealth, prev: AccountHealth | null): Promise<void> {
-        const alerts: Array<{ type: string; severity: "info" | "warning" | "critical"; message: string }> = [];
+        const alerts: Array<{
+            type: string;
+            severity: "info" | "warning" | "critical";
+            message: string;
+            platform: "meta" | "google";
+        }> = [];
 
-        // 1. Account status transitions
-        if (prev && prev.accountStatus !== health.accountStatus) {
-            const wasActive = prev.accountStatus === 1;
-            const isActive = health.accountStatus === 1;
-
-            if (wasActive && !isActive) {
-                // ACTIVE → DISABLED/UNSETTLED
-                alerts.push({
-                    type: "ACCOUNT_DISABLED",
-                    severity: "critical",
-                    message: `Cuenta Meta DESACTIVADA: ${health.accountStatusName}${health.disableReason ? ` — Razón: ${health.disableReason}` : ""}`,
-                });
-            } else if (!wasActive && isActive) {
-                // DISABLED → ACTIVE (recovered)
-                alerts.push({
-                    type: "ACCOUNT_REACTIVATED",
-                    severity: "info",
-                    message: `Cuenta Meta REACTIVADA. Estado anterior: ${STATUS_NAMES[prev.accountStatus] || prev.accountStatus}`,
-                });
-            } else {
-                // Other transitions (e.g., UNSETTLED → DISABLED)
-                alerts.push({
-                    type: "ACCOUNT_STATUS_CHANGE",
-                    severity: "warning",
-                    message: `Cambio de estado: ${STATUS_NAMES[prev.accountStatus] || prev.accountStatus} → ${health.accountStatusName}`,
-                });
-            }
-        } else if (!prev && health.accountStatus !== 1) {
-            // First check and account is not active
-            alerts.push({
-                type: "ACCOUNT_DISABLED",
-                severity: "critical",
-                message: `Cuenta Meta NO ACTIVA en primera verificación: ${health.accountStatusName}`,
-            });
+        // ── Meta Alerts ──
+        if (health.meta) {
+            const metaAlerts = this.evaluateMetaAlerts(health, prev);
+            alerts.push(...metaAlerts.map(a => ({ ...a, platform: "meta" as const })));
         }
 
-        // 2. Spend cap alerts (only on level escalation)
-        if (health.spendCapAlertLevel !== "safe") {
-            const prevLevel = prev?.spendCapAlertLevel || "safe";
-            const levels: SpendCapAlertLevel[] = ["safe", "warning", "critical", "imminent"];
-            const currIdx = levels.indexOf(health.spendCapAlertLevel);
-            const prevIdx = levels.indexOf(prevLevel);
-
-            if (currIdx > prevIdx) {
-                // Level escalated
-                const daysMsg = health.projectedCutoffDays !== undefined
-                    ? ` — ~${health.projectedCutoffDays} días restantes`
-                    : "";
-                alerts.push({
-                    type: `SPEND_CAP_${health.spendCapAlertLevel.toUpperCase()}`,
-                    severity: health.spendCapAlertLevel === "warning" ? "warning" : "critical",
-                    message: `Spend Cap al ${health.spendCapPct?.toFixed(1)}% ($${health.amountSpent?.toFixed(0)} / $${health.spendCap?.toFixed(0)})${daysMsg}`,
-                });
-            }
+        // ── Google Ads Alerts ──
+        if (health.google) {
+            const googleAlerts = this.evaluateGoogleAdsAlerts(health, prev);
+            alerts.push(...googleAlerts.map(a => ({ ...a, platform: "google" as const })));
         }
 
-        // 3. Balance alerts (no funds / pending debt)
-        if (health.balance !== undefined && health.balance <= 0) {
-            const prevHadBalance = prev?.balance === undefined || prev.balance > 0;
-
-            if (prevHadBalance) {
-                // Transition: had funds → no funds (or first check with no balance)
-                const debtMsg = health.balance < 0
-                    ? ` — Deuda pendiente: $${Math.abs(health.balance).toFixed(2)}`
-                    : "";
-                alerts.push({
-                    type: "ACCOUNT_NO_BALANCE",
-                    severity: "critical",
-                    message: `Sin saldo disponible en cuenta Meta${debtMsg}`,
-                });
-            }
-        }
-
-        // 4. Send alerts
+        // ── Send Alerts ──
         for (const alert of alerts) {
-            // Log to EventService (skip error channel — these are operational alerts, not code errors)
+            // Log to EventService
             await EventService.log({
                 type: "integration",
-                service: "meta",
+                service: alert.platform === "meta" ? "meta" : "google_ads",
                 severity: alert.severity,
                 clientId: health.clientId,
                 clientName: health.clientName,
                 message: `[${alert.type}] ${alert.message}`,
                 metadata: {
                     alertType: alert.type,
-                    accountStatus: health.accountStatus,
-                    spendCapPct: health.spendCapPct,
-                    spendCapAlertLevel: health.spendCapAlertLevel,
+                    platform: alert.platform,
                 },
             }, { skipSlackError: true });
 
@@ -279,7 +312,8 @@ export class AccountHealthService {
                 alert.type,
                 alert.severity,
                 alert.message,
-                health
+                health,
+                alert.platform
             );
         }
 
@@ -287,6 +321,183 @@ export class AccountHealthService {
         if (alerts.length > 0) {
             health.lastAlertSent = new Date().toISOString();
         }
+    }
+
+    /**
+     * Evaluate Meta-specific alerts.
+     */
+    private static evaluateMetaAlerts(
+        health: AccountHealth,
+        prev: AccountHealth | null
+    ): Array<{ type: string; severity: "info" | "warning" | "critical"; message: string }> {
+        const alerts: Array<{ type: string; severity: "info" | "warning" | "critical"; message: string }> = [];
+        const meta = health.meta!;
+        const prevMeta = prev?.meta;
+
+        // 1. Account status transitions
+        if (prevMeta && prevMeta.accountStatus !== meta.accountStatus) {
+            const wasActive = prevMeta.accountStatus === 1;
+            const isActive = meta.accountStatus === 1;
+
+            if (wasActive && !isActive) {
+                // ACTIVE → DISABLED/UNSETTLED
+                alerts.push({
+                    type: "ACCOUNT_DISABLED",
+                    severity: "critical",
+                    message: `Cuenta Meta DESACTIVADA: ${meta.accountStatusName}${meta.disableReason ? ` — Razón: ${meta.disableReason}` : ""}`,
+                });
+            } else if (!wasActive && isActive) {
+                // DISABLED → ACTIVE (recovered)
+                alerts.push({
+                    type: "ACCOUNT_REACTIVATED",
+                    severity: "info",
+                    message: `Cuenta Meta REACTIVADA. Estado anterior: ${STATUS_NAMES[prevMeta.accountStatus] || prevMeta.accountStatus}`,
+                });
+            } else {
+                // Other transitions
+                alerts.push({
+                    type: "ACCOUNT_STATUS_CHANGE",
+                    severity: "warning",
+                    message: `Cambio de estado: ${STATUS_NAMES[prevMeta.accountStatus] || prevMeta.accountStatus} → ${meta.accountStatusName}`,
+                });
+            }
+        } else if (!prevMeta && meta.accountStatus !== 1) {
+            // First check and account is not active
+            alerts.push({
+                type: "ACCOUNT_DISABLED",
+                severity: "critical",
+                message: `Cuenta Meta NO ACTIVA en primera verificación: ${meta.accountStatusName}`,
+            });
+        }
+
+        // 2. Spend cap alerts (only on level escalation)
+        if (meta.spendCapAlertLevel !== "safe") {
+            const prevLevel = prevMeta?.spendCapAlertLevel || "safe";
+            const levels: SpendCapAlertLevel[] = ["safe", "warning", "critical", "imminent"];
+            const currIdx = levels.indexOf(meta.spendCapAlertLevel);
+            const prevIdx = levels.indexOf(prevLevel);
+
+            if (currIdx > prevIdx) {
+                // Level escalated
+                const daysMsg = meta.projectedCutoffDays !== undefined
+                    ? ` — ~${meta.projectedCutoffDays} días restantes`
+                    : "";
+                alerts.push({
+                    type: `SPEND_CAP_${meta.spendCapAlertLevel.toUpperCase()}`,
+                    severity: meta.spendCapAlertLevel === "warning" ? "warning" : "critical",
+                    message: `Spend Cap al ${meta.spendCapPct?.toFixed(1)}% ($${meta.amountSpent?.toFixed(0)} / $${meta.spendCap?.toFixed(0)})${daysMsg}`,
+                });
+            }
+        }
+
+        // 3. Balance alerts (no funds / pending debt)
+        if (meta.balance !== undefined && meta.balance <= 0) {
+            const prevHadBalance = !prevMeta?.balance || prevMeta.balance > 0;
+
+            if (prevHadBalance) {
+                // Transition: had funds → no funds
+                const debtMsg = meta.balance < 0
+                    ? ` — Deuda pendiente: $${Math.abs(meta.balance).toFixed(2)}`
+                    : "";
+                alerts.push({
+                    type: "ACCOUNT_NO_BALANCE",
+                    severity: "critical",
+                    message: `Sin saldo disponible en cuenta Meta${debtMsg}`,
+                });
+            }
+        }
+
+        return alerts;
+    }
+
+    /**
+     * Evaluate Google Ads-specific alerts.
+     */
+    private static evaluateGoogleAdsAlerts(
+        health: AccountHealth,
+        prev: AccountHealth | null
+    ): Array<{ type: string; severity: "info" | "warning" | "critical"; message: string }> {
+        const alerts: Array<{ type: string; severity: "info" | "warning" | "critical"; message: string }> = [];
+        const google = health.google!;
+        const prevGoogle = prev?.google;
+
+        // 1. Account status transitions
+        if (prevGoogle && prevGoogle.accountStatus !== google.accountStatus) {
+            const wasEnabled = prevGoogle.accountStatus === "ENABLED";
+            const isEnabled = google.accountStatus === "ENABLED";
+
+            if (wasEnabled && !isEnabled) {
+                // ENABLED → SUSPENDED/REMOVED
+                alerts.push({
+                    type: "GOOGLE_ACCOUNT_SUSPENDED",
+                    severity: "critical",
+                    message: `Cuenta Google Ads SUSPENDIDA: ${google.accountStatus}`,
+                });
+            } else if (!wasEnabled && isEnabled) {
+                // SUSPENDED → ENABLED (recovered)
+                alerts.push({
+                    type: "GOOGLE_ACCOUNT_ENABLED",
+                    severity: "info",
+                    message: `Cuenta Google Ads REACTIVADA. Estado anterior: ${prevGoogle.accountStatus}`,
+                });
+            } else {
+                // Other transitions
+                alerts.push({
+                    type: "GOOGLE_STATUS_CHANGE",
+                    severity: "warning",
+                    message: `Cambio de estado Google Ads: ${prevGoogle.accountStatus} → ${google.accountStatus}`,
+                });
+            }
+        } else if (!prevGoogle && google.accountStatus !== "ENABLED") {
+            // First check and account is not enabled
+            alerts.push({
+                type: "GOOGLE_ACCOUNT_SUSPENDED",
+                severity: "critical",
+                message: `Cuenta Google Ads NO ACTIVA en primera verificación: ${google.accountStatus}`,
+            });
+        }
+
+        // 2. Billing alerts
+        if (google.billingStatus && google.billingStatus !== "SETUP_COMPLETE") {
+            const prevBillingOk = !prevGoogle?.billingStatus || prevGoogle.billingStatus === "SETUP_COMPLETE";
+
+            if (prevBillingOk) {
+                alerts.push({
+                    type: "GOOGLE_BILLING_FAILED",
+                    severity: "critical",
+                    message: `Problema de pago en Google Ads: ${google.billingStatus}`,
+                });
+            }
+        }
+
+        // 3. Budget depletion (if available)
+        if (google.budgetUtilizationPct !== undefined && google.budgetUtilizationPct >= 90) {
+            const prevBudgetPct = prevGoogle?.budgetUtilizationPct || 0;
+
+            if (prevBudgetPct < 90) {
+                alerts.push({
+                    type: "GOOGLE_BUDGET_DEPLETED",
+                    severity: "critical",
+                    message: `Presupuesto Google Ads casi agotado: ${google.budgetUtilizationPct.toFixed(1)}%`,
+                });
+            }
+        }
+
+        // 4. Policy violations
+        if (google.policyViolations && google.policyViolations.length > 0) {
+            const prevViolationsCount = prevGoogle?.policyViolations?.length || 0;
+
+            if (google.policyViolations.length > prevViolationsCount) {
+                const newViolations = google.policyViolations.slice(prevViolationsCount);
+                alerts.push({
+                    type: "GOOGLE_POLICY_VIOLATION",
+                    severity: "warning",
+                    message: `Nuevas violaciones de políticas en Google Ads: ${newViolations.map(v => v.type).join(", ")}`,
+                });
+            }
+        }
+
+        return alerts;
     }
 
     /**

@@ -1,7 +1,7 @@
 "use client";
 
 import type { ChannelId } from "@/lib/ai-analyst/types";
-import { SUGGESTED_QUESTIONS, CHANNEL_LABELS } from "@/lib/ai-analyst/types";
+import { CHANNEL_LABELS, DEFAULT_SUGGESTED_QUESTIONS } from "@/lib/ai-analyst/types";
 
 interface SuggestedQuestionsProps {
   channelId: ChannelId;
@@ -9,7 +9,7 @@ interface SuggestedQuestionsProps {
 }
 
 export default function SuggestedQuestions({ channelId, onSelect }: SuggestedQuestionsProps) {
-  const questions = SUGGESTED_QUESTIONS[channelId] || [];
+  const questions = DEFAULT_SUGGESTED_QUESTIONS[channelId] || [];
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-6 py-10">

@@ -41,35 +41,7 @@ export async function GET(request: NextRequest) {
                 const { main } = await ClientSnapshotService.computeAndStore(clientId);
                 await ClientSnapshotService.cleanupOldSnapshots(clientId);
 
-                // Send Daily Digest & Alerts
-                const { SlackService } = await import("@/lib/slack-service");
-                const { EngineConfigService } = await import("@/lib/engine-config-service");
-
-                try {
-                    const config = await EngineConfigService.getEngineConfig(clientId);
-
-                    // 1. Send Daily KPI Snapshot (Month-to-Date)
-                    if ((main.accountSummary.rolling.spend_7d || 0) > 0) {
-                        const kpis = SlackService.buildSnapshotFromClientSnapshot(main.accountSummary);
-                        const todayStr = new Date().toISOString().split("T")[0];
-                        const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0];
-                        const dateRange = { start: startOfMonth, end: todayStr };
-
-                        await SlackService.sendDailySnapshot(clientId, client.name, dateRange, kpis, config.dailySnapshotTitle);
-                    }
-
-                    // 2. Send Alert Digest (Grouped recommendations)
-                    if (main.alerts.length > 0) {
-                        await SlackService.sendDigest(clientId, client.name, main.alerts);
-                    }
-                } catch (slackErr: any) {
-                    // Non-fatal: sync succeeded, only delivery failed — still worth knowing
-                    await reportError("Cron Data Sync (Slack Delivery)", slackErr, {
-                        clientId,
-                        clientName: client.name,
-                        metadata: { stage: "slack_digest" }
-                    });
-                }
+                // NOTE: Slack delivery moved to /api/cron/daily-briefing (multi-channel digest)
 
                 results.push({ clientId, clientName: client.name, status: "success" });
             } catch (e: any) {

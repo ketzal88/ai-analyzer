@@ -92,6 +92,7 @@ export interface AnalystMeta {
     end: string;
   };
   targets: Record<string, number | undefined>;
+  brandProfile?: Record<string, string | undefined>;
 }
 
 export interface AnalystChannelData {
@@ -117,6 +118,14 @@ export interface ChannelDetails {
   trafficSources?: GA4TrafficSourceSummary[];
   topLandingPages?: GA4LandingPageSummary[];
   deviceBreakdown?: GA4DeviceSummary[];
+  ecommerceFunnel?: GA4EcommerceFunnel;
+  // Google Ads
+  searchTerms?: GoogleSearchTermSummary[];
+  // Ecommerce
+  customerIntelligence?: CustomerIntelligenceSummary;
+  ecommercePlatform?: string;
+  // Email
+  emailPlatform?: string;
   // Leads / CRM
   funnelStages?: LeadsFunnelStageSummary[];
   closerPerformance?: LeadsCloserSummary[];
@@ -143,6 +152,36 @@ export interface GA4DeviceSummary {
   sessions: number;
   bounceRate: number;
   conversions: number;
+}
+
+export interface GA4EcommerceFunnel {
+  viewItem: number;
+  addToCart: number;
+  beginCheckout: number;
+  purchase: number;
+  viewToCartRate: number;
+  cartToCheckoutRate: number;
+  checkoutToPurchaseRate: number;
+  overallConversionRate: number;
+}
+
+export interface GoogleSearchTermSummary {
+  term: string;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  spend: number;
+  ctr: number;
+  cpa?: number;
+}
+
+export interface CustomerIntelligenceSummary {
+  avgLtv?: number;
+  revenuePerCustomer?: number;
+  retentionRate?: number;
+  avgDaysBetweenOrders?: number;
+  ltvCacRatio?: number;
+  cohorts?: Record<string, { ltv?: number; orders?: number; customers?: number }>;
 }
 
 // ── Leads Channel ────────────────────────────────────────
@@ -243,6 +282,7 @@ export interface AutomationSummary {
   sent: number;
   openRate?: number;
   clickRate?: number;
+  ctor?: number;
   revenue?: number;
 }
 
@@ -251,6 +291,7 @@ export interface EmailCampaignSummary {
   sent: number;
   openRate?: number;
   clickRate?: number;
+  ctor?: number;
   revenue?: number;
 }
 
@@ -286,7 +327,8 @@ export interface SSEEvent {
 
 // ── Suggested Questions ─────────────────────────────────
 
-export const SUGGESTED_QUESTIONS: Record<ChannelId, string[]> = {
+/** Default suggested questions per channel. Editable via brain_prompts/{channelId}.suggestedQuestions in Firestore. */
+export const DEFAULT_SUGGESTED_QUESTIONS: Record<ChannelId, string[]> = {
   meta_ads: [
     "¿Por qué está tan alto el CPA?",
     "Diagnosticá el creativo con peor Hook Rate",

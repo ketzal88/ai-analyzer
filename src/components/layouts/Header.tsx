@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useClient } from "@/contexts/ClientContext";
+import { Client } from "@/types";
 
 interface HeaderProps {
     onOpenMobileMenu: () => void;
@@ -11,9 +12,54 @@ interface HeaderProps {
 
 export default function Header({ onOpenMobileMenu, hideClientSelector = false }: HeaderProps) {
     const { user, signOut } = useAuth();
-    const { selectedClientId, setSelectedClientId, activeClients } = useClient();
+    const { selectedClientId, setSelectedClientId, activeClients, teams, selectedTeamId, setSelectedTeamId } = useClient();
     const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
     const avatarUrl = user?.providerData?.[0]?.photoURL || user?.photoURL || null;
+
+    // Filter clients by selected team, then group by team for optgroup rendering
+    const filteredClients = useMemo(() => {
+        if (!selectedTeamId) return activeClients;
+        return activeClients.filter(c => c.team === selectedTeamId);
+    }, [activeClients, selectedTeamId]);
+
+    const groupedClients = useMemo(() => {
+        const teamMap = new Map(teams.map(t => [t.id, t.name]));
+        const groups: { teamName: string; teamId: string; clients: Client[] }[] = [];
+        const noTeam: Client[] = [];
+
+        // Build groups from teams that have clients
+        const clientsByTeam = new Map<string, Client[]>();
+        for (const client of filteredClients) {
+            if (client.team) {
+                const existing = clientsByTeam.get(client.team) || [];
+                existing.push(client);
+                clientsByTeam.set(client.team, existing);
+            } else {
+                noTeam.push(client);
+            }
+        }
+
+        // Sort groups by team name
+        for (const [teamId, clients] of clientsByTeam.entries()) {
+            groups.push({
+                teamId,
+                teamName: teamMap.get(teamId) || teamId,
+                clients: clients.sort((a, b) => a.name.localeCompare(b.name)),
+            });
+        }
+        groups.sort((a, b) => a.teamName.localeCompare(b.teamName));
+
+        // Add "Sin Equipo" at the end if needed
+        if (noTeam.length > 0) {
+            groups.push({
+                teamId: "__none__",
+                teamName: "Sin Equipo",
+                clients: noTeam.sort((a, b) => a.name.localeCompare(b.name)),
+            });
+        }
+
+        return groups;
+    }, [filteredClients, teams]);
 
     const handleLogout = async () => {
         try {
@@ -41,12 +87,25 @@ export default function Header({ onOpenMobileMenu, hideClientSelector = false }:
                 {!hideClientSelector && (
                     <div className="flex items-center gap-3 border-l lg:border-none border-argent pl-4 lg:pl-0">
                         <div className="flex flex-col">
-                            <span
-                                className="text-text-muted font-bold hidden md:inline text-[9px] uppercase leading-none mb-1"
-                                style={{ letterSpacing: '1px' }}
-                            >
-                                SELECCIONAR CLIENTE:
-                            </span>
+                            <div className="flex items-center gap-2 mb-1">
+                                <span
+                                    className="text-text-muted font-bold hidden md:inline text-[9px] uppercase leading-none"
+                                    style={{ letterSpacing: '1px' }}
+                                >
+                                    EQUIPO:
+                                </span>
+                                <select
+                                    value={selectedTeamId || ""}
+                                    onChange={(e) => setSelectedTeamId(e.target.value || null)}
+                                    className="bg-stellar border border-argent/50 px-2 py-0.5 text-[9px] font-bold text-text-muted uppercase tracking-wider focus:outline-none focus:border-classic transition-all cursor-pointer hidden md:inline"
+                                    style={{ borderRadius: 0 }}
+                                >
+                                    <option value="">TODOS</option>
+                                    {teams.map(t => (
+                                        <option key={t.id} value={t.id}>{t.name.toUpperCase()}</option>
+                                    ))}
+                                </select>
+                            </div>
                             <div className="flex items-center gap-3">
                                 <select
                                     value={selectedClientId || ""}
@@ -55,10 +114,14 @@ export default function Header({ onOpenMobileMenu, hideClientSelector = false }:
                                     style={{ borderRadius: 0 }}
                                 >
                                     <option value="">SELECCIONAR CLIENTE...</option>
-                                    {activeClients.map(client => (
-                                        <option key={client.id} value={client.id}>
-                                            {client.name.toUpperCase()}
-                                        </option>
+                                    {groupedClients.map(group => (
+                                        <optgroup key={group.teamId} label={`── ${group.teamName.toUpperCase()} ──`}>
+                                            {group.clients.map(client => (
+                                                <option key={client.id} value={client.id}>
+                                                    {client.name.toUpperCase()}
+                                                </option>
+                                            ))}
+                                        </optgroup>
                                     ))}
                                 </select>
 

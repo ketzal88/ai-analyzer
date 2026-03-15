@@ -34,7 +34,9 @@ export interface UnifiedChannelMetrics {
     // ── Ads Core (Meta + Google) ──────────────────
     spend?: number;
     revenue?: number;
-    conversions?: number;
+    conversions?: number;       // Primary conversion (purchases || leads || messages)
+    purchases?: number;         // Explicit purchase count (Meta/Google) — use for "compras" display
+    leads?: number;             // Lead conversions (Meta/Google)
     roas?: number;
     cpa?: number;
     impressions?: number;

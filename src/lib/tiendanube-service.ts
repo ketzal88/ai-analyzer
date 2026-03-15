@@ -11,6 +11,7 @@
 
 import { db } from "@/lib/firebase-admin";
 import { ChannelDailySnapshot, UnifiedChannelMetrics, buildChannelSnapshotId } from "@/types/channel-snapshots";
+import { EcommerceCustomerService } from "@/lib/ecommerce-customer-service";
 
 // ── Config ───────────────────────────────────────────
 const BASE_URL = "https://api.tiendanube.com/v1";
@@ -321,6 +322,37 @@ export class TiendaNubeService {
             this.fetchRefundedOrders(storeId, accessToken, startDate, endDate),
         ]);
 
+        // Upsert customer records for lifetime tracking
+        const ordersWithCustomer = paidOrders.filter(o => o.customer?.id);
+        const orderInputs = ordersWithCustomer.map(o => ({
+            customerId: String(o.customer!.id),
+            date: o.created_at.split("T")[0],
+            totalPrice: parseFloat(o.total || "0"),
+        }));
+        await EcommerceCustomerService.upsertFromOrders(clientId, 'tiendanube', orderInputs);
+
+        // Compute customer intelligence + LTV:CAC
+        const periodRevenue = paidOrders.reduce((s, o) => s + parseFloat(o.total || "0"), 0);
+        const uniqueIds = new Set(ordersWithCustomer.map(o => o.customer!.id));
+
+        const intelligence = await EcommerceCustomerService.computeCustomerIntelligence(
+            clientId, periodRevenue, uniqueIds.size
+        );
+
+        // Estimate new customers from cohort data
+        const newCustomerCount = intelligence.cohorts.firstTime.count;
+        const ltvCac = await EcommerceCustomerService.computeLtvCac(
+            clientId, startDate, endDate, intelligence.avgLifetimeLtv, newCustomerCount
+        );
+        intelligence.ltvCac = ltvCac || undefined;
+
+        const retention = await EcommerceCustomerService.computeRetention(
+            clientId, startDate, endDate,
+            this.shiftDateBack(startDate, startDate, endDate),
+            this.shiftDateBack(endDate, startDate, endDate)
+        );
+        intelligence.retentionRate = retention;
+
         const dailyAggregates = this.aggregateByDay(paidOrders, refundedOrders);
 
         if (dailyAggregates.length === 0) {
@@ -349,6 +381,7 @@ export class TiendaNubeService {
                     uniqueCustomers: agg.breakdown.uniqueCustomers,
                     customerCohorts: agg.breakdown.customerCohorts,
                     byPaymentStatus: agg.breakdown.byPaymentStatus,
+                    customerIntelligence: intelligence,
                     source: 'tiendanube',
                 },
                 syncedAt: new Date().toISOString(),
@@ -362,6 +395,16 @@ export class TiendaNubeService {
         console.log(`[TiendaNube] Wrote ${dailyAggregates.length} days for ${clientId}: ${totalOrders} orders, $${totalRevenue.toFixed(2)} revenue`);
 
         return { daysWritten: dailyAggregates.length, totalOrders, totalRevenue };
+    }
+
+    /** Shift a date back by the length of a period */
+    private static shiftDateBack(date: string, periodStart: string, periodEnd: string): string {
+        const start = new Date(periodStart);
+        const end = new Date(periodEnd);
+        const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+        const d = new Date(date);
+        d.setDate(d.getDate() - days);
+        return d.toISOString().split("T")[0];
     }
 
 }

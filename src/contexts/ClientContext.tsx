@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { Client, Alert } from "@/types";
+import { Client, Alert, Team } from "@/types";
 import { EntityRollingMetrics, ConceptRollingMetrics } from "@/types/performance-snapshots";
 import { EntityClassification } from "@/types/classifications";
 import { useAuth } from "@/contexts/AuthContext";
@@ -17,6 +17,9 @@ interface ClientContextType {
     selectedClientId: string | null;
     setSelectedClientId: (id: string | null) => void;
     activeClients: Client[];
+    teams: Team[];
+    selectedTeamId: string | null;
+    setSelectedTeamId: (id: string | null) => void;
     isLoading: boolean;
     // Caching
     performanceData: PerformanceData | null;
@@ -31,6 +34,8 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
     const { user, loading: authLoading } = useAuth();
     const [selectedClientId, setSelectedClientIdState] = useState<string | null>(null);
     const [activeClients, setActiveClients] = useState<Client[]>([]);
+    const [teams, setTeams] = useState<Team[]>([]);
+    const [selectedTeamId, setSelectedTeamIdState] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
     // Performance Data Cache
@@ -49,6 +54,15 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
         // Clear cache on client change
         setPerformanceData(null);
         setCacheKey(null);
+    };
+
+    const setSelectedTeamId = (id: string | null) => {
+        setSelectedTeamIdState(id);
+        if (id) {
+            localStorage.setItem("selectedTeamId", id);
+        } else {
+            localStorage.removeItem("selectedTeamId");
+        }
     };
 
     const refreshPerformance = async (date?: string) => {
@@ -85,17 +99,22 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
-    // Restore selected client from URL or localStorage
+    // Restore selected client and team from URL or localStorage
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const urlId = params.get("clientId");
         const storedId = localStorage.getItem("selectedClientId");
+        const storedTeamId = localStorage.getItem("selectedTeamId");
 
         if (urlId) {
             setSelectedClientIdState(urlId);
             localStorage.setItem("selectedClientId", urlId);
         } else if (storedId) {
             setSelectedClientIdState(storedId);
+        }
+
+        if (storedTeamId) {
+            setSelectedTeamIdState(storedTeamId);
         }
     }, []);
 
@@ -106,22 +125,29 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
             return;
         }
 
-        const fetchClients = async () => {
+        const fetchClientsAndTeams = async () => {
             setIsLoading(true);
             try {
-                const res = await fetch("/api/clients");
-                if (res.ok) {
-                    const data = await res.json();
+                const [clientsRes, teamsRes] = await Promise.all([
+                    fetch("/api/clients"),
+                    fetch("/api/teams"),
+                ]);
+                if (clientsRes.ok) {
+                    const data = await clientsRes.json();
                     setActiveClients(data.filter((c: Client) => c.active));
                 }
+                if (teamsRes.ok) {
+                    const teamsData = await teamsRes.json();
+                    setTeams(teamsData);
+                }
             } catch (err) {
-                console.error("Failed to fetch clients for switcher:", err);
+                console.error("Failed to fetch clients/teams:", err);
             } finally {
                 setIsLoading(false);
             }
         };
 
-        fetchClients();
+        fetchClientsAndTeams();
     }, [user, authLoading]);
 
     // Auto-refresh when client changes
@@ -136,6 +162,9 @@ export function ClientProvider({ children }: { children: React.ReactNode }) {
             selectedClientId,
             setSelectedClientId,
             activeClients,
+            teams,
+            selectedTeamId,
+            setSelectedTeamId,
             isLoading,
             performanceData,
             isPerformanceLoading,

@@ -19,9 +19,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
     const router = useRouter();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-    // Protection: Redirect if not admin and accessing /admin
+    // Protection: Redirect if not admin and accessing restricted admin routes
+    const adminOnlyRoutes = ["/admin/alerts", "/admin/cron", "/admin/system"];
     useEffect(() => {
-        if (!authLoading && pathname.startsWith("/admin") && !isAdmin) {
+        if (!authLoading && adminOnlyRoutes.some(r => pathname.startsWith(r)) && !isAdmin) {
             router.replace("/dashboard");
         }
     }, [pathname, isAdmin, authLoading, router]);

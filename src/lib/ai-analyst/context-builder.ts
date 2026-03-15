@@ -34,6 +34,7 @@ import type {
   LeadsFunnelStageSummary,
   LeadsCloserSummary,
   LeadsUtmSummary,
+  CustomerIntelligenceSummary,
 } from "./types";
 import { CHANNEL_TO_FIRESTORE } from "./types";
 
@@ -119,6 +120,21 @@ export async function buildAnalystContext(
         roas_google: client.targets?.roas_google,
         blended_roas_target: client.targets?.blended_roas_target,
       },
+      brandProfile: client.brandProfile ? {
+        brandType: client.brandProfile.brandType,
+        targetAudience: client.brandProfile.targetAudience,
+        problemSolution: client.brandProfile.problemSolution,
+        differentiators: client.brandProfile.differentiators,
+        productBenefits: client.brandProfile.productBenefits,
+        guaranteeAuthority: client.brandProfile.guaranteeAuthority,
+        marketingProblems: client.brandProfile.marketingProblems,
+        commonObjections: client.brandProfile.commonObjections,
+        desiredTransformation: client.brandProfile.desiredTransformation,
+        customerVoice: client.brandProfile.customerVoice,
+        starProducts: client.brandProfile.starProducts,
+        limitingBeliefs: client.brandProfile.limitingBeliefs,
+        competitors: client.brandProfile.competitors,
+      } : undefined,
     },
     channel: channelData,
     cross_channel_insights: crossChannelInsights,
@@ -395,6 +411,8 @@ async function loadTopCreatives(clientId: string): Promise<CreativeSummary[]> {
 function loadGoogleDetails(snapshots: ChannelDailySnapshot[]): ChannelDetails {
   // Extract campaign breakdown from rawData
   const campaignMap = new Map<string, CampaignSummary>();
+  // Aggregate search terms across snapshots
+  const searchTermMap = new Map<string, { term: string; impressions: number; clicks: number; conversions: number; spend: number }>();
 
   for (const snap of snapshots) {
     const campaigns = (snap.rawData?.campaigns as any[]) || [];
@@ -423,6 +441,28 @@ function loadGoogleDetails(snapshots: ChannelDailySnapshot[]): ChannelDetails {
         });
       }
     }
+
+    // Search terms from rawData
+    const terms = (snap.rawData?.searchTerms as any[]) || [];
+    for (const t of terms) {
+      const term = t.term || t.searchTerm || '';
+      if (!term) continue;
+      const existing = searchTermMap.get(term);
+      if (existing) {
+        existing.impressions += t.impressions || 0;
+        existing.clicks += t.clicks || 0;
+        existing.conversions += t.conversions || 0;
+        existing.spend += t.spend || t.cost || 0;
+      } else {
+        searchTermMap.set(term, {
+          term,
+          impressions: t.impressions || 0,
+          clicks: t.clicks || 0,
+          conversions: t.conversions || 0,
+          spend: t.spend || t.cost || 0,
+        });
+      }
+    }
   }
 
   const campaigns = Array.from(campaignMap.values())
@@ -435,7 +475,17 @@ function loadGoogleDetails(snapshots: ChannelDailySnapshot[]): ChannelDetails {
     .sort((a, b) => b.spend - a.spend)
     .slice(0, MAX_CAMPAIGNS);
 
-  return { campaigns };
+  // Top search terms by spend
+  const searchTerms = Array.from(searchTermMap.values())
+    .map(t => ({
+      ...t,
+      ctr: t.impressions > 0 ? (t.clicks / t.impressions) * 100 : 0,
+      cpa: t.conversions > 0 ? t.spend / t.conversions : undefined,
+    }))
+    .sort((a, b) => b.spend - a.spend)
+    .slice(0, 30);
+
+  return { campaigns, searchTerms: searchTerms.length > 0 ? searchTerms : undefined };
 }
 
 function loadGA4Details(snapshots: ChannelDailySnapshot[]): ChannelDetails {
@@ -443,6 +493,8 @@ function loadGA4Details(snapshots: ChannelDailySnapshot[]): ChannelDetails {
   const sourceMap = new Map<string, { sessions: number; conversions: number; revenue: number; wBounce: number }>();
   const pageMap = new Map<string, { sessions: number; conversions: number; wBounce: number }>();
   const deviceMap = new Map<string, { sessions: number; conversions: number; wBounce: number }>();
+  // Aggregate funnel metrics
+  let funnelViewItem = 0, funnelAddToCart = 0, funnelBeginCheckout = 0, funnelPurchase = 0;
 
   for (const snap of snapshots) {
     for (const src of ((snap.rawData?.trafficSources as any[]) || [])) {
@@ -479,6 +531,14 @@ function loadGA4Details(snapshots: ChannelDailySnapshot[]): ChannelDetails {
         deviceMap.set(key, { sessions: d.sessions || 0, conversions: d.conversions || 0, wBounce: (d.bounceRate || 0) * (d.sessions || 0) });
       }
     }
+    // Funnel metrics from rawData
+    const funnel = snap.rawData?.funnelMetrics as any;
+    if (funnel) {
+      funnelViewItem += funnel.viewItem || funnel.view_item || 0;
+      funnelAddToCart += funnel.addToCart || funnel.add_to_cart || 0;
+      funnelBeginCheckout += funnel.beginCheckout || funnel.begin_checkout || 0;
+      funnelPurchase += funnel.purchase || funnel.purchases || 0;
+    }
   }
 
   const trafficSources = Array.from(sourceMap.entries())
@@ -495,7 +555,19 @@ function loadGA4Details(snapshots: ChannelDailySnapshot[]): ChannelDetails {
     .map(([category, d]) => ({ category, sessions: d.sessions, conversions: d.conversions, bounceRate: d.sessions > 0 ? d.wBounce / d.sessions : 0 }))
     .sort((a, b) => b.sessions - a.sessions);
 
-  return { trafficSources, topLandingPages, deviceBreakdown };
+  // Build ecommerce funnel (only if we have any data)
+  const ecommerceFunnel = funnelViewItem > 0 ? {
+    viewItem: funnelViewItem,
+    addToCart: funnelAddToCart,
+    beginCheckout: funnelBeginCheckout,
+    purchase: funnelPurchase,
+    viewToCartRate: funnelViewItem > 0 ? (funnelAddToCart / funnelViewItem) * 100 : 0,
+    cartToCheckoutRate: funnelAddToCart > 0 ? (funnelBeginCheckout / funnelAddToCart) * 100 : 0,
+    checkoutToPurchaseRate: funnelBeginCheckout > 0 ? (funnelPurchase / funnelBeginCheckout) * 100 : 0,
+    overallConversionRate: funnelViewItem > 0 ? (funnelPurchase / funnelViewItem) * 100 : 0,
+  } : undefined;
+
+  return { trafficSources, topLandingPages, deviceBreakdown, ecommerceFunnel };
 }
 
 function loadEcommerceDetails(snapshots: ChannelDailySnapshot[]): ChannelDetails {
@@ -503,6 +575,8 @@ function loadEcommerceDetails(snapshots: ChannelDailySnapshot[]): ChannelDetails
   const productMap = new Map<string, ProductSummary>();
   // Attribution sources aggregated
   const attrMap = new Map<string, { orders: number; revenue: number }>();
+  // Customer intelligence — take latest snapshot's data (most complete)
+  let customerIntelligence: CustomerIntelligenceSummary | undefined;
 
   for (const snap of snapshots) {
     // Products
@@ -536,6 +610,19 @@ function loadEcommerceDetails(snapshots: ChannelDailySnapshot[]): ChannelDetails
         });
       }
     }
+
+    // Customer intelligence — use most recent snapshot that has it
+    const ci = snap.rawData?.customerIntelligence as any;
+    if (ci && !customerIntelligence) {
+      customerIntelligence = {
+        avgLtv: ci.avgLtv,
+        revenuePerCustomer: ci.revenuePerCustomer,
+        retentionRate: ci.retentionRate,
+        avgDaysBetweenOrders: ci.avgDaysBetweenOrders,
+        ltvCacRatio: ci.ltvCacRatio,
+        cohorts: ci.cohorts,
+      };
+    }
   }
 
   const topProducts = Array.from(productMap.values())
@@ -552,7 +639,10 @@ function loadEcommerceDetails(snapshots: ChannelDailySnapshot[]): ChannelDetails
     };
   }
 
-  return { topProducts, attribution };
+  // Detect platform from rawData
+  const platform = snapshots[0]?.rawData?.source as string | undefined;
+
+  return { topProducts, attribution, customerIntelligence, ecommercePlatform: platform };
 }
 
 function loadEmailDetails(snapshots: ChannelDailySnapshot[]): ChannelDetails {
@@ -609,6 +699,7 @@ function loadEmailDetails(snapshots: ChannelDailySnapshot[]): ChannelDetails {
       sent: c.sent,
       openRate: c.sent > 0 ? (c.opens / c.sent) * 100 : undefined,
       clickRate: c.sent > 0 ? (c.clicks / c.sent) * 100 : undefined,
+      ctor: c.opens > 0 ? (c.clicks / c.opens) * 100 : undefined,
       revenue: c.revenue > 0 ? c.revenue : undefined,
     }))
     .sort((a, b) => b.sent - a.sent)
@@ -620,12 +711,16 @@ function loadEmailDetails(snapshots: ChannelDailySnapshot[]): ChannelDetails {
       sent: a.sent,
       openRate: a.sent > 0 ? (a.opens / a.sent) * 100 : undefined,
       clickRate: a.sent > 0 ? (a.clicks / a.sent) * 100 : undefined,
+      ctor: a.opens > 0 ? (a.clicks / a.opens) * 100 : undefined,
       revenue: a.revenue > 0 ? a.revenue : undefined,
     }))
     .sort((a, b) => (b.revenue || 0) - (a.revenue || 0))
     .slice(0, MAX_AUTOMATIONS);
 
-  return { topCampaigns, automations };
+  // Detect email platform
+  const emailPlatform = snapshots[0]?.rawData?.source as string | undefined;
+
+  return { topCampaigns, automations, emailPlatform };
 }
 
 // ── Creative Briefs Detail Loader ────────────────────────
@@ -866,6 +961,7 @@ function addDerivedMetrics(summary: Record<string, number | undefined>): void {
   // Email derived
   if (sent > 0 && opens > 0) summary.openRate = (opens / sent) * 100;
   if (sent > 0 && emailClicks > 0) summary.clickRate = (emailClicks / sent) * 100;
+  if (opens > 0 && emailClicks > 0) summary.ctor = (emailClicks / opens) * 100;
   if (sent > 0 && summary.emailRevenue) summary.revenuePerRecipient = summary.emailRevenue / sent;
 
   // Leads derived

@@ -384,4 +384,67 @@ export class GoogleAdsService {
 
         return { daysWritten: dailyAggregates.length, totalSpend };
     }
+
+    /**
+     * Get account health information from Google Ads API.
+     * Used by AccountHealthService to monitor account status, billing, and policy violations.
+     */
+    static async getAccountInfo(customerId: string): Promise<{
+        status: string;
+        canManageCampaigns: boolean;
+        billingStatus?: string;
+        currencyCode?: string;
+        timeZone?: string;
+        budgetUtilizationPct?: number;
+        approvalStatus?: string;
+        policyViolations?: Array<{ type: string; description: string }>;
+    }> {
+        const customer = this.getCustomer(customerId);
+
+        try {
+            // Query customer resource for account info
+            const results = await customer.query(`
+                SELECT
+                    customer.id,
+                    customer.status,
+                    customer.currency_code,
+                    customer.time_zone,
+                    customer.manager,
+                    customer.test_account,
+                    customer_client.status,
+                    customer_client.currency_code,
+                    customer_client.time_zone
+                FROM customer
+                LIMIT 1
+            `);
+
+            if (!results || results.length === 0) {
+                throw new Error("No customer data returned from Google Ads API");
+            }
+
+            const customerData = results[0];
+            const status = customerData.customer?.status || "UNKNOWN";
+            const canManageCampaigns = status === "ENABLED";
+            const currencyCode = customerData.customer?.currency_code;
+            const timeZone = customerData.customer?.time_zone;
+
+            // Note: Billing status and policy violations require additional API calls
+            // For now, we'll return basic account info. Can be extended later.
+
+            return {
+                status,
+                canManageCampaigns,
+                currencyCode,
+                timeZone,
+                // These fields would require additional API calls:
+                billingStatus: status === "ENABLED" ? "SETUP_COMPLETE" : "PENDING",
+                budgetUtilizationPct: undefined, // Would need to calculate from account budget
+                approvalStatus: status,
+                policyViolations: [], // Would need separate policy violation query
+            };
+        } catch (err: any) {
+            const detail = err?.errors?.[0]?.message || err?.message || String(err);
+            throw new Error(`Google Ads account info query failed: ${detail}`);
+        }
+    }
 }

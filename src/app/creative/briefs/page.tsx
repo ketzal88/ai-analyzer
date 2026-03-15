@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import AppLayout from "@/components/layouts/AppLayout";
 import { useClient } from "@/contexts/ClientContext";
 import { useAnalystChat } from "@/hooks/useAnalystChat";
-import { SUGGESTED_QUESTIONS } from "@/lib/ai-analyst/types";
+import { DEFAULT_SUGGESTED_QUESTIONS } from "@/lib/ai-analyst/types";
 import type { AnalystDateRange } from "@/lib/ai-analyst/types";
 import BriefConfigPanel, { BriefConfig } from "@/components/ai-analyst/BriefConfigPanel";
 import MessageList from "@/components/ai-analyst/MessageList";
@@ -68,7 +68,7 @@ export default function CreativeBriefsPage() {
     setBriefConfig(null);
   }, [resetChat]);
 
-  const questions = SUGGESTED_QUESTIONS["creative_briefs"] || [];
+  const questions = DEFAULT_SUGGESTED_QUESTIONS["creative_briefs"] || [];
   const showConfig = !briefConfig && messages.length === 0;
   const showSuggestions = briefConfig && messages.length === 0 && !isStreaming;
 

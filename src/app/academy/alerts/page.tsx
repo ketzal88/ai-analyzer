@@ -109,6 +109,14 @@ export default function AlertsAcademyPage() {
                             { href: "#ai-analyst", num: "08", title: "AI Analyst", desc: "Chat inteligente por canal." },
                             { href: "#brain-sync", num: "09", title: "Sincronizacion", desc: "Cronograma de operaciones diarias." },
                             { href: "#technical-notes", num: "10", title: "Notas Tecnicas", desc: "Detalles de implementacion." },
+                            { href: "#google-ads", num: "11", title: "Google Ads", desc: "Search, PMax, Shopping, Video y Display." },
+                            { href: "#ecommerce", num: "12", title: "Ecommerce", desc: "LTV, cohortes, atribucion y plataformas." },
+                            { href: "#email-marketing", num: "13", title: "Email Marketing", desc: "Deliverability, benchmarks y diagnosticos." },
+                            { href: "#leads-crm", num: "14", title: "Leads & CRM", desc: "Funnel, calificacion y modos de operacion." },
+                            { href: "#daily-briefing", num: "15", title: "Daily Briefing", desc: "Digest multi-canal y Blended ROAS." },
+                            { href: "#video-diagnostics", num: "16", title: "Video Diagnostics", desc: "Hook, hold, completion y drop-off." },
+                            { href: "#creative-dna", num: "17", title: "Creative DNA", desc: "Atributos visuales y de copy (Gemini)." },
+                            { href: "#cross-channel", num: "18", title: "Cross-Channel", desc: "Attribution gap y analisis cruzado." },
                         ].map((item) => (
                             <a key={item.href} href={item.href} className="flex items-start gap-3 p-4 hover:bg-stellar/50 transition-colors group">
                                 <span
@@ -487,6 +495,20 @@ export default function AlertsAcademyPage() {
                                 kpi: "CPI",
                                 logic: "Adquisicion de usuarios para apps moviles. Monitorea velocidad de descarga y eventos in-app.",
                                 color: "bg-purple-500"
+                            },
+                            {
+                                type: "Leads (CRM)",
+                                metric: "Leads Calificados",
+                                kpi: "CPL + Tasa de Cierre",
+                                logic: "Integracion con GHL. Trackea desde el lead nuevo hasta el cierre. Mide CPL, tasa de calificacion y costo por cliente cerrado.",
+                                color: "bg-cyan-500"
+                            },
+                            {
+                                type: "Scheduling",
+                                metric: "Citas Agendadas",
+                                kpi: "Costo por Agenda",
+                                logic: "Para negocios con modelo de citas (consultorios, servicios). Mide cuantos leads concretan una cita y cuantos asisten.",
+                                color: "bg-pink-500"
                             }
                         ].map((obj) => (
                             <div key={obj.type} className="p-8 bg-stellar/50 border border-argent/40 relative overflow-hidden group">
@@ -630,7 +652,7 @@ export default function AlertsAcademyPage() {
                             {
                                 step: "01",
                                 title: "Abris el panel",
-                                desc: "Desde cualquier canal (Meta, Google, Ecommerce, Email) tocas 'Analizar con IA'. Se abre un chat a la derecha con preguntas sugeridas segun el canal."
+                                desc: "Desde cualquier canal (Meta, Google, Ecommerce, Email, Leads) o desde el Alert Center (modo cross-channel) tocas 'Analizar con IA'. Se abre un chat a la derecha con preguntas sugeridas segun el canal."
                             },
                             {
                                 step: "02",
@@ -742,6 +764,16 @@ export default function AlertsAcademyPage() {
                                     channel: "Email Marketing",
                                     expertise: "Deliverability (bounce < 2%, spam < 0.1%), engagement benchmarks LATAM, diagnostic tree (Open Rate + Click Rate), campaigns vs flows revenue split, Klaviyo vs Perfit specifics.",
                                     color: "border-purple-500/30"
+                                },
+                                {
+                                    channel: "Leads & CRM",
+                                    expertise: "Funnel stages (nuevo a cerrado), tasa de calificacion, costo por lead cerrado, comparativa full_funnel vs whatsapp_simple, diagnostico de cuellos de botella por stage.",
+                                    color: "border-cyan-500/30"
+                                },
+                                {
+                                    channel: "Cross-Channel",
+                                    expertise: "Blended ROAS (ecom revenue / total ads spend), attribution gap (Meta reported vs ecommerce real), distribucion de spend por canal, eficiencia relativa y recomendaciones de mix.",
+                                    color: "border-pink-500/30"
                                 }
                             ].map((ch) => (
                                 <div key={ch.channel} className={`p-6 border ${ch.color} bg-stellar/50`}>
@@ -776,9 +808,19 @@ export default function AlertsAcademyPage() {
                                 desc: "El sistema descarga la data completa del dia anterior de todos los canales configurados: Meta Ads, Google Ads, Ecommerce (Shopify/TiendaNube/WooCommerce) y Email (Klaviyo/Perfit). Se escribe 1 snapshot por canal por cliente en channel_snapshots."
                             },
                             {
+                                time: "09:30 AM",
+                                title: "Backfill Queue",
+                                desc: "Procesa tareas de backfill pendientes (clientes nuevos o canales recien habilitados). Maximo 3 tareas por ejecucion, con reintentos automaticos."
+                            },
+                            {
                                 time: "10:00 AM",
                                 title: "Data Sync + Rolling Metrics",
-                                desc: "Con la data de canales ya sincronizada, se calculan las metricas rolling (7d y 14d) de Meta, se generan los client_snapshots con alertas y clasificaciones, y se envia el Daily Digest a Slack."
+                                desc: "Se calculan las metricas rolling (7d y 14d) de Meta, se generan los client_snapshots con alertas y clasificaciones."
+                            },
+                            {
+                                time: "10:15 AM",
+                                title: "Daily Briefing Multi-Canal",
+                                desc: "Digest unificado en Slack con todas las secciones: Paid Media (Meta+Google), Email, Ecommerce y Resumen con Blended ROAS. Se envia incluso si las alertas estan desactivadas."
                             },
                             {
                                 time: "10:30 AM",
@@ -855,6 +897,521 @@ export default function AlertsAcademyPage() {
                             <div className="p-4 border border-argent/30">
                                 <p className="text-tiny font-bold text-text-primary uppercase mb-1 tracking-widest">Creative DNA</p>
                                 <p>Gemini Vision analiza atributos visuales y de copy de cada creativo: estilo, hook, color, texto, producto, tono emocional.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* ── GOOGLE ADS INTELLIGENCE ── */}
+                <div id="google-ads" className="mt-32 space-y-8 scroll-mt-24">
+                    <div>
+                        <h2 className="text-subheader text-text-primary mb-2">Google Ads Intelligence</h2>
+                        <p className="text-body text-text-secondary max-w-2xl">
+                            El sistema sincroniza diariamente campanas de Google Ads via GAQL (Google Ads Query Language) a traves de una cuenta MCC. Soporta Search, Shopping, Display, Video y Performance Max.
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {[
+                            {
+                                type: "Search",
+                                desc: "Campanas de texto en resultados de busqueda. Metricas clave: Quality Score por componente, Impression Share, Search Terms (top 50 por spend).",
+                                color: "border-blue-500/30 bg-blue-500/5"
+                            },
+                            {
+                                type: "Shopping",
+                                desc: "Campanas de productos con feed. Performance segmentada por producto. ROAS es la metrica primaria.",
+                                color: "border-emerald-500/30 bg-emerald-500/5"
+                            },
+                            {
+                                type: "Performance Max",
+                                desc: "Campanas automatizadas cross-network. El sistema no puede desglosar por placement pero trackea conversiones y ROAS agregado.",
+                                color: "border-amber-500/30 bg-amber-500/5"
+                            },
+                            {
+                                type: "Display",
+                                desc: "Banners en la red de display. CTR mas bajo es normal (0.3-0.5%). Se evalua por conversion assisted y view-through.",
+                                color: "border-purple-500/30 bg-purple-500/5"
+                            },
+                            {
+                                type: "Video (YouTube)",
+                                desc: "Campanas de video con funnel completo: P25, P50, P75, P100. El sistema calcula promedio ponderado por views por campana.",
+                                color: "border-red-500/30 bg-red-500/5"
+                            },
+                            {
+                                type: "Search Terms",
+                                desc: "El sistema extrae los top 50 search terms por gasto via search_term_view. Muestra impressions, clicks, CTR, conversions, spend y CPA por termino.",
+                                color: "border-cyan-500/30 bg-cyan-500/5"
+                            }
+                        ].map((t) => (
+                            <div key={t.type} className={`p-6 border ${t.color} transition-all duration-300`}>
+                                <h3 className="text-small font-bold text-text-primary mb-2">{t.type}</h3>
+                                <p className="text-tiny text-text-secondary leading-relaxed">{t.desc}</p>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="p-6 bg-special/30 border border-argent/50">
+                        <h4 className="text-tiny font-bold text-text-primary uppercase mb-4 tracking-widest flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 bg-classic"></span>
+                            Video Completion Funnel
+                        </h4>
+                        <p className="text-small text-text-secondary leading-relaxed mb-4">
+                            Para campanas de Video, el sistema muestra un funnel escalonado de drop-off: cuantos viewers llegaron al 25%, 50%, 75% y 100% del video. Esto permite diagnosticar si el problema esta en el hook (primeros segundos), el cuerpo o el cierre.
+                        </p>
+                        <div className="grid grid-cols-4 gap-3">
+                            {[
+                                { label: "P25", pct: "85%", color: "bg-emerald-500/20 border-emerald-500/30" },
+                                { label: "P50", pct: "60%", color: "bg-yellow-500/20 border-yellow-500/30" },
+                                { label: "P75", pct: "40%", color: "bg-amber-500/20 border-amber-500/30" },
+                                { label: "P100", pct: "25%", color: "bg-red-500/20 border-red-500/30" }
+                            ].map(q => (
+                                <div key={q.label} className={`p-3 border ${q.color} text-center`}>
+                                    <div className="text-small font-black text-text-primary">{q.pct}</div>
+                                    <div className="text-[10px] text-text-muted font-bold uppercase">{q.label}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {/* ── ECOMMERCE INTELLIGENCE ── */}
+                <div id="ecommerce" className="mt-32 space-y-8 scroll-mt-24">
+                    <div>
+                        <h2 className="text-subheader text-text-primary mb-2">Ecommerce Intelligence</h2>
+                        <p className="text-body text-text-secondary max-w-2xl">
+                            El sistema sincroniza ordenes de 3 plataformas (Shopify, Tienda Nube, WooCommerce) y construye un perfil de inteligencia de clientes con LTV, cohortes y atribucion.
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {[
+                            {
+                                title: "Gross vs Net Revenue",
+                                desc: "Gross = total antes de descuentos. Net = lo que realmente cobras despues de descuentos, impuestos y shipping. El sistema trackea ambos para que no te enganes con vanity metrics.",
+                                color: "border-emerald-500/30 bg-emerald-500/5"
+                            },
+                            {
+                                title: "Customer LTV:CAC Ratio",
+                                desc: "LTV (Lifetime Value) de tus clientes dividido por el CAC (Costo de Adquisicion = gasto Meta+Google / clientes nuevos). Ratio saludable: >3x. Menor a 1x = estas perdiendo plata por cada cliente.",
+                                color: "border-blue-500/30 bg-blue-500/5"
+                            },
+                            {
+                                title: "Cohortes de Clientes",
+                                desc: "3 tiers automaticos: Primera Compra (nuevos), Retorno (2+ compras) y VIP (5+ compras o >$X). Cada cohorte muestra LTV promedio, ordenes promedio y revenue total.",
+                                color: "border-amber-500/30 bg-amber-500/5"
+                            },
+                            {
+                                title: "Retencion y Frecuencia",
+                                desc: "Tasa de retencion (% que vuelve a comprar), dias promedio entre compras y repeat purchase rate. Benchmarks LATAM: retencion 20-30%, dias entre compras 45-90.",
+                                color: "border-purple-500/30 bg-purple-500/5"
+                            }
+                        ].map((t) => (
+                            <div key={t.title} className={`p-6 border ${t.color} transition-all duration-300`}>
+                                <h3 className="text-small font-bold text-text-primary mb-2">{t.title}</h3>
+                                <p className="text-tiny text-text-secondary leading-relaxed">{t.desc}</p>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="p-6 bg-special/30 border border-argent/50">
+                        <h4 className="text-tiny font-bold text-text-primary uppercase mb-4 tracking-widest flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 bg-classic"></span>
+                            Diferencias por Plataforma
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {[
+                                { platform: "Shopify", details: "OAuth Partners App. Cursor pagination (Link header). LTV calculado desde customer.total_spent. UTM desde landing_site. 250 ordenes/pagina." },
+                                { platform: "Tienda Nube", details: "OAuth Marketplace. Fetch separado para paid vs refunded. Storefronts: tienda, meli, api, form, pos. Authentication header (no Authorization)." },
+                                { platform: "WooCommerce", details: "API Key (no OAuth). HTTPS requerido. UTM desde meta_data (_wc_order_attribution). Refunds son negativos. 100 ordenes/pagina max." }
+                            ].map(p => (
+                                <div key={p.platform} className="p-4 bg-stellar/50 border border-argent/20">
+                                    <h5 className="text-tiny font-black text-text-primary uppercase tracking-widest mb-2">{p.platform}</h5>
+                                    <p className="text-tiny text-text-secondary leading-relaxed">{p.details}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="p-4 border border-argent/50 bg-special/30">
+                        <p className="text-tiny text-text-muted">
+                            <strong className="text-text-secondary">Atribucion UTM:</strong> El sistema parsea UTM source/medium de cada orden para clasificar en: meta_ads, google_ads, email, direct, google_organic, etc. Para Shopify se extrae de landing_site, para WooCommerce de meta_data.
+                        </p>
+                    </div>
+                </div>
+
+                {/* ── EMAIL MARKETING ── */}
+                <div id="email-marketing" className="mt-32 space-y-8 scroll-mt-24">
+                    <div>
+                        <h2 className="text-subheader text-text-primary mb-2">Email Marketing</h2>
+                        <p className="text-body text-text-secondary max-w-2xl">
+                            Integracion con Klaviyo y Perfit. El sistema sincroniza campanas enviadas, flujos de automatizacion y metricas de engagement. Escribe a channel_snapshots con channel EMAIL.
+                        </p>
+                    </div>
+
+                    <div className="p-6 bg-special/30 border border-argent/50">
+                        <h4 className="text-tiny font-bold text-text-primary uppercase mb-4 tracking-widest flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 bg-classic"></span>
+                            Benchmarks de Deliverability
+                        </h4>
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                            {[
+                                { label: "Bounce Rate", good: "< 2%", bad: "> 5%", desc: "Rebotes duros y blandos" },
+                                { label: "Spam Rate", good: "< 0.1%", bad: "> 0.3%", desc: "Reportes de spam" },
+                                { label: "Open Rate", good: "20-30%", bad: "< 15%", desc: "Tasa de apertura" },
+                                { label: "Click Rate", good: "2-5%", bad: "< 1%", desc: "Tasa de clic" }
+                            ].map(m => (
+                                <div key={m.label} className="p-4 bg-stellar/50 border border-argent/20 text-center">
+                                    <div className="text-[10px] text-text-muted font-bold uppercase mb-2">{m.label}</div>
+                                    <div className="text-small font-black text-synced mb-1">{m.good}</div>
+                                    <div className="text-[10px] text-red-400">Alerta: {m.bad}</div>
+                                    <div className="text-[9px] text-text-muted mt-1">{m.desc}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="p-6 bg-classic/5 border border-classic/20">
+                        <h4 className="text-tiny font-bold text-text-primary uppercase mb-4 tracking-widest">Arbol de Diagnostico</h4>
+                        <div className="space-y-3 text-small text-text-secondary">
+                            <p><strong className="text-text-primary">Open Rate bajo + Click Rate bajo</strong> → Problema de deliverability o subject line. Verificar bounce rate y revisar dominio de envio.</p>
+                            <p><strong className="text-text-primary">Open Rate bueno + Click Rate bajo</strong> → El email se abre pero el contenido no engancha. Revisar CTA, layout y propuesta de valor.</p>
+                            <p><strong className="text-text-primary">Click Rate bueno + Revenue bajo</strong> → El trafico llega pero no convierte. Problema de landing page o de oferta, no de email.</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {[
+                            {
+                                title: "Campaigns vs Flows",
+                                desc: "Campaigns = envios puntuales (promos, newsletters). Flows = automatizaciones always-on (welcome, abandoned cart, post-purchase). En ecommerce maduro, los flows generan 30-50% del revenue de email.",
+                                color: "border-purple-500/30 bg-purple-500/5"
+                            },
+                            {
+                                title: "Klaviyo vs Perfit",
+                                desc: "Klaviyo: Reporting API con rate limits estrictos (2/min, 225/day), 31s entre calls, metricas de Placed Order via /metrics. Perfit: metricas inline (no hay API de reporting separada), filtrado client-side por fecha, thumbnails y tags por campana.",
+                                color: "border-amber-500/30 bg-amber-500/5"
+                            }
+                        ].map(t => (
+                            <div key={t.title} className={`p-6 border ${t.color} transition-all duration-300`}>
+                                <h3 className="text-small font-bold text-text-primary mb-2">{t.title}</h3>
+                                <p className="text-tiny text-text-secondary leading-relaxed">{t.desc}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* ── LEADS & CRM ── */}
+                <div id="leads-crm" className="mt-32 space-y-8 scroll-mt-24">
+                    <div>
+                        <h2 className="text-subheader text-text-primary mb-2">Leads &amp; CRM</h2>
+                        <p className="text-body text-text-secondary max-w-2xl">
+                            Canal completo de gestion de leads con intake via webhook de GoHighLevel (GHL), calificacion manual y analytics de funnel. Dos modos de operacion segun el modelo de negocio.
+                        </p>
+                    </div>
+
+                    <div className="p-6 bg-special/30 border border-argent/50">
+                        <h4 className="text-tiny font-bold text-text-primary uppercase mb-4 tracking-widest flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 bg-classic"></span>
+                            Funnel de Conversion
+                        </h4>
+                        <div className="flex flex-wrap gap-3 items-center">
+                            {[
+                                { stage: "Nuevo", color: "bg-blue-500/20 border-blue-500/30 text-blue-400" },
+                                { stage: "Contactado", color: "bg-cyan-500/20 border-cyan-500/30 text-cyan-400" },
+                                { stage: "Calificado", color: "bg-amber-500/20 border-amber-500/30 text-amber-400" },
+                                { stage: "Agendado", color: "bg-purple-500/20 border-purple-500/30 text-purple-400" },
+                                { stage: "Asistio", color: "bg-emerald-500/20 border-emerald-500/30 text-emerald-400" },
+                                { stage: "Cerrado", color: "bg-synced/20 border-synced/30 text-synced" }
+                            ].map((s, i) => (
+                                <React.Fragment key={s.stage}>
+                                    <span className={`px-4 py-2 border ${s.color} text-[11px] font-black uppercase`}>{s.stage}</span>
+                                    {i < 5 && <span className="text-text-muted text-lg">→</span>}
+                                </React.Fragment>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {[
+                            {
+                                title: "Modo Full Funnel",
+                                desc: "Incluye stages de Agendado y Asistio. Para negocios con citas (consultorios, servicios profesionales). Permite medir tasa de show-up y no-show ademas de la calificacion.",
+                                badge: "full_funnel",
+                                color: "border-emerald-500/30 bg-emerald-500/5"
+                            },
+                            {
+                                title: "Modo WhatsApp Simple",
+                                desc: "Sin agenda ni asistencia. El funnel va directo de Calificado a Cerrado. Para negocios que venden por chat sin necesidad de cita presencial.",
+                                badge: "whatsapp_simple",
+                                color: "border-green-500/30 bg-green-500/5"
+                            }
+                        ].map(t => (
+                            <div key={t.title} className={`p-6 border ${t.color} transition-all duration-300`}>
+                                <div className="flex items-center gap-3 mb-3">
+                                    <h3 className="text-small font-bold text-text-primary">{t.title}</h3>
+                                    <span className="text-[9px] font-black text-text-muted border border-argent px-1.5 py-0.5 uppercase tracking-widest font-mono">{t.badge}</span>
+                                </div>
+                                <p className="text-tiny text-text-secondary leading-relaxed">{t.desc}</p>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {[
+                            { title: "Webhook GHL", desc: "Los leads entran al sistema via POST /api/webhooks/ghl. Se parsean automaticamente y se asignan al cliente correspondiente." },
+                            { title: "Calificacion Manual", desc: "Desde /leads/qualify, el closer revisa y avanza cada lead por el funnel. La interfaz muestra datos del lead + historial de cambios." },
+                            { title: "Calculadora Inversa", desc: "Define cuantos cierres necesitas y el sistema calcula cuantos leads necesitas en cada stage, usando tus tasas de conversion historicas." }
+                        ].map(t => (
+                            <div key={t.title} className="p-4 bg-stellar/50 border border-argent/20">
+                                <h5 className="text-tiny font-black text-text-primary uppercase tracking-widest mb-2">{t.title}</h5>
+                                <p className="text-tiny text-text-secondary leading-relaxed">{t.desc}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* ── DAILY BRIEFING MULTI-CANAL ── */}
+                <div id="daily-briefing" className="mt-32 space-y-8 scroll-mt-24">
+                    <div>
+                        <h2 className="text-subheader text-text-primary mb-2">Daily Briefing Multi-Canal</h2>
+                        <p className="text-body text-text-secondary max-w-2xl">
+                            Resumen diario enviado a Slack a las 10:15 AM (UTC) con data consolidada de todos los canales. Reemplaza al antiguo digest solo de Meta.
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {[
+                            {
+                                section: "Paid Media",
+                                desc: "Meta Ads + Google Ads combinados. Muestra spend total, impressions, clicks, conversions, CPA y ROAS individual por plataforma.",
+                                color: "border-blue-500/30 bg-blue-500/5"
+                            },
+                            {
+                                section: "Email",
+                                desc: "Campanas enviadas, open rate, click rate, revenue generado. Distingue entre campanas one-time y flujos automatizados.",
+                                color: "border-purple-500/30 bg-purple-500/5"
+                            },
+                            {
+                                section: "Ecommerce",
+                                desc: "Revenue real (source of truth), ordenes, AOV, nuevos clientes vs recurrentes. Esta es la fuente de verdad para revenue, no Meta.",
+                                color: "border-emerald-500/30 bg-emerald-500/5"
+                            },
+                            {
+                                section: "Resumen (Blended ROAS)",
+                                desc: "Formula: ecommerce_revenue / (meta_spend + google_spend). Evita doble conteo de conversiones. El ecommerce es la referencia porque tiene los datos de venta real.",
+                                color: "border-amber-500/30 bg-amber-500/5"
+                            }
+                        ].map(t => (
+                            <div key={t.section} className={`p-6 border ${t.color} transition-all duration-300`}>
+                                <h3 className="text-small font-bold text-text-primary mb-2">{t.section}</h3>
+                                <p className="text-tiny text-text-secondary leading-relaxed">{t.desc}</p>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="p-4 border border-argent/50 bg-special/30">
+                        <p className="text-tiny text-text-muted">
+                            <strong className="text-text-secondary">Bypass:</strong> El Daily Briefing se envia aunque las alertas esten desactivadas (bypassMasterSwitch: true). Es un informe operativo, no una alerta. Para testear un solo cliente: GET /api/cron/daily-briefing?clientId=XXX.
+                        </p>
+                    </div>
+                </div>
+
+                {/* ── VIDEO DIAGNOSTICS AVANZADO ── */}
+                <div id="video-diagnostics" className="mt-32 space-y-8 scroll-mt-24">
+                    <div>
+                        <h2 className="text-subheader text-text-primary mb-2">Video Diagnostics Avanzado</h2>
+                        <p className="text-body text-text-secondary max-w-2xl">
+                            El sistema calcula metricas avanzadas de video para detectar exactamente donde se pierde la audiencia. Estas metricas alimentan 4 alertas especificas de video.
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {[
+                            {
+                                metric: "Hook Rate",
+                                formula: "3-second views / impressions",
+                                benchmark: "> 25% bueno, < 20% malo",
+                                desc: "Mide si los primeros 3 segundos capturan atencion. Si es bajo, el problema es el hook visual o la miniatura.",
+                                alert: "HOOK_KILL: < 20% + spend > $50",
+                                color: "border-red-500/30 bg-red-500/5"
+                            },
+                            {
+                                metric: "Hold Rate",
+                                formula: "ThruPlays (p75) / 3-sec views",
+                                benchmark: "> 30% bueno, < 20% malo",
+                                desc: "Mide si el cuerpo del video mantiene al viewer. Si el hook es bueno pero el hold es bajo, el contenido no entrega lo que el hook promete.",
+                                alert: "BODY_WEAK: hook > 25% pero hold < 30%",
+                                color: "border-amber-500/30 bg-amber-500/5"
+                            },
+                            {
+                                metric: "Completion Rate",
+                                formula: "p100 completions / video plays",
+                                benchmark: "> 15% bueno",
+                                desc: "Porcentaje que ve el video completo. Importante para videos con CTA al final. Si es muy bajo, mover el CTA al inicio.",
+                                alert: "CTA_WEAK: hook + hold OK pero CTR < 0.8%",
+                                color: "border-blue-500/30 bg-blue-500/5"
+                            },
+                            {
+                                metric: "Drop-off Point",
+                                formula: "Stage con mayor perdida",
+                                benchmark: "p25 normal, p50+ preocupante",
+                                desc: "Detecta automaticamente en que punto se pierde la mayor parte de la audiencia: p25, p50, p75 o p100.",
+                                alert: "VIDEO_DROPOFF: drop-off en p50/p75/p100",
+                                color: "border-purple-500/30 bg-purple-500/5"
+                            },
+                            {
+                                metric: "Frequency Velocity",
+                                formula: "(freq_3d - freq_prev_3d) / 3",
+                                benchmark: "> 0.3/dia = riesgo fatiga",
+                                desc: "Velocidad a la que sube la frecuencia. Si crece rapido, el video se esta mostrando repetidamente al mismo publico.",
+                                alert: "Alimenta ROTATE_CONCEPT",
+                                color: "border-cyan-500/30 bg-cyan-500/5"
+                            }
+                        ].map(t => (
+                            <div key={t.metric} className={`p-6 border ${t.color} transition-all duration-300`}>
+                                <h3 className="text-small font-bold text-text-primary mb-1">{t.metric}</h3>
+                                <p className="text-[10px] text-classic font-mono mb-2">{t.formula}</p>
+                                <p className="text-tiny text-text-secondary leading-relaxed mb-3">{t.desc}</p>
+                                <div className="space-y-1">
+                                    <p className="text-[10px] text-synced font-bold">{t.benchmark}</p>
+                                    <p className="text-[10px] text-text-muted">{t.alert}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* ── CREATIVE DNA ── */}
+                <div id="creative-dna" className="mt-32 space-y-8 scroll-mt-24">
+                    <div>
+                        <h2 className="text-subheader text-text-primary mb-2">Creative DNA (Gemini Vision)</h2>
+                        <p className="text-body text-text-secondary max-w-2xl">
+                            Gemini 2.0 Flash analiza cada creativo y extrae atributos visuales y de copy. Estos atributos enriquecen las clasificaciones y permiten detectar patrones ganadores.
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="space-y-4">
+                            <h4 className="text-tiny font-black text-text-primary uppercase tracking-widest flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 bg-classic"></span>
+                                Atributos Visuales (Gemini)
+                            </h4>
+                            <div className="grid grid-cols-2 gap-3">
+                                {[
+                                    { attr: "Visual Style", values: "ugc, polished, meme, testimonial, product-shot, lifestyle" },
+                                    { attr: "Hook Type", values: "question, shock, problem, social-proof, offer, curiosity" },
+                                    { attr: "Setting", values: "studio, outdoor, home, office, abstract" },
+                                    { attr: "Emotional Tone", values: "urgency, trust, excitement, fear, calm" },
+                                    { attr: "Dominant Color", values: "Hex del color dominante" },
+                                    { attr: "Presencia", values: "hasText, hasFace, hasProduct" }
+                                ].map(a => (
+                                    <div key={a.attr} className="p-3 bg-stellar/50 border border-argent/20">
+                                        <p className="text-[10px] font-black text-text-primary uppercase tracking-widest mb-1">{a.attr}</p>
+                                        <p className="text-[10px] text-text-muted">{a.values}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <h4 className="text-tiny font-black text-text-primary uppercase tracking-widest flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 bg-classic"></span>
+                                Atributos de Copy (NLP Deterministico)
+                            </h4>
+                            <div className="grid grid-cols-2 gap-3">
+                                {[
+                                    { attr: "Message Type", values: "testimonial, educational, promotional, entertaining" },
+                                    { attr: "CTA Type", values: "learn-more, buy-now, sign-up, download, contact" },
+                                    { attr: "Has Numbers", values: "true/false (precios, descuentos)" },
+                                    { attr: "Has Emoji", values: "true/false" },
+                                    { attr: "Word Count", values: "Largo del copy principal" }
+                                ].map(a => (
+                                    <div key={a.attr} className="p-3 bg-stellar/50 border border-argent/20">
+                                        <p className="text-[10px] font-black text-text-primary uppercase tracking-widest mb-1">{a.attr}</p>
+                                        <p className="text-[10px] text-text-muted">{a.values}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="p-6 bg-special/30 border border-argent/50">
+                            <h4 className="text-tiny font-bold text-text-primary uppercase mb-3 tracking-widest">Entity Grouping</h4>
+                            <p className="text-tiny text-text-secondary leading-relaxed">
+                                Cada creativo se agrupa automaticamente usando la formula <code className="text-classic bg-classic/10 px-1">visualStyle_hookType_settingType</code>. Esto permite detectar cuantos conceptos unicos tenes activos sin depender de naming manual.
+                            </p>
+                        </div>
+                        <div className="p-6 bg-special/30 border border-argent/50">
+                            <h4 className="text-tiny font-bold text-text-primary uppercase mb-3 tracking-widest">Diversity Score</h4>
+                            <p className="text-tiny text-text-secondary leading-relaxed">
+                                <code className="text-classic bg-classic/10 px-1">uniqueEntityGroups / totalActiveAds</code>. Un score bajo indica que muchos ads comparten el mismo enfoque visual. Si baja de 0.3, se dispara CREATIVE_MIX_IMBALANCE.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="p-4 border border-argent/50 bg-special/30">
+                        <p className="text-tiny text-text-muted">
+                            <strong className="text-text-secondary">DNA en Clasificaciones:</strong> Cuando un creativo es clasificado (ej: DOMINANT_SCALABLE), el DNA agrega un insight como &quot;ugc + curiosity hook + face + offer copy + video&quot;. Esto permite ver que combinacion de traits funciona mejor.
+                        </p>
+                    </div>
+                </div>
+
+                {/* ── CROSS-CHANNEL INTELLIGENCE ── */}
+                <div id="cross-channel" className="mt-32 space-y-8 scroll-mt-24">
+                    <div>
+                        <h2 className="text-subheader text-text-primary mb-2">Cross-Channel Intelligence</h2>
+                        <p className="text-body text-text-secondary max-w-2xl">
+                            El AI Analyst tiene un modo cross-channel que recibe data de todos los canales combinados. Permite diagnosticar problemas que no se ven mirando un solo canal.
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {[
+                            {
+                                title: "Attribution Gap",
+                                desc: "Meta puede reportar 50 ventas pero el ecommerce real registro 35. Esa diferencia es el attribution gap. El sistema lo calcula automaticamente comparando Meta reported vs ecommerce actual.",
+                                color: "border-red-500/30 bg-red-500/5"
+                            },
+                            {
+                                title: "Distribucion de Spend",
+                                desc: "Cuanto se gasta en Meta vs Google vs Email. Permite evaluar si el mix es saludable o si estas sobre-invirtiendo en un canal con rendimiento decreciente.",
+                                color: "border-blue-500/30 bg-blue-500/5"
+                            },
+                            {
+                                title: "Blended ROAS",
+                                desc: "ecommerce_revenue / (meta_spend + google_spend). Es la metrica mas honesta porque usa revenue real del ecommerce y no depende de la atribucion de ninguna plataforma publicitaria.",
+                                color: "border-emerald-500/30 bg-emerald-500/5"
+                            }
+                        ].map(t => (
+                            <div key={t.title} className={`p-6 border ${t.color} transition-all duration-300`}>
+                                <h3 className="text-small font-bold text-text-primary mb-2">{t.title}</h3>
+                                <p className="text-tiny text-text-secondary leading-relaxed">{t.desc}</p>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="p-6 bg-classic/5 border border-classic/20">
+                        <h4 className="text-tiny font-bold text-text-primary uppercase mb-4 tracking-widest">Cuando usar Cross-Channel vs Single Channel</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-small text-text-secondary">
+                            <div>
+                                <p className="text-tiny font-bold text-text-primary mb-2">Usar Cross-Channel cuando:</p>
+                                <ul className="space-y-1 text-tiny">
+                                    <li>• El ROAS de Meta es alto pero el ecommerce no crece</li>
+                                    <li>• Queres evaluar el mix de canales y redistribuir presupuesto</li>
+                                    <li>• Necesitas el Blended ROAS para reportar a direccion</li>
+                                    <li>• Sospechas de discrepancias en atribucion</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <p className="text-tiny font-bold text-text-primary mb-2">Usar Single Channel cuando:</p>
+                                <ul className="space-y-1 text-tiny">
+                                    <li>• Queres optimizar campanas especificas de un canal</li>
+                                    <li>• Necesitas diagnosticar fatiga creativa (Meta)</li>
+                                    <li>• Queres analizar search terms (Google)</li>
+                                    <li>• Necesitas metricas de deliverability (Email)</li>
+                                </ul>
                             </div>
                         </div>
                     </div>
